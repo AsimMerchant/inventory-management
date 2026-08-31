@@ -102,7 +102,7 @@ type LoadResult struct {
 2. Otherwise read `store-register.json.bak` under the same rules. On success,
    `Source = Backup` and `Warning` is set (wording in Open, below).
 3. Otherwise, if **neither file exists**, return an empty register seeded per
-   `06-shift-and-people.spec.md` with `SchemaVersion: 1` and empty slices.
+   `05-shift-and-people.spec.md` with `SchemaVersion: 1` and empty slices.
    `Source = Fresh`.
 4. Otherwise — a file exists but neither it nor the backup can be parsed — return an
    error. The program must not start, must not overwrite anything, and must print the

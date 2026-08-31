@@ -494,8 +494,10 @@ the first invariant would pass a single-case test and let the other two through.
    `grep -nE 'range r\.(Inwards|Issues|Returns)' internal/register/arith.go` returns
    nothing. Every one goes through `LiveInwards`, `LiveIssues` or `LiveReturns`, which
    are the only three places the `Deleted` check is written.
-7. `grep -rniE 'givenBack|StillOwed|owed' internal/register/ internal/web/` returns
-   nothing outside test files — the debt columns are gone, not hidden.
+7. `grep -rniE 'givenBack|StillOwed|\bowed\b' internal/register/ internal/web/`
+   returns nothing outside test files — the debt columns are gone, not hidden. The
+   word boundary matters: a bare `owed` also matches `Allowed`, a `QuantityError`
+   field this same spec mandates and two of its required tests assert.
 
 ## Verification commands
 

@@ -194,7 +194,7 @@ typed or seen by the person at the desk.
   never used for display; the number is shown exactly as it was typed.
 - **A person holding stock is identified by name and mobile together** — see
   `03-stock-arithmetic.spec.md`. Neither alone.
-- **Product names never come from free text.** Only `07-products.spec.md` may append
+- **Product names never come from free text.** Only `06-products.spec.md` may append
   to `Products`.
 - **`CreatedBy` is who was on duty when the row was added**, stored as a name, set by
   `POST /product/new` (`06-products.spec.md`) and `POST /shift/person`
@@ -403,7 +403,7 @@ survives marshal/unmarshal `reflect.DeepEqual`, and the encoded bytes contain
 1. `go build ./...` succeeds with zero third-party imports: `go list -deps ./... | grep -v '^storeregister' | grep '\.' ` prints nothing.
 2. `go test ./internal/register/` passes, and all fourteen tests above exist by the names given.
 3. `grep -c 'float' internal/register/model.go` returns 0.
-4. `go doc storeregister/internal/register Register` lists exactly the seven fields above.
+4. `go doc storeregister/internal/register Register` lists exactly the eight fields above.
 5. Marshalling `WalkthroughT0()` and grepping for `"quantity": 890` returns nothing — 890 is never stored, only computed.
 
 ## Verification commands

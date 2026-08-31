@@ -1,0 +1,221 @@
+{
+  "schemaVersion": 1,
+  "onDutyStaffId": "STF-0001",
+  "shiftStartedAt": "2026-09-03T08:00:00+05:30",
+  "products": [
+    {
+      "id": "PRD-0001",
+      "name": "Chairs",
+      "createdAt": "2026-09-01T08:00:00+05:30",
+      "createdBy": "Suresh Kumar"
+    },
+    {
+      "id": "PRD-0002",
+      "name": "Round tables",
+      "createdAt": "2026-09-01T08:00:00+05:30",
+      "createdBy": "Suresh Kumar"
+    },
+    {
+      "id": "PRD-0003",
+      "name": "Water drums (20L)",
+      "createdAt": "2026-09-01T08:00:00+05:30",
+      "createdBy": "Suresh Kumar"
+    },
+    {
+      "id": "PRD-0004",
+      "name": "Extension boards",
+      "createdAt": "2026-09-01T08:00:00+05:30",
+      "createdBy": "Suresh Kumar"
+    },
+    {
+      "id": "PRD-0005",
+      "name": "Charcoal sacks",
+      "createdAt": "2026-09-01T08:00:00+05:30",
+      "createdBy": "Suresh Kumar"
+    }
+  ],
+  "staff": [
+    {
+      "id": "STF-0001",
+      "name": "Suresh Kumar",
+      "mobile": "98450 22117",
+      "createdAt": "2026-09-01T07:30:00+05:30",
+      "createdBy": ""
+    },
+    {
+      "id": "STF-0002",
+      "name": "Anita Rao",
+      "mobile": "99001 34562",
+      "createdAt": "2026-09-01T07:35:00+05:30",
+      "createdBy": "Suresh Kumar"
+    },
+    {
+      "id": "STF-0003",
+      "name": "Imran Sheikh",
+      "mobile": "90080 77213",
+      "createdAt": "2026-09-01T07:40:00+05:30",
+      "createdBy": "Suresh Kumar"
+    }
+  ],
+  "inwards": [
+    {
+      "id": "INW-0001",
+      "productId": "PRD-0001",
+      "quantity": 390,
+      "receivedOn": "2026-09-01",
+      "basis": "rent",
+      "supplier": "Sharma Tent House",
+      "challanNo": "STH/4390",
+      "receivedBy": "Suresh Kumar",
+      "recordedAt": "2026-09-01T09:15:00+05:30",
+      "recordedBy": "Suresh Kumar"
+    },
+    {
+      "id": "INW-0002",
+      "productId": "PRD-0001",
+      "quantity": 310,
+      "receivedOn": "2026-09-02",
+      "basis": "purchase",
+      "supplier": "",
+      "challanNo": "",
+      "receivedBy": "Suresh Kumar",
+      "recordedAt": "2026-09-02T08:30:00+05:30",
+      "recordedBy": "Suresh Kumar"
+    },
+    {
+      "id": "INW-0003",
+      "productId": "PRD-0002",
+      "quantity": 60,
+      "receivedOn": "2026-09-01",
+      "basis": "rent",
+      "supplier": "Sharma Tent House",
+      "challanNo": "STH/4390",
+      "receivedBy": "Suresh Kumar",
+      "recordedAt": "2026-09-01T09:20:00+05:30",
+      "recordedBy": "Suresh Kumar"
+    },
+    {
+      "id": "INW-0004",
+      "productId": "PRD-0003",
+      "quantity": 40,
+      "receivedOn": "2026-09-01",
+      "basis": "purchase",
+      "supplier": "",
+      "challanNo": "",
+      "receivedBy": "Anita Rao",
+      "recordedAt": "2026-09-01T11:00:00+05:30",
+      "recordedBy": "Anita Rao"
+    },
+    {
+      "id": "INW-0005",
+      "productId": "PRD-0004",
+      "quantity": 25,
+      "receivedOn": "2026-09-02",
+      "basis": "rent",
+      "supplier": "Gupta Electricals",
+      "challanNo": "GE/118",
+      "receivedBy": "Imran Sheikh",
+      "recordedAt": "2026-09-02T09:00:00+05:30",
+      "recordedBy": "Imran Sheikh"
+    },
+    {
+      "id": "INW-0006",
+      "productId": "PRD-0005",
+      "quantity": 12,
+      "receivedOn": "2026-09-02",
+      "basis": "purchase",
+      "supplier": "",
+      "challanNo": "",
+      "receivedBy": "Anita Rao",
+      "recordedAt": "2026-09-02T10:00:00+05:30",
+      "recordedBy": "Anita Rao"
+    }
+  ],
+  "issues": [
+    {
+      "id": "ISS-0001",
+      "productId": "PRD-0001",
+      "quantity": 150,
+      "takerName": "Lakshmi Iyer",
+      "takerDepartment": "Kitchen",
+      "takerMobile": "99860 11204",
+      "personInchargeName": "Suresh Kumar",
+      "personInchargeMobile": "98450 22117",
+      "issuedAt": "2026-09-01T08:30:00+05:30",
+      "recordedAt": "2026-09-01T08:30:00+05:30"
+    },
+    {
+      "id": "ISS-0002",
+      "productId": "PRD-0001",
+      "quantity": 120,
+      "takerName": "Joseph D'Cruz",
+      "takerDepartment": "Stage \u0026 Sound",
+      "takerMobile": "90350 66471",
+      "personInchargeName": "Imran Sheikh",
+      "personInchargeMobile": "90080 77213",
+      "issuedAt": "2026-09-01T09:15:00+05:30",
+      "recordedAt": "2026-09-01T09:15:00+05:30"
+    },
+    {
+      "id": "ISS-0003",
+      "productId": "PRD-0001",
+      "quantity": 40,
+      "takerName": "Ravi Menon",
+      "takerDepartment": "Catering",
+      "takerMobile": "98861 40023",
+      "personInchargeName": "Suresh Kumar",
+      "personInchargeMobile": "98450 22117",
+      "issuedAt": "2026-09-03T09:40:00+05:30",
+      "recordedAt": "2026-09-03T09:40:00+05:30"
+    },
+    {
+      "id": "ISS-0004",
+      "productId": "PRD-0002",
+      "quantity": 10,
+      "takerName": "Lakshmi Iyer",
+      "takerDepartment": "Kitchen",
+      "takerMobile": "99860 11204",
+      "personInchargeName": "Anita Rao",
+      "personInchargeMobile": "99001 34562",
+      "issuedAt": "2026-09-02T09:50:00+05:30",
+      "recordedAt": "2026-09-02T09:50:00+05:30"
+    },
+    {
+      "id": "ISS-0005",
+      "productId": "PRD-0002",
+      "quantity": 2,
+      "takerName": "Ravi Menon",
+      "takerDepartment": "Catering",
+      "takerMobile": "98861 40023",
+      "personInchargeName": "Suresh Kumar",
+      "personInchargeMobile": "98450 22117",
+      "issuedAt": "2026-09-03T09:40:00+05:30",
+      "recordedAt": "2026-09-03T09:40:00+05:30"
+    },
+    {
+      "id": "ISS-0006",
+      "productId": "PRD-0003",
+      "quantity": 5,
+      "takerName": "Farida Begum",
+      "takerDepartment": "Registration",
+      "takerMobile": "98455 30918",
+      "personInchargeName": "Anita Rao",
+      "personInchargeMobile": "99001 34562",
+      "issuedAt": "2026-09-02T12:15:00+05:30",
+      "recordedAt": "2026-09-02T12:15:00+05:30"
+    },
+    {
+      "id": "ISS-0007",
+      "productId": "PRD-0004",
+      "quantity": 25,
+      "takerName": "Joseph D'Cruz",
+      "takerDepartment": "Stage \u0026 Sound",
+      "takerMobile": "90350 66471",
+      "personInchargeName": "Imran Sheikh",
+      "personInchargeMobile": "90080 77213",
+      "issuedAt": "2026-09-01T09:45:00+05:30",
+      "recordedAt": "2026-09-01T09:45:00+05:30"
+    }
+  ],
+  "returns": []
+}
