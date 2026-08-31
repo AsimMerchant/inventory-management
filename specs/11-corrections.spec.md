@@ -75,7 +75,7 @@ The screen shows the product as plain text with the sentence
 `Wrong product? Delete this entry and enter it again.`
 
 Below the form, every correction already made, oldest first, in `sm` type:
-`Changed how many from 500 to 50 by Suresh Kumar, 10:45 am`.
+`Changed it from 500 chairs to 50 chairs by Suresh Kumar, 10:45 am`.
 
 Buttons: primary `Make it <n> <productWord>` when the quantity has been changed —
 `Make it 50 chairs` — and `Save this fix` when it has not, so the button always names
@@ -116,13 +116,13 @@ to Sharma Tent House & Sons` and `Changed rent or purchase from On rent to Purch
 | time | `Changed the time from 2:18 pm to 2:40 pm` |
 | remark | `Changed the remark from ... to ...` |
 
-Each is followed by ` by <name>, <clock>` — `Changed how many from 500 to 50 by Suresh
+Each is followed by ` by <name>, <clock>` — `Changed it from 500 chairs to 50 chairs by Suresh
 Kumar, 10:45 am`. The two halves are two functions in
 `internal/web/corrections.go`, because `12-activity-log.spec.md` renders the phrase
 without the suffix its own `Who` and `Time` columns already carry:
 
 ```go
-func changePhrase(c register.Change) string  // "Changed how many from 500 to 50"
+func changePhrase(c register.Change) string  // "Changed it from 500 chairs to 50 chairs"
 func changeLine(c register.Change) string    // changePhrase(c) + " by " + c.By + ", " + clock(c.At)
 ```
 
@@ -241,7 +241,7 @@ both byte-for-byte what they were before the request.
 carries exactly one `Change`
 `{Field: "quantity", Label: "How many", From: "500", To: "50", By: "Suresh Kumar",
 At: 10:45}`. `/inwards` then shows
-`Changed how many from 500 to 50 by Suresh Kumar, 10:45 am`.
+`Changed it from 500 chairs to 50 chairs by Suresh Kumar, 10:45 am`.
 
 `TestFixInwardSupplierAndChallan` — changing `supplier` to `Sharma Tent House & Sons`
 and `challanNo` to `STH/4472` appends two `Change` entries, in field order, and
@@ -303,7 +303,7 @@ and no remark: accepted, allocations `[{ISS-0003, 40}, {ISS-0008, 10}]`,
 `ShortQuantity == 0`, `ShortDisposition == ""`, `Remark == ""`, `OnHand == 930`, and
 Ravi holds no chairs. Three `Change` entries are appended — the quantity, the cleared
 remark and the cleared disposition — and `/out` renders
-`Removed the remark by Suresh Kumar, 10:45 am`, never a sentence ending in `to `.
+`Removed the note that said: 5 chairs broke during setup. by Suresh Kumar, 10:45 am`, never a sentence ending in `to `.
 
 `TestFixReturnRefusedAboveWhatWasTaken` — over T3, `quantity=51` is refused with
 `Ravi Menon took 50 chairs. You cannot put back more than 50.`

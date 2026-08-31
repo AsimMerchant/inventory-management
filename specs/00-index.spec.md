@@ -159,7 +159,7 @@ product, how many they sent, rent or purchase. The `won't come back` figure surv
 **2. Correcting a mistake — built.** *"Yes, should be able to edit the entry from
 software."* Specified in `11-corrections.spec.md`: any inward, issue or return can be
 corrected or deleted; every correction keeps an audit line in plain words
-(`Changed how many from 500 to 50 by Suresh Kumar, 10:45 am`); every guard is the single
+(`Changed it from 500 chairs to 50 chairs by Suresh Kumar, 10:45 am`); every guard is the single
 `register.Validate` checker rather than a hand-derived formula per field; reachable from
 the `Fix this` links on the lists, never from an admin screen. Supersedes old items 2
 and 6.

@@ -105,7 +105,7 @@ columns `Date received`, `Product`, `How many`, `Type`, `Came from`, `Challan no
 blank. When there are no inwards: `Nothing has come in yet.`
 
 Corrections show under the row they belong to, in `sm` type, oldest first:
-`Changed how many from 500 to 50 by Suresh Kumar, 10:45 am`.
+`Changed it from 500 chairs to 50 chairs by Suresh Kumar, 10:45 am`.
 
 **Deleted inwards stay in this list**, greyed and struck through, with their reason
 beneath: `Deleted by Suresh Kumar, 10:47 am — Entered twice by mistake.` They count
@@ -212,7 +212,7 @@ INW-0007 row and an `id` for every other inward including the deleted ones;
 `TestInwardsTabShowsCorrectionsAndTombstones` — over a T1 copy where INW-0007 was
 changed from 500 to 50 by Suresh Kumar at 10:45 and INW-0002 was deleted by him at
 10:47 with the reason `Entered twice by mistake.`, the page contains
-`Changed how many from 500 to 50 by Suresh Kumar, 10:45 am` and
+`Changed it from 500 chairs to 50 chairs by Suresh Kumar, 10:45 am` and
 `Deleted by Suresh Kumar, 10:47 am — Entered twice by mistake.`, the deleted row has no
 `/entry/INW-0002/edit` link, and the Chairs stock row on `/stock` reads
 `Came in 440`.

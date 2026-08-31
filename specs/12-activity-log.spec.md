@@ -373,7 +373,7 @@ defines the rendered line as a phrase followed by ` by <name>, <clock>`. The log
 only**, through the same function:
 
 ```go
-func changePhrase(c register.Change) string  // "Changed how many from 500 to 50"
+func changePhrase(c register.Change) string  // "Changed it from 500 chairs to 50 chairs"
 func changeLine(c register.Change) string    // changePhrase(c) + " by " + c.By + ", " + clock(c.At)
 ```
 
@@ -630,9 +630,9 @@ timestamp.
 `TestLogCorrectionPhraseMatchesTheInwardsTab` — over the T1 copy where `INW-0007` was
 changed from 500 to 50 by Suresh Kumar at 10:45: `/log` shows a `10:45 am` row whose
 `Who` is `Suresh Kumar`, whose main line is `50 chairs from Sharma Tent House` and whose
-`sm` line is exactly `Changed how many from 500 to 50` — with no `by Suresh Kumar` and
+`sm` line is exactly `Changed it from 500 chairs to 50 chairs` — with no `by Suresh Kumar` and
 no `10:45 am` inside it, because the columns already carry them. `/inwards` for the same
-`Change` renders `Changed how many from 500 to 50 by Suresh Kumar, 10:45 am`, and the
+`Change` renders `Changed it from 500 chairs to 50 chairs by Suresh Kumar, 10:45 am`, and the
 log's line is a prefix of it.
 
 `TestLogDeletionRow` — over the T1 copy where `INW-0002` was deleted by Suresh Kumar at
@@ -805,7 +805,7 @@ moved and why, and so a reviewer can check that they did.
 
    ```
    10:45 am  Suresh Kumar  50 chairs from Sharma Tent House
-                           Changed how many from 500 to 50
+                           Changed it from 500 chairs to 50 chairs
    10:42 am  Suresh Kumar  500 chairs came in from Sharma Tent House
    ```
 
