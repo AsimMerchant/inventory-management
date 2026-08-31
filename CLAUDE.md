@@ -10,7 +10,7 @@ non-technical staff on **one Windows 11 laptop**, no installer, no dependencies.
 | Approved design, with screen mockups | https://claude.ai/code/artifact/bfcf8682-3b0b-4933-b2e9-a7348d482457 |
 | Build specs | `specs/*.spec.md` — `00-index.spec.md` first |
 | Agent definitions | `.claude/agents/` — four, all in use |
-| Original photos of the handwritten book | `IMG-20260831-WA0000.jpg`, `IMG-20260831-WA0001.jpg` |
+| Original photos of the handwritten book | Kept outside the repo — they show real names and mobile numbers from past gatherings, and this repository is public. Ask Asim. |
 
 The artifact is the source of truth for screens and wording. Read it before changing
 anything user-visible.

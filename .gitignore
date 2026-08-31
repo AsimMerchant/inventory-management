@@ -17,3 +17,10 @@ store-register.json.corrupt-*
 # Build output. The exe is shipped as a GitHub Release, never committed:
 # git keeps every version forever and each one is ~10 MB.
 /dist/
+
+# Never commit these. The repository is public.
+# The ledger photos show real names and mobile numbers of real people, and
+# the handoff packet is a verbatim dump of a working session.
+IMG-*.jpg
+IMG-*.jpeg
+.agent-handoff/
