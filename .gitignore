@@ -18,9 +18,7 @@ store-register.json.corrupt-*
 # git keeps every version forever and each one is ~10 MB.
 /dist/
 
-# Never commit these. The repository is public.
-# The ledger photos show real names and mobile numbers of real people, and
-# the handoff packet is a verbatim dump of a working session.
-IMG-*.jpg
-IMG-*.jpeg
+# The handoff packet is a verbatim dump of a working session -- it carries an
+# email address, home directory paths and raw transcripts. The repository is
+# public; that file is not for it.
 .agent-handoff/
