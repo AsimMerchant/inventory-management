@@ -13,3 +13,7 @@ store-register.json.corrupt-*
 /vendor/
 *.test
 *.out
+
+# Build output. The exe is shipped as a GitHub Release, never committed:
+# git keeps every version forever and each one is ~10 MB.
+/dist/
