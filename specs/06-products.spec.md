@@ -81,7 +81,10 @@ Fields: `name`, and `return` (the path to come back to, `/inward/new` or `/stock
    `<Existing name> is already on the list. Pick it.`
    and nothing is written. This is the case-and-spacing guard: `chairs`, `Chairs `
    and `CHAIRS` can never become second products.
-3. Otherwise append `Product{ID: NextID("PRD"), Name: n, CreatedAt: now}`, save, and
+3. Otherwise append
+   `Product{ID: NextID("PRD"), Name: n, CreatedAt: now, CreatedBy: <on-duty name>}`
+   — the shift guard means somebody is always on duty here, so `CreatedBy` is never
+   empty on a product — save, and
    303 back to `return` with `?picked=<new id>` so the form it came from opens with the
    product already chosen and a `banner ok` reading `<Name> added to the product list.`
 
@@ -126,7 +129,8 @@ has exactly 8 entries.
 
 `TestCreateProductAppends` — `POST /product/new` with `name=Gas cylinders` over
 `WalkthroughT0()` returns 303, and the saved register has a sixth product `PRD-0006`
-named `Gas cylinders`.
+named `Gas cylinders`, with `CreatedAt` equal to the injected clock and
+`CreatedBy == "Suresh Kumar"`, the person on duty.
 
 `TestCreateProductRefusesCaseDuplicate` — table driven over `chairs`, `CHAIRS`,
 `Chairs`, `  chairs  `, `Chairs\t`. Every one returns 200 containing

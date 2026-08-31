@@ -22,8 +22,12 @@ chairs and 2 round tables from earlier today.
 ### `GET /api/people?q=<text>` — the one person-finder
 
 Owned here because the issue screen is the first to need it; the returning screen
-(`09`) and the "Out with people" view (`10`) call the same endpoint and render the same
-partial. `application/json`, the output of `register.FindPeople(reg, q)` — for each
+(`09`), the "Out with people" view (`10`) and the "Who did what" view (`12`) call the
+same endpoint and render the same partial. `12-activity-log.spec.md` adds one optional
+parameter, `scope=log`, which swaps `FindPeople` for `FindPeopleInLog` — a different
+population, the same JSON shape, the same partial, the same JavaScript. Without it the
+behaviour below is unchanged. `application/json`, the output of
+`register.FindPeople(reg, q)` — for each
 person their name, mobile, department, total out, and their outstanding lines with
 `issueId`, `productId`, `productName`, `taken`, `back`, `out`, `issuedAt`, `issuedBy`.
 An empty `q` returns everyone holding something.
@@ -42,7 +46,9 @@ Ravi Kumar · 97740 11298 · Security
 
 The mobile is in the middle because it is the thing that tells two people with one name
 apart. Tapping a row fills the name, mobile and department fields. The
-`+ New person named <what was typed>` row is always last and always present.
+`+ New person named <what was typed>` row is always last and always present — **except
+in `scope=log`** (`12-activity-log.spec.md`), where the picker filters a read-only list
+and nobody is created from it.
 
 **It offers; it never insists.** No confirmation step, no "did you mean", no warning
 banner, no blocked submit. Somebody who ignores the list and keeps typing is never
@@ -190,7 +196,8 @@ rendered suggestion row is `Ravi Menon · 98861 40023 · Catering`.
 `+ New person named Ravi Kumar`.
 
 `TestPersonPickerAlwaysOffersANewPerson` — the `+ New person named <typed>` row is
-present when there are no matches, one match, and many matches.
+present when there are no matches, one match, and many matches; and is absent from
+`GET /api/people?scope=log&q=<the same text>` in each of those three cases.
 
 `TestPersonPickerNeverBlocks` — post an issue of 10 chairs to `Ravii Varma` /
 `98861 40023` (a misspelling of an existing taker, same mobile as Ravi Menon). It saves

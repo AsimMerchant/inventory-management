@@ -84,6 +84,7 @@ this program is stopped by closing its window.
 | GET | `/out` | 10 |
 | GET | `/inwards` | 10 |
 | GET | `/suppliers` | 10 |
+| GET | `/log` | 12 |
 | GET, POST | `/inward/new` | 07 |
 | GET, POST | `/issue/new` | 08 |
 | GET, POST | `/return/new` | 09 |
@@ -103,9 +104,11 @@ Every page renders through `layout.html`:
 
 - A chrome bar: a dot, the page title, and on the right
   `Suresh Kumar · on duty` — the on-duty person's name, from the register.
-- Four tabs, in this order and with exactly these labels:
-  **Stock**, **Out with people**, **Stuff came in**, **Suppliers**, linking to
-  `/stock`, `/out`, `/inwards`, `/suppliers`. The current one carries the `on` class.
+- Five tabs, in this order and with exactly these labels:
+  **Stock**, **Out with people**, **Stuff came in**, **Suppliers**, **Who did what**,
+  linking to `/stock`, `/out`, `/inwards`, `/suppliers`, `/log`. The current one carries
+  the `on` class. The fifth is specified in `12-activity-log.spec.md`, which also
+  records the measurement showing five labels fit the `52rem` shell without wrapping.
 - Flow pages (`/inward/new`, `/issue/new`, `/return/new`) show the chrome bar with
   their own title — `Stuff came in`, `Someone is taking`, `Someone is returning` —
   and no tabs.
@@ -127,11 +130,15 @@ attached to it.
 
 ### Date and time rendering
 
-Two helpers registered as template functions:
+Three helpers registered as template functions:
 
 - `longstamp` — `Monday, 2 January · 3:04 pm` → `Thursday, 3 September · 10:42 am`,
   used for the screen subtitle on every flow page.
 - `clock` — `3:04 pm` → `9:40 am`, used in outstanding lines.
+- `shortdate` — `2 January` → `3 September`, used by the `date received` correction
+  line in `11-corrections.spec.md` and the `Received on ...` line in
+  `12-activity-log.spec.md`. It lives here so the two specs share one rendering rather
+  than each formatting a date of its own.
 
 ## Files to create or modify
 
@@ -174,17 +181,19 @@ over `register.WalkthroughT0()` returns 404 and a body containing
 `GET /shift` returns 200.
 
 `TestShellShowsOnDutyName` — with `WalkthroughT0()` (Suresh Kumar on duty),
-`GET /stock` body contains `Suresh Kumar · on duty` and the four tab labels
-`Stock`, `Out with people`, `Stuff came in`, `Suppliers`.
+`GET /stock` body contains `Suresh Kumar · on duty` and the five tab labels
+`Stock`, `Out with people`, `Stuff came in`, `Suppliers`, `Who did what`.
 
 `TestRecoveryWarningShowsOnEveryPage` — a server constructed with a non-empty
 `LoadResult.Warning` renders that warning inside a `banner bad` element on `/stock`,
-`/out`, `/inwards` and `/suppliers`.
+`/out`, `/inwards`, `/suppliers` and `/log`.
 
 `TestLongstampMatchesWalkthrough` — `longstamp(2026-09-03T10:42:00+05:30)` equals
 `Thursday, 3 September · 10:42 am`; `longstamp` of 14:18 equals
 `Thursday, 3 September · 2:18 pm`; `longstamp` of 18:05 equals
 `Thursday, 3 September · 6:05 pm`. `clock(2026-09-03T09:40:00+05:30)` equals `9:40 am`.
+`shortdate(2026-09-03T10:42:00+05:30)` equals `3 September` and
+`shortdate(2026-09-04T00:05:00+05:30)` equals `4 September`.
 
 `TestAllTemplatesParse` — `template.ParseFS` over the whole embedded template
 directory succeeds, and every template named in the routing table exists.

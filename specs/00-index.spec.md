@@ -25,6 +25,7 @@ Each spec depends only on the ones above it.
 | 09 | `09-return.spec.md` | Someone is returning, partial returns, the required remark | one day |
 | 10 | `10-views.spec.md` | Stock, Out with people, Stuff came in, Suppliers | half a day |
 | 11 | `11-corrections.spec.md` | Fixing and deleting a wrong entry, with guards and an audit line | one day |
+| 12 | `12-activity-log.spec.md` | Who did what — one chronological list derived from the records, with day, person, kind and product filters | one day |
 
 Spec 01 must be built first: it contains the fixture that every other spec's test cases
 are written against. A test that says "at T1, 890 chairs are on hand" is meaningless
@@ -39,8 +40,15 @@ storeregister/
   internal/register/           model, ids, fixture, arithmetic, validate — no I/O, no clock
   internal/store/              atomic save and load             — no HTTP
   internal/web/                handlers, templates, static      — no arithmetic
-  specs/                       these files
+  specs/                       00-index, 01-data-model, 02-persistence, 03-stock-arithmetic,
+                               04-server-and-shell, 05-shift-and-people, 06-products,
+                               07-inward, 08-issue, 09-return, 10-views, 11-corrections,
+                               12-activity-log
 ```
+
+**The chrome bar has five tabs**, in this order: `Stock`, `Out with people`,
+`Stuff came in`, `Suppliers`, `Who did what` — the fifth from
+`12-activity-log.spec.md`, and `04-server-and-shell.spec.md` amended to match.
 
 Standard library only. No cgo. One data file, `store-register.json`, beside the
 executable.
@@ -189,6 +197,8 @@ old items 3 and 16.
 | 19 | Supplier rows sort alphabetically. |
 | 20 | The "Out with people" and "Stuff came in" tab layouts as recommended in spec 10. |
 | 21 | Port 8765, hunting upward to 8785. |
+| — | **`Product` carries `CreatedBy`; `Staff` carries `CreatedAt` and `CreatedBy`.** Set from the on-duty name, empty for the first staff member on a fresh register, with no placeholder substituted. Added so `12-activity-log.spec.md` can say who added a product or a person. Specified in spec 01, populated by specs 05 and 06. |
+| — | **No shift history and no shift lines in the log.** No `Shifts` slice. Every entry already names the person who made it, and a log showing one instance of a category it cannot show historically would teach the reader it is complete when it is not. Revisit only if somebody asks who was at the desk while nothing was entered. |
 | — | **A shift is live only on its own calendar day.** Reopening the laptop the next morning returns to `/shift` rather than stamping the new person's entries with yesterday's name. Specified in spec 05. Supersedes spec 01 Open item 4. |
 
 Return-screen behaviour, settled together because they are one question:
@@ -221,6 +231,7 @@ code is being written.
 | 11 | Whether a deleted entry can be un-deleted. Recommend not. |
 | 11 | Whether `Received by`, `Person incharge` and `Taken back by` should be correctable. Recommend not. |
 | 11 | The five refusal sentences and the delete prompt need a plain-language pass. |
+| 12 | The main lines, `sm` lines and empty-state sentences need the same plain-language pass. |
 
 ### Wording — reviewed and applied
 

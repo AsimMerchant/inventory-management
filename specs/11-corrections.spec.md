@@ -53,6 +53,14 @@ Chrome title `Fix an entry`. Heading, by record type: `Fix what came in`,
 an ID: `500 chairs from Sharma Tent House, received 3 September` /
 `10 chairs to Ravi Menon, 2:18 pm` / `45 chairs back from Ravi Menon, 6:05 pm`.
 
+The naming part of those three — everything before the comma — is the shared helper
+`entryName(reg *register.Register, recordID string) string`, living in
+`internal/web/corrections.go`: `500 chairs from Sharma Tent House` (or
+`500 chairs that came in` when no supplier was recorded), `10 chairs to Ravi Menon`,
+`45 chairs back from Ravi Menon`. This screen appends the time clause;
+`12-activity-log.spec.md` uses the bare name, because its own `Time` column supplies
+the clause.
+
 Editable and not editable, by record:
 
 | Record | Editable | Fixed |
@@ -109,7 +117,23 @@ to Sharma Tent House & Sons` and `Changed rent or purchase from On rent to Purch
 | remark | `Changed the remark from ... to ...` |
 
 Each is followed by ` by <name>, <clock>` — `Changed how many from 500 to 50 by Suresh
-Kumar, 10:45 am`. Where one side is empty:
+Kumar, 10:45 am`. The two halves are two functions in
+`internal/web/corrections.go`, because `12-activity-log.spec.md` renders the phrase
+without the suffix its own `Who` and `Time` columns already carry:
+
+```go
+func changePhrase(c register.Change) string  // "Changed how many from 500 to 50"
+func changeLine(c register.Change) string    // changePhrase(c) + " by " + c.By + ", " + clock(c.At)
+```
+
+`changeLine` is what this screen, `/inwards` and `/out` render. There is one table of
+line shapes and one implementation of it; nothing may restate them.
+
+The `date received` row renders both sides through `shortdate`
+(`04-server-and-shell.spec.md`), so `3 September` here and `3 September` in the log come
+from one function.
+
+Where one side is empty:
 
 | Case | Line |
 |---|---|

@@ -54,12 +54,15 @@ type Product struct {
     ID        string    `json:"id"`        // "PRD-0001"
     Name      string    `json:"name"`      // "Water drums (20L)"
     CreatedAt time.Time `json:"createdAt"`
+    CreatedBy string    `json:"createdBy"` // on-duty staff name when it was added
 }
 
 type Staff struct {          // a person who can be on duty
-    ID     string `json:"id"`      // "STF-0001"
-    Name   string `json:"name"`    // "Suresh Kumar"
-    Mobile string `json:"mobile"`  // "98450 22117"
+    ID        string    `json:"id"`        // "STF-0001"
+    Name      string    `json:"name"`      // "Suresh Kumar"
+    Mobile    string    `json:"mobile"`    // "98450 22117"
+    CreatedAt time.Time `json:"createdAt"`
+    CreatedBy string    `json:"createdBy"` // on-duty staff name when they were added
 }
 
 // Every record that can be corrected carries these two. See 11-corrections.spec.md.
@@ -193,6 +196,13 @@ typed or seen by the person at the desk.
   `03-stock-arithmetic.spec.md`. Neither alone.
 - **Product names never come from free text.** Only `07-products.spec.md` may append
   to `Products`.
+- **`CreatedBy` is who was on duty when the row was added**, stored as a name, set by
+  `POST /product/new` (`06-products.spec.md`) and `POST /shift/person`
+  (`05-shift-and-people.spec.md`). It is **empty for the first staff member on a fresh
+  register**, because nobody is on duty until somebody has been added and tapped. No
+  placeholder name is substituted. These two fields exist so
+  `12-activity-log.spec.md` can say who added a product or a person; nothing else reads
+  them, and no arithmetic touches them.
 
 ### File format
 
@@ -232,15 +242,22 @@ subtitles in the walkthrough.
 
 Products: `PRD-0001` Chairs, `PRD-0002` Round tables, `PRD-0003` Water drums (20L),
 `PRD-0004` Extension boards, `PRD-0005` Charcoal sacks — all `CreatedAt`
-`2026-09-01T08:00:00+05:30`.
+`2026-09-01T08:00:00+05:30` and all `CreatedBy` `Suresh Kumar`.
 
-Staff: `STF-0001` Suresh Kumar `98450 22117`, `STF-0002` Anita Rao `99001 34562`,
-`STF-0003` Imran Sheikh `90080 77213`. `OnDutyStaffID` is `STF-0001` and
-`ShiftStartedAt` is `2026-09-03T08:00:00+05:30`.
+Staff:
 
-Inwards:
+| ID | Name | Mobile | CreatedAt | CreatedBy |
+|---|---|---|---|---|
+| STF-0001 | Suresh Kumar | 98450 22117 | 2026-09-01T07:30:00+05:30 | *(empty — the first person, nobody on duty yet)* |
+| STF-0002 | Anita Rao | 99001 34562 | 2026-09-01T07:35:00+05:30 | Suresh Kumar |
+| STF-0003 | Imran Sheikh | 90080 77213 | 2026-09-01T07:40:00+05:30 | Suresh Kumar |
 
-| ID | Product | Qty | Basis | Supplier | Challan | ReceivedOn | RecordedAt | ReceivedBy |
+`OnDutyStaffID` is `STF-0001` and `ShiftStartedAt` is `2026-09-03T08:00:00+05:30`.
+
+Inwards. `RecordedBy` equals `ReceivedBy` on every fixture inward — the person who took
+the delivery is the person who typed it in:
+
+| ID | Product | Qty | Basis | Supplier | Challan | ReceivedOn | RecordedAt | ReceivedBy / RecordedBy |
 |---|---|---|---|---|---|---|---|---|
 | INW-0001 | Chairs | 390 | rent | Sharma Tent House | STH/4390 | 2026-09-01 | 09-01T09:15 | Suresh Kumar |
 | INW-0002 | Chairs | 310 | purchase | *(blank)* | *(blank)* | 2026-09-02 | 09-02T08:30 | Suresh Kumar |
@@ -350,6 +367,13 @@ quantities and the sum of issue quantities equal the "Came in" and "Out" columns
 the table above: Chairs 700/310, Round tables 60/12, Water drums (20L) 40/5,
 Extension boards 25/25, Charcoal sacks 12/0.
 
+`TestFixtureCarriesProvenance` — in `WalkthroughT0()`: every `Product` has a non-zero
+`CreatedAt` and `CreatedBy == "Suresh Kumar"`; every `Inward` has a non-empty
+`RecordedBy` equal to its `ReceivedBy`; `STF-0002` and `STF-0003` have
+`CreatedBy == "Suresh Kumar"` while `STF-0001` has `CreatedBy == ""`, and all three have
+distinct `CreatedAt` values in ascending ID order. The empty `CreatedBy` on the first
+staff member is deliberate and must not be filled in.
+
 `TestFixtureReferentialIntegrity` — every `Inward.ProductID`, `Issue.ProductID` and
 `Return.ProductID` in T0, T1, T2 and T3 matches a `Product.ID`; every
 `Allocation.IssueID` matches an `Issue.ID`; `OnDutyStaffID` matches a `Staff.ID`; no
@@ -377,7 +401,7 @@ survives marshal/unmarshal `reflect.DeepEqual`, and the encoded bytes contain
 ## Acceptance criteria
 
 1. `go build ./...` succeeds with zero third-party imports: `go list -deps ./... | grep -v '^storeregister' | grep '\.' ` prints nothing.
-2. `go test ./internal/register/` passes, and all thirteen tests above exist by the names given.
+2. `go test ./internal/register/` passes, and all fourteen tests above exist by the names given.
 3. `grep -c 'float' internal/register/model.go` returns 0.
 4. `go doc storeregister/internal/register Register` lists exactly the seven fields above.
 5. Marshalling `WalkthroughT0()` and grepping for `"quantity": 890` returns nothing — 890 is never stored, only computed.
@@ -387,6 +411,7 @@ survives marshal/unmarshal `reflect.DeepEqual`, and the encoded bytes contain
 ```
 cd /home/asim/Projects/inventory-management
 go test ./internal/register/ -run 'TestNextID|TestCleanName|TestFoldKey|TestMobileKey|TestReturn|TestFixture|TestEmpty|TestUntouched|TestCorrected' -v
+grep -n 'CreatedBy' internal/register/model.go   # must show it on Product and on Staff
 go vet ./internal/register/
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build ./...
 ```

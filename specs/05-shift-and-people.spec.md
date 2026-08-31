@@ -50,8 +50,13 @@ Form fields `name`, `mobile`.
 - A staff member already exists with the same `FoldKey(name)`: re-render with
   `banner bad` `<Name> is already on the list.`
 - Otherwise append `Staff{ID: NextID("STF"), Name: CleanName(name), Mobile: cleaned
-  mobile}`, save, and re-render `GET /shift` with the new person pre-selected and a
-  `banner ok` reading `<Name> added.`
+  mobile, CreatedAt: now, CreatedBy: <on-duty name>}`, save, and re-render `GET /shift`
+  with the new person pre-selected and a `banner ok` reading `<Name> added.`
+
+`CreatedBy` is the on-duty person's name, and is **empty when nobody is on duty** — the
+first person added to a fresh register, who by definition arrives before any shift has
+started. No placeholder name is substituted; `12-activity-log.spec.md` renders that row
+with no who. This is the only field on this screen the person at the desk never sees.
 
 Mobile cleaning: trim, collapse internal whitespace. Digits are not validated and the
 field may be left blank — the walkthrough shows mobiles in the form `98450 22117` but
@@ -139,7 +144,15 @@ written to disk.
 
 `TestAddPerson` — `POST /shift/person` with `name=Imran  Sheikh Jr &mobile=90080 77214`
 appends `STF-0004` named `Imran Sheikh Jr` (whitespace collapsed), returns 200
-containing `Imran Sheikh Jr added.`, and the file on disk has four staff.
+containing `Imran Sheikh Jr added.`, and the file on disk has four staff. The new
+record's `CreatedAt` equals the injected clock and its `CreatedBy` is `Suresh Kumar`,
+the person on duty.
+
+`TestFirstPersonOnAFreshRegisterHasNoCreatedBy` — over a `Fresh` register with nobody on
+duty, `POST /shift/person` with `name=Suresh Kumar&mobile=98450 22117` appends
+`STF-0001` with `CreatedAt` equal to the clock and `CreatedBy == ""`. A second person
+added after `POST /shift/start` for `STF-0001` carries `CreatedBy == "Suresh Kumar"`.
+No placeholder name is ever written into `CreatedBy`.
 
 `TestAddDuplicatePersonRefused` — `name=  anita   rao ` against `WalkthroughT0()`
 returns 200 containing `Anita Rao is already on the list.` and the register still has

@@ -73,9 +73,12 @@ Where a return recorded a shortfall against a line, the remark is shown beneath 
 prefixed with `Won't come back:` or `Still expected back:` according to the
 disposition.
 
-Each issue line carries a `Fix this` link to `/entry/<issueId>/edit`
-(`11-corrections.spec.md`) and, beneath it, any correction already made, in `sm` type:
-`Changed how many from 40 to 45 by Anita Rao, 3:20 pm`.
+Each issue line carries `id="<issueId>"` and a `Fix this` link to
+`/entry/<issueId>/edit` (`11-corrections.spec.md`) and, beneath it, any correction
+already made, in `sm` type:
+`Changed how many from 40 to 45 by Anita Rao, 3:20 pm`. Each `Came back` line carries
+`id="<returnId>"`. The anchors let `12-activity-log.spec.md` link to a line as
+`/out#ISS-0008` or `/out#RET-0001`; nothing else depends on them.
 
 When nobody is holding anything: `Nothing is out with anybody right now.`
 
@@ -97,7 +100,8 @@ the return somebody needs to reach when they typed 45 and meant 4. When there ar
 Not mocked; shape recommended here (see Open). One table, newest `RecordedAt` first,
 columns `Date received`, `Product`, `How many`, `Type`, `Came from`, `Challan no.`,
 `Received by`, and a final unlabelled column holding a `Fix this` link to
-`/entry/<inwardId>/edit`. `Came from` renders `nobody wrote it down` in `sm` type when
+`/entry/<inwardId>/edit`. **Each row carries `id="<inwardId>"`**, so
+`12-activity-log.spec.md` can link straight to it as `/inwards#INW-0007`. `Came from` renders `nobody wrote it down` in `sm` type when
 blank. When there are no inwards: `Nothing has come in yet.`
 
 Corrections show under the row they belong to, in `sm` type, oldest first:
@@ -200,6 +204,10 @@ INW-0007 (`2026-09-03`, Chairs, 500, Rent, `Sharma Tent House`, `STH/4471`,
 
 `TestInwardsTabLinksToFixThis` — every live row carries a link to
 `/entry/<its id>/edit`, so INW-0007's row contains `/entry/INW-0007/edit`.
+
+`TestRowsCarryAnchors` — over T3, `GET /inwards` contains `id="INW-0007"` on the
+INW-0007 row and an `id` for every other inward including the deleted ones;
+`GET /out` contains `id="ISS-0008"` and `id="RET-0001"`.
 
 `TestInwardsTabShowsCorrectionsAndTombstones` — over a T1 copy where INW-0007 was
 changed from 500 to 50 by Suresh Kumar at 10:45 and INW-0002 was deleted by him at
