@@ -507,3 +507,11 @@ func CheckReturn(r *Register, issueIDs []string, qty int) error {
 	}
 	return nil
 }
+
+// AllocatedFromLiveReturns is how much of one issue live returns have put back
+// against it. A deleted return holds nothing, so the issue it once blocked can
+// be deleted after it. The correction screens need this figure by name: see the
+// note on the delete guard in internal/web/corrections.go.
+func AllocatedFromLiveReturns(r *Register, issueID string) int {
+	return allocatedTo(r, issueID)
+}

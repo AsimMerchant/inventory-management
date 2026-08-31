@@ -44,7 +44,7 @@ func (s *Server) apiPeople(w http.ResponseWriter, r *http.Request) {
 
 	var rows []personRow
 	s.st.Read(func(reg *register.Register) {
-		rows = findPeople(reg, q, scope != "log")
+		rows = findPeople(reg, q, scope == "log")
 	})
 
 	w.Header().Set("Content-Type", "application/json")
@@ -54,9 +54,16 @@ func (s *Server) apiPeople(w http.ResponseWriter, r *http.Request) {
 // findPeople is FindPeople plus the offer at the bottom of the list. It offers
 // and never insists: two spellings of one man are two rows, nobody is warned,
 // nothing is blocked. That is the opposite of the product picker, deliberately.
-func findPeople(reg *register.Register, query string, allowNew bool) []personRow {
+func findPeople(reg *register.Register, query string, logScope bool) []personRow {
 	rows := []personRow{}
-	for _, p := range register.FindPeople(reg, query) {
+	// The activity log searches a wider cast: staff, and everybody who has
+	// handed everything back already. It offers nobody new, because nothing is
+	// created from a read-only page.
+	found := register.FindPeople(reg, query)
+	if logScope {
+		found = register.FindPeopleInLog(reg, query)
+	}
+	for _, p := range found {
 		rows = append(rows, personRow{
 			Name:       p.Name,
 			Mobile:     p.Mobile,
@@ -66,7 +73,7 @@ func findPeople(reg *register.Register, query string, allowNew bool) []personRow
 			Lines:      linesOf(p.Lines),
 		})
 	}
-	if allowNew && offersNewPerson(query) {
+	if !logScope && offersNewPerson(query) {
 		typed := register.CleanName(query)
 		rows = append(rows, personRow{New: true, Name: typed,
 			Label: "+ New person named " + typed})

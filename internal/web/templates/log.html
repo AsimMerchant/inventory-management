@@ -1,0 +1,54 @@
+{{/* Who did what. Every control on this page is a link or a GET form: nothing
+     here changes a record, and the rows link to each record on the tab it
+     already lives on rather than to its correction screen. */}}
+<form method="get" action="/log">
+  <div class="field">
+    <span class="lab">Which day</span>
+    <input class="inp" type="date" name="day" value="{{.Day}}">
+    <div class="seg" style="margin-top:.35rem">
+      <a class="opt{{if .EveryDay}} on{{end}}" href="{{.EveryHref}}">Every day</a>
+      {{if .EveryDay}}<a class="opt" href="{{.TodayHref}}">Today</a>{{end}}
+    </div>
+  </div>
+
+  <div class="field" style="margin-top:1rem">
+    <span class="lab">What happened</span>
+    <div class="seg">
+      {{range .Kinds}}<a class="opt{{if .On}} on{{end}}" href="{{.Href}}">{{.Label}}</a>{{end}}
+    </div>
+  </div>
+
+  {{template "person-picker.html" .Find}}
+  {{template "picker.html" .Product}}
+  {{if .AnyProduct}}<a class="opt" href="{{.AnyProduct}}">Any product</a>{{end}}
+  {{if .AnybodyRef}}<a class="opt" href="{{.AnybodyRef}}">Anybody</a>{{end}}
+
+  <div class="btnrow">
+    <button class="btn" type="submit">Show</button>
+  </div>
+</form>
+
+{{if .Empty}}
+<p style="margin-top:1.2rem">{{.EmptyLine}}</p>
+<p class="sm">{{.EmptyAdvice}}</p>
+{{end}}
+
+{{range .Days}}
+<p class="lab" style="margin-top:1.3rem">{{.Heading}}</p>
+<div class="scroller">
+<table class="stk">
+  <tr><th>Time</th><th>Who did it</th><th>What happened</th><th></th></tr>
+  {{range .Rows}}
+  <tr>
+    <td>{{.Time}}</td>
+    <td>{{if .NoActor}}<span class="sm">{{.Who}}</span>{{else}}{{.Who}}{{end}}</td>
+    <td>
+      <div{{if .Struck}} style="text-decoration:line-through;color:var(--ink-faint)"{{end}}>{{.Main}}</div>
+      {{range .Notes}}<div class="sm">{{.}}</div>{{end}}
+    </td>
+    <td>{{if .GoHref}}<a class="sm" href="{{.GoHref}}">Go to this entry</a>{{end}}</td>
+  </tr>
+  {{end}}
+</table>
+</div>
+{{end}}

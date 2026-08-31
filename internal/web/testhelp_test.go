@@ -29,6 +29,11 @@ func TestMain(m *testing.M) {
 var (
 	twoEighteen = time.Date(2026, time.September, 3, 14, 18, 0, 0, register.IST)
 	sixOhFive   = time.Date(2026, time.September, 3, 18, 5, 0, 0, register.IST)
+
+	// The two clocks the correction spec is written against: when a wrong
+	// entry is fixed, and when one is deleted.
+	tenFortyFive  = time.Date(2026, time.September, 3, 10, 45, 0, 0, register.IST)
+	tenFortySeven = time.Date(2026, time.September, 3, 10, 47, 0, 0, register.IST)
 )
 
 // env is one running register: a server, its store and the file underneath it.

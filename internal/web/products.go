@@ -185,9 +185,9 @@ func (s *Server) renderConfirmProduct(w http.ResponseWriter, typed, existing, ba
 	})
 }
 
-// renderReturnPage shows a refusal on the shell of the page the form came from.
-// The flow specs draw their own forms; until then this is the shell and the
-// sentence, which is what every refusal test reads.
+// renderReturnPage shows a refusal on the shell of the page the form came from,
+// with one way back. back is kept for the caller that names the form it came
+// from; the way out of a refusal is the same either way.
 func (s *Server) renderReturnPage(w http.ResponseWriter, back string, b *banner) {
 	p := s.page("Store Register")
 	p.Tabs = false
@@ -209,6 +209,7 @@ func backPath(v string) string {
 // uncapped: it is the <noscript> fallback, and a person without JavaScript must
 // still see every product, not the first eight.
 type pickerData struct {
+	Label      string
 	Mode       string
 	AllowNew   bool
 	PickedID   string
@@ -219,7 +220,7 @@ type pickerData struct {
 // picker resolves a submitted productId against the list. A productId that
 // names nothing leaves PickedName empty, and every form refuses on that.
 func (s *Server) picker(reg *register.Register, mode string, allowNew bool, pickedID string) pickerData {
-	p := pickerData{Mode: mode, AllowNew: allowNew, PickedID: pickedID}
+	p := pickerData{Label: "Product", Mode: mode, AllowNew: allowNew, PickedID: pickedID}
 	p.Products = matchProducts(reg, "", mode == "instock")
 	for _, prod := range reg.Products {
 		if prod.ID == pickedID {

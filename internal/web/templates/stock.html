@@ -1,0 +1,33 @@
+<div class="tiles">
+  <div class="tile"><div class="k">Products</div><div class="v">{{.Tiles.Products}}</div></div>
+  <div class="tile"><div class="k">Out right now</div><div class="v">{{.Tiles.OutRightNow}}</div></div>
+  <div class="tile"><div class="k">People holding</div><div class="v">{{.Tiles.PeopleHolding}}</div></div>
+  <div class="tile"><div class="k">Out over 2 days</div>
+    <div class="v"{{if .Tiles.OutOverTwoDays}} style="color:var(--warn)"{{end}}>{{.Tiles.OutOverTwoDays}}</div>
+  </div>
+</div>
+
+<div class="scroller">
+<table class="stk">
+  <tr><th>Product</th><th>Type</th><th class="num">Came in</th><th class="num">Out</th><th class="num">On hand</th><th></th></tr>
+  {{range .Rows}}
+  <tr>
+    <td class="nm">{{.Name}}</td>
+    <td><span class="{{.PillClass}}">{{.PillWord}}</span></td>
+    <td class="num">{{.CameIn}}</td>
+    <td class="num">{{.Out}}</td>
+    <td class="num"><strong{{if not .OnHand}} style="color:var(--bad)"{{end}}>{{.OnHand}}</strong></td>
+    <td class="num">
+      {{if .IssueHref}}<a class="btn" style="padding:.3rem .7rem;font-size:.78rem" href="{{.IssueHref}}">Issue</a>
+      {{else}}<span class="opt" style="padding:.3rem .7rem;font-size:.78rem">None left</span>{{end}}
+    </td>
+  </tr>
+  {{end}}
+</table>
+</div>
+
+<div class="btnrow">
+  <a class="btn" href="/inward/new">+ Stuff came in</a>
+  <a class="btn ghost" href="/issue/new">Someone is taking</a>
+  <a class="btn ghost" href="/return/new">Someone is returning</a>
+</div>

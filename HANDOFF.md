@@ -37,16 +37,37 @@ and that reporting has been more valuable than the code.
 | 01–03 | Data model + fixture, atomic persistence, stock arithmetic | **Done, committed** (`7c5f9c5`) |
 | 04–06 | Server, page shell, shift screen, product picker | **Done, committed** (`11bb2c7`) |
 | 07–09 | Stuff came in, someone is taking, someone is returning | **Done, committed** (`07bdd66`) |
-| 10–12 | The read-only tabs, corrections, the activity log | **In flight** — an agent was mid-task when the session ended |
+| 10 | The four read-only tabs | **Implemented and tested, uncommitted** — 22 dedicated web tests |
+| 11 | Corrections and guarded deletion | **Implemented and tested, uncommitted** — 27 dedicated web tests |
+| 12 | Derived activity log and filters | **Implemented and tested, uncommitted** — 18 register tests and 21 web tests |
 
-**Check what actually landed before assuming anything:** `git status` and
-`git log --oneline`. If `internal/web/views.go`, `internal/web/corrections.go` and
-`internal/register/log.go` exist and the tests pass, spec 10–12 work arrived. If the tree
-is dirty and tests fail, that agent was interrupted — read what is there, finish it or
-revert it, do not layer on top of a half-written file.
+The spec 10–12 work is a large dirty-tree continuation of the interrupted Claude pass.
+Do not discard or reset it. Codex completed the missing required test suites and reviewed
+each subagent slice independently. As of the latest checkpoint,
+`go test ./... -race -count=1`, `go vet ./...`, the Windows amd64 cross-compile and the
+applicable acceptance greps all pass.
 
-After 10–12 the program is feature-complete and goes to the `release-gate` agent, which
-refuses to certify anything it has not run itself.
+The read-only `plain_language_reviewer` checked 175 built strings and found only the
+known no-supplier wording conflict recorded below; no code change is warranted while
+the two specs disagree. A native Linux binary also passed the end-to-end smoke
+scenario, including persisted JSON and the read-only log; the Windows amd64 artifact
+was cross-compiled but still needs a real Windows runtime check. The independent
+`release_gate` is the remaining step. Do not call the build ready before that gate.
+
+Known spec-text defects found while implementing the required tests:
+
+- Spec 11 shortens the fixture's full return remark in two examples. The implementation
+  preserves the complete stored remark.
+- Spec 12 says deleting `INW-0002` from T1 leaves 390 chairs received, but live
+  `INW-0007` contributes another 500; the correct total is 890.
+- Specs 11 and 12 prescribe different no-supplier wording for the shared `entryName`
+  helper. The implementation conservatively preserves spec 11's existing-screen wording.
+- Several spec 12 required-test paragraphs retain older wording that contradicts the
+  later normative Contract. Tests and implementation follow the Contract.
+- Spec 00's original forbidden-word greps scanned `design/store-register.html` and
+  test names, so they failed on historical, non-shipped prose and tests that prove the
+  forbidden UI is absent. The verification commands now scan shipped code only and
+  exclude `*_test.go`.
 
 ## How to check the work
 

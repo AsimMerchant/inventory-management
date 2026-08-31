@@ -1,0 +1,17 @@
+{{if .AnythingOut}}<p class="sm">{{.OutRightNow}} things are still out with people.</p>{{end}}
+
+<div class="scroller">
+<table class="stk">
+  <tr><th>Supplier</th><th>Product</th><th class="num">Came in</th><th>Type</th></tr>
+  {{range .Rows}}
+  <tr>
+    <td class="nm">{{if .Bought}}<span class="sm">we bought it</span>{{else}}{{.Supplier}}{{end}}</td>
+    <td>{{.ProductName}}</td>
+    <td class="num"><strong>{{.CameIn}}</strong>
+      {{if .WontComeBack}}<div class="sm" style="color:var(--warn)">{{.WontComeBack}}</div>{{end}}
+    </td>
+    <td><span class="{{.PillClass}}">{{.PillWord}}</span></td>
+  </tr>
+  {{end}}
+</table>
+</div>

@@ -1,0 +1,27 @@
+{{if not .Rows}}<p class="sm">Nothing has come in yet.</p>{{else}}
+<div class="scroller">
+<table class="stk">
+  <tr><th>Date received</th><th>Product</th><th class="num">How many</th><th>Type</th><th>Came from</th><th>Challan no.</th><th>Received by</th><th></th></tr>
+  {{range .Rows}}
+  <tr id="{{.ID}}"{{if .Deleted}} style="text-decoration:line-through;color:var(--ink-faint)"{{end}}>
+    <td>{{.ReceivedOn}}</td>
+    <td class="nm">{{.ProductName}}</td>
+    <td class="num">{{.Quantity}}</td>
+    <td><span class="{{.PillClass}}">{{.PillWord}}</span></td>
+    <td>{{if .Supplier}}{{.Supplier}}{{else}}<span class="sm">nobody wrote it down</span>{{end}}</td>
+    <td>{{.ChallanNo}}</td>
+    <td>{{.ReceivedBy}}</td>
+    <td class="num">{{if .FixHref}}<a class="sm" href="{{.FixHref}}">Fix this</a>{{end}}</td>
+  </tr>
+  {{if or .Changes .Deleted}}
+  <tr>
+    <td colspan="8" style="text-decoration:none">
+      {{range .Changes}}<div class="sm">{{.}}</div>{{end}}
+      {{if .Deleted}}<div class="sm">{{.Deletion}}</div>{{end}}
+    </td>
+  </tr>
+  {{end}}
+  {{end}}
+</table>
+</div>
+{{end}}

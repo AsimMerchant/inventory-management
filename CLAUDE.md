@@ -83,24 +83,28 @@ screen would make someone remember something, that is a design bug, not a wordin
 
 ## State as of 31 August 2026
 
-Design approved. **Twelve specs written, reviewed and complete** — `specs/00-index…11-corrections`.
-A plain-language pass over 139 user-visible strings is applied throughout specs 02
-and 04–10. Every open question is settled and recorded as normative in `00-index.spec.md`;
-nothing is waiting on the user.
+Design approved and specs 01–12 are written. Specs 01–09 are implemented, verified,
+committed and pushed. Specs 10–12 are implemented in the current dirty working tree:
 
-Spec 11 (corrections) is the newest and the riskiest — its guards stop a correction
-leaving the register impossible, including the non-obvious one where deleting a return
-drives on-hand negative. It has the heaviest test cases for that reason.
+- four read-only views — 22 dedicated web tests;
+- corrections and guarded deletion — 27 dedicated web tests;
+- derived activity-log builder — 18 dedicated register tests;
+- activity-log page and filters — 21 dedicated web tests.
 
-All twelve specs have now been through `plain-language-reviewer`. Nothing is in flight.
+Codex reviewed each implementation-agent slice itself and reran the targeted tests,
+the full race suite, vet, Windows amd64 cross-compile and acceptance greps. It caught
+and returned one missed Contract detail: the activity-log picker now reads
+`Which product` while existing entry screens still read `Product`.
 
-**Next:** `go-local-app-engineer` implements in the build order in `00-index.spec.md`
-(spec 01 first — it holds the fixture every other spec's tests are written against).
-Then `plain-language-reviewer` over the built strings, then `release-gate`, which
-refuses to certify without running the tests and the Windows cross-compile itself. The
-user gets a Linux build to use and complain about before anything becomes an `.exe`.
+The `plain_language_reviewer` checked 175 built strings and found only the known
+no-supplier wording conflict documented in `HANDOFF.md`; the specs disagree, so no
+code change was made. A native Linux binary passed the end-to-end smoke scenario,
+including persisted JSON and the read-only log. The Windows amd64 artifact was
+cross-compiled but still needs a real Windows runtime check. The independent
+`release_gate` remains. The gate has not certified this build yet. No spec 10–12
+implementation commit has been made because the inherited changes are intertwined;
+commit them only after the complete gate is green.
 
-Nothing has been implemented yet. There is no Go code in this repo.
-
-**Not done, worth offering:** this folder is not a git repo. The user was asked and had
-not answered when the session was saved.
+See `HANDOFF.md` for the current verification commands, known spec-text defects and
+the exact continuation order. Codex-native project instructions and agents now live in
+`AGENTS.md` and `.codex/`.

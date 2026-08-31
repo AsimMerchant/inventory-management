@@ -310,6 +310,21 @@ func TestBothFilesCorruptRefusesToStart(t *testing.T) {
 	if !strings.Contains(err.Error(), path) || !strings.Contains(err.Error(), path+backupSuffix) {
 		t.Errorf("the error does not name both files: %v", err)
 	}
+
+	// The sentence is settled in 02-persistence.spec.md. It is read at the
+	// worst moment there is, so it must say the data is untouched and who to
+	// call, and it must never show the JSON parser's own words.
+	want := "The register could not be opened. Nothing has been changed. " +
+		"Call whoever set this up and give them these two files:\n" +
+		path + "\n" + path + backupSuffix
+	if err.Error() != want {
+		t.Errorf("the wording is not the settled one:\n got: %q\nwant: %q", err.Error(), want)
+	}
+	for _, leak := range []string{"invalid character", "unmarshal", "is not a readable register"} {
+		if strings.Contains(err.Error(), leak) {
+			t.Errorf("the parser's own words leaked into the message: %q", leak)
+		}
+	}
 }
 
 func TestFreshDirectoryStartsEmpty(t *testing.T) {

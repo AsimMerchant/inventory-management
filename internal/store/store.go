@@ -91,9 +91,14 @@ func Open(path string) (*Store, LoadResult, error) {
 		return &Store{path: path, reg: empty}, LoadResult{Source: Fresh}, nil
 	}
 
+	// The wording is fixed by 02-persistence.spec.md. This is console-only —
+	// no browser is open yet — and it is read at the worst possible moment, so
+	// it says the data is untouched and who to call, and never shows the parse
+	// error. The two paths go on their own lines to be read out or copied.
 	return nil, LoadResult{}, fmt.Errorf(
-		"the register could not be opened: %s (%v) and %s (%v)",
-		mainPath, mainErr, bakPath, bakErr)
+		"The register could not be opened. Nothing has been changed. "+
+			"Call whoever set this up and give them these two files:\n%s\n%s",
+		mainPath, bakPath)
 }
 
 // Read hands fn the register for read-only use. Callers must not retain the pointer.
@@ -256,20 +261,20 @@ func deepCopy(r *register.Register) *register.Register {
 		t := *r.ShiftStartedAt
 		c.ShiftStartedAt = &t
 	}
-	c.Products = append([]register.Product(nil), r.Products...)
-	c.Staff = append([]register.Staff(nil), r.Staff...)
+	c.Products = append([]register.Product{}, r.Products...)
+	c.Staff = append([]register.Staff{}, r.Staff...)
 
-	c.Inwards = append([]register.Inward(nil), r.Inwards...)
+	c.Inwards = append([]register.Inward{}, r.Inwards...)
 	for i := range c.Inwards {
 		c.Inwards[i].Changes = copyChanges(c.Inwards[i].Changes)
 		c.Inwards[i].Deleted = copyDeletion(c.Inwards[i].Deleted)
 	}
-	c.Issues = append([]register.Issue(nil), r.Issues...)
+	c.Issues = append([]register.Issue{}, r.Issues...)
 	for i := range c.Issues {
 		c.Issues[i].Changes = copyChanges(c.Issues[i].Changes)
 		c.Issues[i].Deleted = copyDeletion(c.Issues[i].Deleted)
 	}
-	c.Returns = append([]register.Return(nil), r.Returns...)
+	c.Returns = append([]register.Return{}, r.Returns...)
 	for i := range c.Returns {
 		c.Returns[i].Allocations = append([]register.Allocation(nil), c.Returns[i].Allocations...)
 		c.Returns[i].Changes = copyChanges(c.Returns[i].Changes)

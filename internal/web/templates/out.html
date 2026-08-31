@@ -1,0 +1,35 @@
+{{if not .People}}<p class="sm">Nothing is out with anybody right now.</p>{{end}}
+
+{{range .People}}
+<p class="lab" style="margin-top:1.1rem">{{.Name}}{{if .Department}} · {{.Department}}{{end}}{{if .Mobile}} · {{.Mobile}}{{end}} — holding {{.TotalOut}}</p>
+{{range .Lines}}
+<div class="outrow" id="{{.IssueID}}">
+  <div class="g">
+    <strong>{{.ProductName}}</strong>
+    {{if .Aged}}<span class="pill rent">Out over 2 days</span>{{end}}
+    <div class="sm">{{.Middle}}</div>
+    {{range .Shortfalls}}<div class="sm">{{.}}</div>{{end}}
+    {{range .Changes}}<div class="sm">{{.}}</div>{{end}}
+  </div>
+  <div class="q">{{.Out}} out</div>
+  <a class="sm" href="{{.FixHref}}">Fix this</a>
+</div>
+{{end}}
+<div class="btnrow" style="margin-top:.2rem">
+  <a class="btn ghost" href="{{.ReturnHref}}">Someone is returning</a>
+</div>
+{{end}}
+
+<p class="lab" style="margin-top:1.4rem">Came back</p>
+{{if not .Back}}<p class="sm">Nothing has come back yet.</p>{{end}}
+{{range .Back}}
+<div class="outrow" id="{{.ReturnID}}">
+  <div class="g">
+    <div{{if .Deleted}} style="text-decoration:line-through;color:var(--ink-faint)"{{end}}>{{.Headline}}</div>
+    {{if .Shortfall}}<div class="sm">{{.Shortfall}}</div>{{end}}
+    {{range .Changes}}<div class="sm">{{.}}</div>{{end}}
+    {{if .Deleted}}<div class="sm">{{.Deletion}}</div>{{end}}
+  </div>
+  {{if .FixHref}}<a class="sm" href="{{.FixHref}}">Fix this</a>{{end}}
+</div>
+{{end}}

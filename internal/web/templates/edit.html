@@ -1,0 +1,175 @@
+{{/* The correction screen. Laid out like the entry screen the record came
+     from, with the same labels in the same order, so nobody has to learn a
+     second version of a screen they already know. */}}
+<p class="scr-h">{{.Heading}}</p>
+<p class="scr-sub">{{.Subheading}}</p>
+
+{{if .Deleted}}
+<p class="banner warn">{{.DeletedLine}}</p>
+
+<div class="field">
+  <span class="lab">Product</span>
+  <div class="inp" style="color:var(--ink-soft)">{{.ProductName}}</div>
+</div>
+<div class="field">
+  <span class="lab">How many</span>
+  <div class="inp" style="color:var(--ink-soft)">{{.Quantity}}</div>
+</div>
+
+{{range .Changes}}<div class="sm">{{.}}</div>{{end}}
+
+<div class="btnrow">
+  <a class="btn ghost" href="{{.From}}">Back</a>
+</div>
+
+{{else}}
+
+{{/* The two forms post to a path relative to this one, so neither this
+     screen nor a refusal shown on it ever prints a record's ID at somebody
+     who is already being told they cannot do something. */}}
+<form method="post" action="edit">
+  <div class="field">
+    <span class="lab">Product</span>
+    <div class="inp" style="color:var(--ink-soft)">{{.ProductName}}</div>
+    <div class="hint">Wrong product? Delete this entry and enter it again.</div>
+  </div>
+
+  {{if eq .Kind "inward"}}
+  <div class="row2">
+    <div class="field">
+      <span class="lab">How many</span>
+      <input class="inp" type="number" name="quantity" min="1" step="1" value="{{.Quantity}}" autofocus>
+    </div>
+    <div class="field">
+      <span class="lab">Date received</span>
+      <input class="inp" type="date" name="receivedOn" value="{{.ReceivedOn}}">
+    </div>
+  </div>
+  <div class="field">
+    <span class="lab">Rent or purchase</span>
+    <div class="seg">
+      <label class="opt{{if eq .Basis "rent"}} on{{end}}">
+        <input type="radio" name="basis" value="rent"{{if eq .Basis "rent"}} checked{{end}}>
+        On rent — goes back to supplier
+      </label>
+      <label class="opt{{if eq .Basis "purchase"}} on{{end}}">
+        <input type="radio" name="basis" value="purchase"{{if eq .Basis "purchase"}} checked{{end}}>
+        Purchased for resale — does not come back
+      </label>
+    </div>
+  </div>
+  <div class="row2">
+    <div class="field">
+      <span class="lab">Came from</span>
+      <input class="inp" type="text" name="supplier" autocomplete="off" value="{{.Supplier}}">
+    </div>
+    <div class="field">
+      <span class="lab">Challan no.</span>
+      <input class="inp" type="text" name="challanNo" autocomplete="off" value="{{.ChallanNo}}">
+    </div>
+  </div>
+  <div class="field">
+    <span class="lab">Received by</span>
+    <div class="inp" style="color:var(--ink-soft)">{{.ReceivedBy}}</div>
+  </div>
+  {{end}}
+
+  {{if eq .Kind "issue"}}
+  <div class="row2">
+    <div class="field">
+      <span class="lab">How many</span>
+      <input class="inp" type="number" name="quantity" min="1" step="1" value="{{.Quantity}}" autofocus>
+    </div>
+    <div class="field">
+      <span class="lab">Who is taking it</span>
+      <input class="inp" type="text" name="takerName" autocomplete="off" value="{{.TakerName}}">
+    </div>
+  </div>
+  <div class="row2">
+    <div class="field">
+      <span class="lab">Department</span>
+      <input class="inp" type="text" name="takerDepartment" autocomplete="off" value="{{.Department}}">
+    </div>
+    <div class="field">
+      <span class="lab">Their mobile</span>
+      <input class="inp" type="text" name="takerMobile" autocomplete="off" value="{{.Mobile}}">
+    </div>
+  </div>
+  <div class="row2">
+    <div class="field">
+      <span class="lab">Time taken</span>
+      <input class="inp" type="datetime-local" name="issuedAt" value="{{.IssuedAt}}">
+    </div>
+    <div class="field">
+      <span class="lab">Person incharge (giving it)</span>
+      <div class="inp" style="color:var(--ink-soft)">{{.Incharge}}</div>
+    </div>
+  </div>
+  {{end}}
+
+  {{if eq .Kind "return"}}
+  <div class="row2">
+    <div class="field">
+      <span class="lab">How many came back</span>
+      <input class="inp" type="number" name="quantity" min="1" step="1" value="{{.Quantity}}" autofocus>
+    </div>
+    <div class="field">
+      <span class="lab">Who is handing it back</span>
+      <input class="inp" type="text" name="returnerName" autocomplete="off" value="{{.ReturnerName}}">
+    </div>
+  </div>
+  <div class="row2">
+    <div class="field">
+      <span class="lab">Their mobile</span>
+      <input class="inp" type="text" name="returnerMobile" autocomplete="off" value="{{.ReturnerMobile}}">
+    </div>
+    <div class="field">
+      <span class="lab">Time returned</span>
+      <input class="inp" type="datetime-local" name="returnedAt" value="{{.ReturnedAt}}">
+    </div>
+  </div>
+  <div class="field">
+    <span class="lab">Taken back by</span>
+    <div class="inp" style="color:var(--ink-soft)">{{.TakenBackBy}}</div>
+  </div>
+  <div class="field">
+    <span class="lab">What happened to the ones that did not come back</span>
+    <div class="seg">
+      <label class="opt{{if eq .Disposition "expected"}} on{{end}}">
+        <input type="radio" name="disposition" value="expected"{{if eq .Disposition "expected"}} checked{{end}}>
+        Still expected back
+      </label>
+      <label class="opt{{if eq .Disposition "wont_return"}} on{{end}}">
+        <input type="radio" name="disposition" value="wont_return"{{if eq .Disposition "wont_return"}} checked{{end}}>
+        Won't come back — broken or lost
+      </label>
+    </div>
+  </div>
+  <div class="field">
+    <span class="lab">Remark</span>
+    <textarea class="inp" name="remark" rows="3" style="min-height:3.4rem">{{.Remark}}</textarea>
+  </div>
+  {{end}}
+
+  <input type="hidden" name="from" value="{{.From}}">
+
+  <div class="btnrow">
+    <button class="btn" type="submit">{{.ButtonLabel}}</button>
+    <a class="btn ghost" href="{{.From}}">Cancel</a>
+  </div>
+</form>
+
+{{range .Changes}}<div class="sm">{{.}}</div>{{end}}
+
+<details class="add" style="margin-top:1.3rem"{{if .DeleteOpen}} open{{end}}>
+  <summary style="color:var(--bad)">Delete this entry</summary>
+  <form method="post" action="delete">
+    <div class="field" style="margin-top:.6rem">
+      <span class="lab">Why are you deleting this?</span>
+      <input class="inp" type="text" name="reason" autocomplete="off">
+      <div class="hint">One line is enough — "entered twice", "wrong person".</div>
+    </div>
+    <button class="btn" style="background:var(--bad)" type="submit">{{.DeleteLabel}}</button>
+  </form>
+</details>
+{{end}}

@@ -24,6 +24,9 @@ var funcs = template.FuncMap{
 	"productWord": productWord,
 	"clock":       clock,
 	"shortdate":   shortdate,
+	// daystamp is the activity log's day heading. It is written in log.go and
+	// registered here because this map is built before any init() runs.
+	"daystamp": daystamp,
 }
 
 // longstamp is the subtitle on every flow page: Thursday, 3 September · 10:42 am.

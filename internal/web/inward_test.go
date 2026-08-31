@@ -88,6 +88,14 @@ func TestInward500ChairsRaisesOnHandTo890(t *testing.T) {
 
 	_, body := e.get("/stock?saved=INW-0007")
 	assertContains(t, body, "Added 500 chairs. Chairs: 890 on hand.")
+
+	// The stock row 07 could not assert until 10 drew the table.
+	row := tableRow(t, body, "Chairs")
+	for _, want := range []string{`<td class="num">1200</td>`, `<td class="num">310</td>`, `>890</strong>`} {
+		if !strings.Contains(row, want) {
+			t.Errorf("the Chairs row does not contain %q", want)
+		}
+	}
 }
 
 func TestInwardWithBlankSupplierAndChallan(t *testing.T) {
