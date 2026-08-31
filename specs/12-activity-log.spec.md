@@ -270,8 +270,14 @@ Above the list, in this order:
    `Every day` → `/log?day=all` carrying the other active filters. When `day=all` is
    active, `Every day` carries the `on` class and a second `opt` link reads `Today`.
 2. **`What happened`** — six `opt` links, never a form:
-   `Everything`, `Came in`, `Went out`, `Came back`, `Corrected`, `Deleted`. The active
-   one carries `on`. Each link keeps every other active filter.
+   `Everything`, `Came in`, `Went out`, `Came back`, `Entry fixed`, `Entry deleted`. The
+   active one carries `on`. Each link keeps every other active filter.
+
+   The last two are named `Entry ...`, not `Corrected` and `Deleted`, because the first
+   three describe things that happened to **stock** and the last two describe things
+   that happened to **entries** — the one distinction this whole page exists to make,
+   which a flat list of five blurs. `fixed` is also the desk's own word, the one the
+   `Fix this` links already use; `corrected` is record-keeping vocabulary.
 3. **`Which person`** — the person picker above, `scope=log`, a text input named `q`
    inside the same `GET` form. Beside it, when a query is active, an `opt` link
    `Anybody` that clears it.
@@ -290,14 +296,20 @@ Rows are grouped under a day heading, newest day first:
 `Thursday, 3 September`. Grouping applies whether one day or every day is shown, so the
 row itself never has to carry a date.
 
-Four columns: `Time`, `Who`, `What happened`, and a final unlabelled column.
+Four columns: `Time`, `Who did it`, `What happened`, and a final unlabelled column.
+
+The first column heading is `Who did it`, not `Who`. Every row carries two people — the
+person who made the entry and the person the stock moved to or from — and telling those
+two apart is the entire purpose of this page.
 
 - **`Time`** — `clock(At)`, so `6:05 pm`.
-- **`Who`** — the actor's full name. **Never a first name**, on any row: the amber
+- **`Who did it`** — the actor's full name. **Never a first name**, on any row: the amber
   banner and the issue button abbreviate to `Ravi` elsewhere, and this page must not,
-  because the whole point of it is telling two people apart. When `Who` is empty,
-  the cell reads `nobody wrote it down` in `sm` type — the same sentence `/inwards`
-  already uses for a missing supplier.
+  because the whole point of it is telling two people apart. When it is empty,
+  the cell reads `nobody was on duty yet` in `sm` type. Not `/inwards`' sentence for a
+  missing supplier: the entry plainly *was* written down, and the only case where the
+  actor is unknown is the very first person added to a fresh register, before anybody
+  had started a shift.
 - **`What happened`** — a main line, and up to two `sm` lines beneath it.
 - **The last column** — one link, `Go to this entry`, to `RecordTab + "#" + RecordID`.
   Empty for `product_added` and `person_added`, which have no page to go to.
@@ -306,11 +318,11 @@ Main lines, by kind. The noun always travels with the number and no label inflec
 
 | Kind | Main line |
 |---|---|
-| `came_in` | `500 chairs came in from Sharma Tent House` — or `500 chairs came in` when no supplier was recorded |
+| `came_in` | `500 chairs came in from Sharma Tent House` — or `500 chairs, no supplier written down` when none was recorded |
 | `went_out` | `10 chairs went out to Ravi Menon` |
 | `came_back` | `45 chairs came back from Ravi Menon` |
-| `corrected` | the record in words (below), then the change on the line beneath |
-| `deleted` | the record in words (below), struck through |
+| `corrected` | `Fixed this entry: ` + the record in words (below), then the change on the line beneath |
+| `deleted` | `Deleted this entry: ` + the record in words (below), struck through |
 | `product_added` | `Chairs added to the product list.` |
 | `person_added` | `Anita Rao added to the people list.` |
 
@@ -322,8 +334,10 @@ the record's current contents in the same shape `11-corrections.spec.md` uses fo
 sub-headings, minus the trailing time clause the log's own `Time` column already
 supplies:
 
-- inward — `500 chairs from Sharma Tent House`, or `500 chairs that came in` when no
-  supplier was recorded;
+- inward — `500 chairs from Sharma Tent House`, or `500 chairs, no supplier written down`
+  when none was recorded. This matches the `came_in` main line exactly; the two must not
+  drift, or a deleted inward and its own deletion row sit adjacent describing the same
+  event in two different phrasings;
 - issue — `10 chairs to Ravi Menon`;
 - return — `45 chairs back from Ravi Menon`.
 
@@ -333,12 +347,19 @@ The `sm` lines beneath, in this order when each applies:
 |---|---|
 | `Kind == corrected` | `changePhrase(*Change)` — see below |
 | `Kind == deleted` | `Deleted — Entered twice by mistake.` (`"Deleted — " + Deletion.Reason`) |
-| `Kind == went_out` and `HappenedAt != At` | `Taken at 1:05 pm.` |
-| `Kind == came_back` and `HappenedAt != At` | `Came back at 5:30 pm.` |
+| `Kind == went_out` and `HappenedAt != At` | `Taken at 1:05 pm, typed in at 2:18 pm.` — both clocks are named, because the Time column already shows one of them and nothing would say which is which |
+| `Kind == came_back` and `HappenedAt != At` | `Came back at 5:30 pm, typed in at 6:05 pm.` |
 | `Kind == came_in` and `ReceivedOn != At.In(loc).Format("2006-01-02")` | `Received on 4 September.` |
 | `Kind == came_in` and `ReceivedBy != Who` and `ReceivedBy != ""` | `Received by Anita Rao.` |
 | `Kind == came_back` and `ShortQuantity > 0` | `Won't come back: 5 chairs broke during setup near the stage. Ravi informed.` — the exact line `/out` renders, prefixed `Won't come back:` or `Still expected back:` by disposition |
-| `RecordDeleted` and `Kind != deleted` | the main line is greyed and struck through, matching the tombstone treatment on `/inwards`. The `Go to this entry` link stays, because the deleted row is still on that tab. |
+| `RecordDeleted` and `Kind != deleted` | **`This entry was deleted later.`** The main line is also greyed and struck through, matching the tombstone treatment on `/inwards`, and the `Go to this entry` link stays because the deleted row is still on that tab. |
+
+**That sentence is required, not decorative.** Without it the row for a deleted arrival
+reads `500 chairs came in from Sharma Tent House` — word for word what a live arrival
+reads — and the only thing separating them is strikethrough. A reader hunting a wrong
+number, skimming, on a laptop screen at a gathering, will count those 500 chairs. The
+one page whose job is explaining a number that looks wrong cannot rely on typography
+alone to say a thing did not happen.
 
 The inward comparison is a date-only string against a timestamp's **local calendar
 date** — not a timestamp comparison. The other two compare timestamps for exact
@@ -383,11 +404,13 @@ No result count is ever displayed — a count is the one place on this page wher
 Two sentences, chosen by which filters are active:
 
 - only `day` is set:
-  `Nothing happened on Thursday, 3 September.` and beneath it, in `sm` type,
+  `Nobody wrote anything down on Thursday, 3 September.` and beneath it, in `sm` type,
   `Pick another day, or tap Every day.`
 - any of `kind`, `q` or `productId` is also set:
   `Nothing matches what you picked.` and beneath it,
-  `Tap Every day and Everything to see more.`
+  `Tap Every day, Everything, Anybody and Any product.` — all four clearers are named.
+  Naming only two produces advice that can fail: a reader with a person filter still set
+  taps both, sees nothing change, and concludes the page is broken.
 
 #### Read-only
 

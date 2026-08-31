@@ -105,10 +105,10 @@ to Sharma Tent House & Sons` and `Changed rent or purchase from On rent to Purch
 
 | Field | Both filled |
 |---|---|
-| quantity | `Changed how many from 500 to 50` |
+| quantity | `Changed it from 500 chairs to 50 chairs` — the noun travels with both numbers, because this phrase is also rendered in the activity log where no form label supplies it |
 | supplier | `Changed the supplier from Sharma Tent House to Sharma Tent House & Sons` |
 | date received | `Changed the date from 3 September to 4 September` |
-| basis | `Changed it from Rent to Purchase` |
+| basis | `Changed this from rent to purchase` — `this`, not `it`: in the log the phrase sits in a table column with no record heading above it to give `it` an antecedent |
 | challan | `Changed the challan no. from STH/4471 to STH/4472` |
 | taker, returner | `Changed who took it from Ravi Menon to Ravi Verma` |
 | department | `Changed the department from Catering to Security` |
@@ -137,8 +137,8 @@ Where one side is empty:
 
 | Case | Line |
 |---|---|
-| `To` empty | `Removed the remark by Suresh Kumar, 10:45 am` |
-| `From` empty | `Added a remark by Suresh Kumar, 10:45 am` |
+| `To` empty | `Removed the note that said: 5 chairs broke during setup. by Suresh Kumar, 10:45 am` — the removed content is named, because in the activity log this phrase is the whole of the row's explanation |
+| `From` empty | `Added a note: 5 chairs broke during setup. by Suresh Kumar, 10:45 am` |
 
 Those two use the field's `Label` lower-cased, which reads correctly because the
 sentence does not repeat a preposition. A cleared remark or a cleared
