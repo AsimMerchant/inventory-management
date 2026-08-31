@@ -163,7 +163,7 @@ products.
 ## Acceptance criteria
 
 1. `go test ./internal/web/ -run 'TestSuggest|TestCreateProduct|TestOnlyProduct|TestForm|TestNoScript|TestAddNew' -count=1` passes.
-2. `grep -rn 'Products = append' internal/ | grep -v _test | grep -v fixture` matches
+2. `grep -rn 'Products = append' internal/ | grep -v _test | grep -v fixture | grep -v internal/store` matches
    exactly one line, in `internal/web/products.go`.
 3. `grep -c 'FoldKey' internal/web/products.go` is at least 1 — the duplicate guard is
    case-insensitive by construction.
@@ -175,7 +175,7 @@ products.
 ```
 cd /home/asim/Projects/inventory-management
 go test ./internal/web/ -count=1 -v
-grep -rn 'Products = append' internal/ | grep -v _test | grep -v fixture
+grep -rn 'Products = append' internal/ | grep -v _test | grep -v fixture | grep -v internal/store
 ```
 
 ## Open

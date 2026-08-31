@@ -1,0 +1,33 @@
+{{/* The product picker. Included by the inward and issue forms (specs 07 and
+     08). AllowNew is true on the inward screen only: issuing something that was
+     never received is meaningless. The wording of the last row lives here, not
+     in picker.js, so every sentence the desk reads is in a template. */}}
+<div class="field" data-picker data-mode="{{.Mode}}"
+     data-newlabel="{{if .AllowNew}}as a brand-new product{{end}}">
+  <span class="lab">Product</span>
+  <input class="inp" type="text" name="productName" autocomplete="off" value="{{.PickedName}}" data-picker-text>
+  <input type="hidden" name="productId" value="{{.PickedID}}" data-picker-id>
+  <div class="sug" hidden data-picker-list></div>
+  <noscript>
+    <select class="inp" name="productId">
+      <option value="">Pick the product from the list</option>
+      {{range .Products}}<option value="{{.ID}}"{{if eq .ID $.PickedID}} selected{{end}}>{{.Label}}</option>{{end}}
+    </select>
+  </noscript>
+</div>
+{{if .AllowNew}}
+{{/* Submitted by the picker's last row. The same form, without script, is the
+     block inside <noscript> below it. */}}
+<form method="post" action="/product/new" data-newform hidden>
+  <input type="hidden" name="return" value="/inward/new">
+  <input type="hidden" name="name" value="" data-newname>
+</form>
+<noscript>
+  <form method="post" action="/product/new" class="field">
+    <input type="hidden" name="return" value="/inward/new">
+    <span class="lab">Not on the list?</span>
+    <input class="inp" type="text" name="name" autocomplete="off">
+    <button class="btn ghost" type="submit">Add it as a brand-new product</button>
+  </form>
+</noscript>
+{{end}}

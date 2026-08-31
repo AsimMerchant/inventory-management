@@ -1,0 +1,23 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}}</title>
+<link rel="stylesheet" href="/static/app.css">
+<div class="wrap">
+  <div class="screen" style="max-width:{{if .Narrow}}26rem{{else}}52rem{{end}};margin:1.5rem auto">
+    <div class="chrome">
+      <span class="dot"></span> {{.Title}}
+      {{if .OnDuty}}<a class="who" href="/shift">{{.OnDuty}} · on duty</a>{{end}}
+    </div>
+    {{if .Tabs}}
+    <div class="tabs">
+      {{range .Tabbar}}<a class="tab{{if eq .Path $.Current}} on{{end}}" href="{{.Path}}">{{.Label}}</a>{{end}}
+    </div>
+    {{end}}
+    <div class="body">
+      {{if .Warning}}<div class="banner bad">{{.Warning}}</div>{{end}}
+      {{if .Banner}}<div class="banner {{.Banner.Kind}}">{{.Banner.Text}}</div>{{end}}
+      {{.Content}}
+    </div>
+  </div>
+</div>

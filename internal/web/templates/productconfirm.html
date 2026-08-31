@@ -1,0 +1,11 @@
+<p class="scr-h">Did you mean {{.Existing}}?</p>
+<p class="scr-sub">Adding "{{.Typed}}" makes a second, separate product.</p>
+<div class="btnrow">
+  <a class="btn" href="{{.Return}}">Use {{.Existing}}</a>
+  <form method="post" action="/product/new">
+    <input type="hidden" name="name" value="{{.Typed}}">
+    <input type="hidden" name="return" value="{{.Return}}">
+    <input type="hidden" name="confirm" value="yes">
+    <button class="btn ghost" type="submit">Add "{{.Typed}}" as a separate product</button>
+  </form>
+</div>

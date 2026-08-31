@@ -130,8 +130,8 @@ Every spec assumes these and none of them may be traded away:
 cd /home/asim/Projects/inventory-management
 go test ./... -race -count=1
 go vet ./...
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /tmp/register.exe ./...
-go list -deps ./... | grep -v '^storeregister' | grep '\.'   # must print nothing
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /tmp/register.exe .
+go list -deps ./... | grep -v '^storeregister' | grep -v '^vendor/' | grep -v '^crypto/internal' | grep '\.'   # must print nothing
 grep -rn --include=*.go --exclude=*_test.go '0\.0\.0\.0' .   # must print nothing
 grep -rniE --include=*.go --include=*.html 'still owed|given back|settle' .   # nothing
 grep -rniE --include=*.go --include=*.html --include=*.js 'password|login|authenticate' .   # nothing

@@ -1,0 +1,34 @@
+<p class="scr-h">Who is at the desk?</p>
+<p class="scr-sub">Tap your name to begin.</p>
+
+{{if .Empty}}
+<p class="hint">Nobody is on the list yet. Add the first person.</p>
+{{else}}
+<form method="post" action="/shift/start">
+  <div class="seg" style="flex-direction:column;align-items:stretch">
+    {{range .Options}}
+    <label class="opt{{if .On}} on{{end}}">
+      <input type="radio" name="staffId" value="{{.ID}}"{{if .On}} checked{{end}}>
+      {{.Name}} &nbsp;·&nbsp; <span class="sm">{{.Mobile}}</span>
+    </label>
+    {{end}}
+  </div>
+  <div class="btnrow"><button class="btn" type="submit">Start shift</button></div>
+</form>
+{{end}}
+
+<details class="add"{{if .OpenAdder}} open{{end}}>
+  <summary class="btn ghost">+ Add a person</summary>
+  <form method="post" action="/shift/person">
+    <div class="field">
+      <span class="lab">Name</span>
+      <input class="inp" type="text" name="name" autocomplete="off">
+    </div>
+    <div class="field">
+      <span class="lab">Mobile</span>
+      <input class="inp" type="text" name="mobile" autocomplete="off">
+      <div class="hint">Leave blank if you don't know.</div>
+    </div>
+    <div class="btnrow"><button class="btn" type="submit">Save person</button></div>
+  </form>
+</details>
