@@ -1,0 +1,15 @@
+# build output
+/register
+/register.exe
+/storeregister
+/storeregister.exe
+
+# the live register data, never committed
+store-register.json
+store-register.json.bak
+store-register.json.corrupt-*
+
+# go
+/vendor/
+*.test
+*.out

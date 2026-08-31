@@ -1,0 +1,844 @@
+<title>Store Register Walkthrough</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+:root{
+  --ink:#16233A;
+  --ink-soft:#44536B;
+  --ink-faint:#7C8AA0;
+  --rule:#D3DBE6;
+  --rule-soft:#E5EAF1;
+  --paper:#F6F8FB;
+  --card:#FFFFFF;
+  --accent:#2B4C8C;
+  --accent-soft:#E7EDF8;
+  --ok:#17734F;
+  --ok-soft:#E2F1EA;
+  --warn:#9A5B00;
+  --warn-soft:#FBEEDA;
+  --bad:#A8271F;
+  --bad-soft:#FAE6E4;
+  --shadow:0 1px 2px rgba(22,35,58,.06),0 8px 24px -12px rgba(22,35,58,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#E4EAF3;
+    --ink-soft:#A7B4C7;
+    --ink-faint:#7A889B;
+    --rule:#2C3846;
+    --rule-soft:#232E3B;
+    --paper:#12181F;
+    --card:#1A222C;
+    --accent:#8FB2EE;
+    --accent-soft:#1E2C44;
+    --ok:#6FD3A8;
+    --ok-soft:#14312A;
+    --warn:#E7B168;
+    --warn-soft:#33260F;
+    --bad:#EC9089;
+    --bad-soft:#3A1D1B;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#E4EAF3;
+  --ink-soft:#A7B4C7;
+  --ink-faint:#7A889B;
+  --rule:#2C3846;
+  --rule-soft:#232E3B;
+  --paper:#12181F;
+  --card:#1A222C;
+  --accent:#8FB2EE;
+  --accent-soft:#1E2C44;
+  --ok:#6FD3A8;
+  --ok-soft:#14312A;
+  --warn:#E7B168;
+  --warn-soft:#33260F;
+  --bad:#EC9089;
+  --bad-soft:#3A1D1B;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"Source Serif 4",Georgia,serif;
+  font-size:17px;
+  line-height:1.65;
+  margin:0;
+}
+.wrap{max-width:78rem;margin:0 auto;padding:0 1.5rem 6rem}
+.col{max-width:38rem}
+
+/* ---------- masthead ---------- */
+.mast{
+  border-bottom:2px solid var(--ink);
+  padding:3.5rem 0 1.25rem;
+  margin-bottom:2.5rem;
+}
+.eyebrow{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:.7rem;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--ink-faint);
+  margin:0 0 .9rem;
+}
+h1{
+  font-family:Archivo,system-ui,sans-serif;
+  font-weight:700;
+  font-size:clamp(2.1rem,5vw,3.1rem);
+  line-height:1.05;
+  letter-spacing:-.02em;
+  margin:0 0 .8rem;
+  text-wrap:balance;
+}
+.standfirst{
+  font-size:1.12rem;
+  color:var(--ink-soft);
+  max-width:36rem;
+  margin:0;
+}
+
+/* ---------- type ---------- */
+h2{
+  font-family:Archivo,system-ui,sans-serif;
+  font-weight:700;
+  font-size:1.55rem;
+  letter-spacing:-.012em;
+  line-height:1.2;
+  margin:0 0 .5rem;
+  text-wrap:balance;
+}
+h3{
+  font-family:Archivo,system-ui,sans-serif;
+  font-weight:600;
+  font-size:1.02rem;
+  letter-spacing:-.005em;
+  margin:2rem 0 .4rem;
+}
+p{margin:0 0 1.05rem}
+strong{font-weight:600}
+a{color:var(--accent)}
+em{font-style:italic;color:var(--ink-soft)}
+
+section{padding:3rem 0;border-top:1px solid var(--rule)}
+section:first-of-type{border-top:none}
+
+.sect-head{display:flex;gap:1.1rem;align-items:baseline;margin-bottom:1.4rem}
+.step{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:.72rem;
+  font-weight:600;
+  letter-spacing:.1em;
+  color:var(--accent);
+  border:1px solid var(--rule);
+  background:var(--accent-soft);
+  padding:.22rem .5rem;
+  border-radius:2px;
+  white-space:nowrap;
+  position:relative;
+  top:-.15rem;
+}
+.sect-head h2{margin:0}
+
+/* ---------- rule callout ---------- */
+.rulebox{
+  border-left:3px solid var(--accent);
+  background:var(--card);
+  padding:1.4rem 1.6rem;
+  box-shadow:var(--shadow);
+  margin:0 0 1.5rem;
+  max-width:42rem;
+}
+.rulebox p:last-child{margin-bottom:0}
+.rulebox .lede{
+  font-family:Archivo,system-ui,sans-serif;
+  font-weight:600;
+  font-size:1.15rem;
+  line-height:1.35;
+  letter-spacing:-.01em;
+}
+
+/* ---------- screen mockups ---------- */
+figure{margin:1.8rem 0 0}
+figcaption{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:.72rem;
+  letter-spacing:.04em;
+  color:var(--ink-faint);
+  margin-top:.7rem;
+  max-width:44rem;
+}
+.screen{
+  background:var(--card);
+  border:1px solid var(--rule);
+  border-radius:6px;
+  box-shadow:var(--shadow);
+  overflow:hidden;
+  font-family:Archivo,system-ui,sans-serif;
+  font-size:14px;
+  line-height:1.45;
+  max-width:52rem;
+}
+.chrome{
+  background:var(--rule-soft);
+  border-bottom:1px solid var(--rule);
+  padding:.5rem .85rem;
+  display:flex;
+  align-items:center;
+  gap:.6rem;
+  font-family:"IBM Plex Mono",monospace;
+  font-size:.7rem;
+  color:var(--ink-faint);
+  letter-spacing:.03em;
+}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--rule);flex:none}
+.chrome .who{margin-left:auto;color:var(--ink-soft);font-weight:500}
+.body{padding:1.15rem 1.25rem 1.35rem}
+
+.tabs{display:flex;gap:.4rem;border-bottom:1px solid var(--rule);padding:0 1.25rem;background:var(--card)}
+.tab{
+  padding:.6rem .85rem;
+  font-size:.83rem;
+  font-weight:600;
+  color:var(--ink-faint);
+  border-bottom:2px solid transparent;
+  margin-bottom:-1px;
+  white-space:nowrap;
+}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+
+.scr-h{
+  font-family:Archivo,sans-serif;
+  font-weight:700;
+  font-size:1.15rem;
+  letter-spacing:-.01em;
+  margin:0 0 .15rem;
+}
+.scr-sub{font-size:.8rem;color:var(--ink-faint);margin:0 0 1.05rem;font-family:Archivo,sans-serif}
+
+.field{margin-bottom:.85rem}
+.lab{
+  display:block;
+  font-size:.7rem;
+  font-weight:600;
+  letter-spacing:.07em;
+  text-transform:uppercase;
+  color:var(--ink-faint);
+  margin-bottom:.28rem;
+}
+.inp{
+  border:1px solid var(--rule);
+  border-radius:4px;
+  padding:.5rem .6rem;
+  background:var(--paper);
+  font-size:.92rem;
+  color:var(--ink);
+  display:flex;
+  align-items:center;
+  gap:.5rem;
+  min-height:2.3rem;
+}
+.inp.focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--card)}
+.ph{color:var(--ink-faint)}
+.hint{font-size:.74rem;color:var(--ink-faint);margin-top:.25rem;font-family:Archivo,sans-serif}
+.hint.good{color:var(--ok)}
+.hint.warn{color:var(--warn)}
+.hint.bad{color:var(--bad)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:.85rem}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.85rem}
+
+.seg{display:flex;gap:.4rem;flex-wrap:wrap}
+.opt{
+  border:1px solid var(--rule);
+  border-radius:4px;
+  padding:.45rem .8rem;
+  font-size:.85rem;
+  font-weight:500;
+  color:var(--ink-soft);
+  background:var(--paper);
+}
+.opt.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
+
+.btn{
+  display:inline-block;
+  background:var(--accent);
+  color:#fff;
+  border-radius:4px;
+  padding:.6rem 1.15rem;
+  font-size:.9rem;
+  font-weight:600;
+  letter-spacing:.005em;
+}
+:root[data-theme="dark"] .btn{color:#0F1720}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn{color:#0F1720}}
+.btn.ghost{background:transparent;color:var(--ink-soft);border:1px solid var(--rule)}
+.btnrow{display:flex;gap:.6rem;align-items:center;margin-top:1.1rem;flex-wrap:wrap}
+
+/* stock table */
+table.stk{width:100%;border-collapse:collapse;font-size:.88rem;font-variant-numeric:tabular-nums}
+table.stk th{
+  text-align:left;
+  font-size:.67rem;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--ink-faint);
+  font-weight:600;
+  padding:.4rem .5rem;
+  border-bottom:1px solid var(--rule);
+}
+table.stk td{padding:.55rem .5rem;border-bottom:1px solid var(--rule-soft)}
+table.stk td.num{text-align:right;font-variant-numeric:tabular-nums}
+table.stk tr:last-child td{border-bottom:none}
+.nm{font-weight:600}
+.scroller{overflow-x:auto}
+
+.pill{
+  display:inline-block;
+  font-size:.68rem;
+  font-weight:600;
+  letter-spacing:.05em;
+  text-transform:uppercase;
+  padding:.14rem .45rem;
+  border-radius:3px;
+}
+.pill.rent{background:var(--warn-soft);color:var(--warn)}
+.pill.sale{background:var(--accent-soft);color:var(--accent)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.out{background:var(--bad-soft);color:var(--bad)}
+
+.tile{
+  border:1px solid var(--rule);
+  border-radius:5px;
+  padding:.7rem .85rem;
+  background:var(--paper);
+}
+.tile .k{font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);font-weight:600}
+.tile .v{font-family:Archivo,sans-serif;font-weight:700;font-size:1.5rem;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.15}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr));gap:.7rem;margin-bottom:1.1rem}
+
+.sug{border:1px solid var(--accent);border-top:none;border-radius:0 0 4px 4px;background:var(--card);overflow:hidden}
+.sug div{padding:.45rem .6rem;font-size:.88rem;border-bottom:1px solid var(--rule-soft)}
+.sug div:last-child{border-bottom:none}
+.sug .hl{background:var(--accent-soft);font-weight:600}
+.sug .new{color:var(--accent);font-weight:600;border-top:1px solid var(--rule)}
+
+.outrow{
+  display:flex;
+  gap:.75rem;
+  align-items:center;
+  padding:.6rem .7rem;
+  border:1px solid var(--rule);
+  border-radius:4px;
+  margin-bottom:.5rem;
+  background:var(--paper);
+  font-size:.88rem;
+}
+.outrow.pick{border-color:var(--accent);background:var(--accent-soft)}
+.outrow .g{flex:1;min-width:0}
+.outrow .q{font-family:"IBM Plex Mono",monospace;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sm{font-size:.76rem;color:var(--ink-faint)}
+
+.banner{
+  border-radius:4px;
+  padding:.6rem .8rem;
+  font-size:.85rem;
+  font-weight:500;
+  margin-bottom:.9rem;
+  display:flex;
+  gap:.5rem;
+  align-items:flex-start;
+}
+.banner.ok{background:var(--ok-soft);color:var(--ok)}
+.banner.warn{background:var(--warn-soft);color:var(--warn)}
+.banner.bad{background:var(--bad-soft);color:var(--bad)}
+
+/* mapping table */
+table.map{width:100%;border-collapse:collapse;font-size:.9rem;margin:1rem 0 0}
+table.map th{
+  text-align:left;font-family:Archivo,sans-serif;font-size:.67rem;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-faint);font-weight:600;padding:.45rem .6rem;
+  border-bottom:1px solid var(--ink);
+}
+table.map td{padding:.5rem .6rem;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+table.map td:first-child{font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:var(--ink-faint);width:2.2rem;text-align:right}
+table.map td.p{font-family:"IBM Plex Mono",monospace;font-size:.8rem;white-space:nowrap}
+
+ul.tick{list-style:none;padding:0;margin:0 0 1.1rem;max-width:40rem}
+ul.tick li{padding:.32rem 0 .32rem 1.35rem;position:relative}
+ul.tick li::before{
+  content:"";position:absolute;left:0;top:.85em;width:.5rem;height:1px;background:var(--accent);
+}
+
+.verdict{border-collapse:collapse;width:100%;font-size:.9rem;margin-top:1rem}
+.verdict th{text-align:left;font-family:Archivo,sans-serif;font-size:.67rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);font-weight:600;padding:.45rem .6rem;border-bottom:1px solid var(--ink)}
+.verdict td{padding:.55rem .6rem;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+.verdict td.a{font-family:"IBM Plex Mono",monospace;font-size:.78rem;white-space:nowrap}
+.tag{font-family:Archivo,sans-serif;font-size:.65rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:.13rem .42rem;border-radius:3px;white-space:nowrap}
+.tag.use{background:var(--ok-soft);color:var(--ok)}
+.tag.mod{background:var(--warn-soft);color:var(--warn)}
+.tag.no{background:var(--bad-soft);color:var(--bad)}
+
+.ask{
+  border:1px solid var(--accent);
+  border-radius:5px;
+  background:var(--accent-soft);
+  padding:1.3rem 1.5rem;
+  max-width:42rem;
+}
+.ask h3{margin-top:0;color:var(--accent)}
+.ask p:last-child{margin-bottom:0}
+
+@media (max-width:640px){
+  body{font-size:16px}
+  .row2,.row3{grid-template-columns:1fr}
+}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="eyebrow">Design walkthrough · before any code is written</p>
+  <h1>The Store Register</h1>
+  <p class="standfirst">What the person on duty actually sees — receiving stock, issuing it, taking it back — and why the screens are shaped this way.</p>
+</header>
+
+<section>
+  <div class="col">
+    <div class="rulebox">
+      <p class="lede">The person on duty never types a number from memory, and never types an identifier.</p>
+      <p style="margin-bottom:0">Every quantity and every person comes off a list the software puts in front of them. That single rule is what makes the register survive a shift change — because the software remembers, not the person at the desk.</p>
+    </div>
+    <p>The handwritten book failed in one specific way: it put the arithmetic and the memory inside people's heads. Whoever was standing there had to know how many chairs were left, and had to trust that the man returning forty chairs had taken forty. A different person each shift means that knowledge walks out of the door at 6pm.</p>
+    <p>So every screen below is built to answer a question before it is asked.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sect-head">
+    <span class="step">On arrival</span>
+    <h2>Who is on duty?</h2>
+  </div>
+  <div class="col">
+    <p>One question, once, at the start of a shift. Nobody types their own name forty times a day, and every entry made afterwards is stamped with it automatically — so <em>Person Incharge</em> fills itself in and can never be left blank or misspelt.</p>
+  </div>
+
+  <figure>
+    <div class="screen" style="max-width:26rem">
+      <div class="chrome"><span class="dot"></span> Store Register</div>
+      <div class="body">
+        <p class="scr-h">Who is at the desk?</p>
+        <p class="scr-sub">Tap your name to begin.</p>
+        <div class="seg" style="flex-direction:column;align-items:stretch">
+          <div class="opt on">Suresh Kumar &nbsp;·&nbsp; <span class="sm">98450 22117</span></div>
+          <div class="opt">Anita Rao &nbsp;·&nbsp; <span class="sm">99001 34562</span></div>
+          <div class="opt">Imran Sheikh &nbsp;·&nbsp; <span class="sm">90080 77213</span></div>
+        </div>
+        <div class="btnrow"><span class="btn">Start shift</span><span class="btn ghost">+ Add a person</span></div>
+      </div>
+    </div>
+    <figcaption>No passwords. This is a store desk, not a bank. The point is attribution, not security.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="sect-head">
+    <span class="step">Home</span>
+    <h2>The screen that replaces the shift handover</h2>
+  </div>
+  <div class="col">
+    <p>This is what is open all day. The new person walking in at 2pm reads it and knows everything the previous person knew — <strong>what is on hand, and what is out with whom.</strong></p>
+    <p>The outstanding list sits at the same weight as the stock list on purpose. Stock counts survive a handover by themselves; the knowledge of <em>who is still holding forty chairs</em> is exactly what used to get lost.</p>
+  </div>
+
+  <figure>
+    <div class="screen">
+      <div class="chrome"><span class="dot"></span> Store Register <span class="who">Suresh Kumar · on duty</span></div>
+      <div class="tabs">
+        <div class="tab on">Stock</div>
+        <div class="tab">Out with people</div>
+        <div class="tab">Stuff came in</div>
+        <div class="tab">Suppliers</div>
+      </div>
+      <div class="body">
+        <div class="tiles">
+          <div class="tile"><div class="k">Products</div><div class="v">14</div></div>
+          <div class="tile"><div class="k">Out right now</div><div class="v">327</div></div>
+          <div class="tile"><div class="k">People holding</div><div class="v">18</div></div>
+          <div class="tile"><div class="k">Out over 2 days</div><div class="v" style="color:var(--warn)">3</div></div>
+        </div>
+
+        <div class="scroller">
+        <table class="stk">
+          <tr><th>Product</th><th>Type</th><th class="num">Came in</th><th class="num">Out</th><th class="num">On hand</th><th></th></tr>
+          <tr><td class="nm">Chairs</td><td><span class="pill rent">Rent</span></td><td class="num">700</td><td class="num">310</td><td class="num"><strong>390</strong></td><td class="num"><span class="btn" style="padding:.3rem .7rem;font-size:.78rem">Issue</span></td></tr>
+          <tr><td class="nm">Round tables</td><td><span class="pill rent">Rent</span></td><td class="num">60</td><td class="num">12</td><td class="num"><strong>48</strong></td><td class="num"><span class="btn" style="padding:.3rem .7rem;font-size:.78rem">Issue</span></td></tr>
+          <tr><td class="nm">Water drums (20L)</td><td><span class="pill sale">Purchase</span></td><td class="num">40</td><td class="num">5</td><td class="num"><strong>35</strong></td><td class="num"><span class="btn" style="padding:.3rem .7rem;font-size:.78rem">Issue</span></td></tr>
+          <tr><td class="nm">Extension boards</td><td><span class="pill rent">Rent</span></td><td class="num">25</td><td class="num">25</td><td class="num"><strong style="color:var(--bad)">0</strong></td><td class="num"><span class="opt" style="padding:.3rem .7rem;font-size:.78rem">None left</span></td></tr>
+        </table>
+        </div>
+
+        <div class="btnrow">
+          <span class="btn">+ Stuff came in</span>
+          <span class="btn ghost">Someone is taking</span>
+          <span class="btn ghost">Someone is returning</span>
+        </div>
+      </div>
+    </div>
+    <figcaption>Three buttons, matching the three things that ever happen. Extension boards show zero in red — the answer to “do we have any?” arrives before anyone asks.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="sect-head">
+    <span class="step">Event 1</span>
+    <h2>500 chairs arrive at the gate</h2>
+  </div>
+  <div class="col">
+    <p>Suresh presses <strong>Stuff came in</strong>. The form is the left half of the old book page, in the same order, with the two things you asked for that the paper never had: who it came from, and who took delivery.</p>
+    <p><strong>The product name is the dangerous field.</strong> If Monday's person types “Chairs” and Wednesday's types “chair”, you now own two products, your stock count is wrong, and there is no fixing it mid-event. So the name is chosen from a list — and creating a brand-new product is a separate, deliberate press, never something that happens by accident because a word was misspelt.</p>
+  </div>
+
+  <figure>
+    <div class="screen">
+      <div class="chrome"><span class="dot"></span> Stuff came in <span class="who">Suresh Kumar · on duty</span></div>
+      <div class="body">
+        <p class="scr-h">Record what arrived</p>
+        <p class="scr-sub">Thursday, 3 September · 10:42 am</p>
+
+        <div class="field">
+          <span class="lab">Product</span>
+          <div class="inp focus">Cha<span style="width:1px;height:1.05em;background:var(--accent);display:inline-block"></span></div>
+          <div class="sug">
+            <div class="hl">Chairs &nbsp;<span class="sm">— 390 on hand</span></div>
+            <div>Charcoal sacks &nbsp;<span class="sm">— 12 on hand</span></div>
+            <div class="new">+ Add “Cha” as a brand-new product</div>
+          </div>
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <span class="lab">How many</span>
+            <div class="inp">500</div>
+          </div>
+          <div class="field">
+            <span class="lab">Date received</span>
+            <div class="inp">03 / 09 / 2026</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="lab">Rent or purchase</span>
+          <div class="seg">
+            <div class="opt on">On rent — goes back to supplier</div>
+            <div class="opt">Purchased for resale — does not come back</div>
+          </div>
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <span class="lab">Came from</span>
+            <div class="inp">Sharma Tent House</div>
+            <div class="hint">Leave blank if you don’t know.</div>
+          </div>
+          <div class="field">
+            <span class="lab">Challan no.</span>
+            <div class="inp">STH/4471</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="lab">Received by</span>
+          <div class="inp" style="color:var(--ink-soft)">Suresh Kumar <span class="sm">(you)</span></div>
+        </div>
+
+        <div class="btnrow"><span class="btn">Save — 500 chairs in</span><span class="btn ghost">Cancel</span></div>
+      </div>
+    </div>
+    <figcaption>Chairs already existed with 390 on hand, so this delivery adds to that pool rather than starting a second “Chairs”. After saving, on-hand reads 890.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="sect-head">
+    <span class="step">Event 2</span>
+    <h2>Ravi comes to take 10 chairs</h2>
+  </div>
+  <div class="col">
+    <p>A different person is at the desk now — Anita, who started at 2pm and has never met Ravi. She does not need to know anything.</p>
+    <p>The quantity box carries the answer to <em>“do we even have these?”</em> right beside it, and refuses a number larger than what is on hand. Nobody can issue 900 chairs out of 890 by mistyping.</p>
+  </div>
+
+  <figure>
+    <div class="screen">
+      <div class="chrome"><span class="dot"></span> Someone is taking <span class="who">Anita Rao · on duty</span></div>
+      <div class="body">
+        <p class="scr-h">Issue stock</p>
+        <p class="scr-sub">Thursday, 3 September · 2:18 pm</p>
+
+        <div class="row2">
+          <div class="field">
+            <span class="lab">Product</span>
+            <div class="inp">Chairs</div>
+            <div class="hint good">890 on hand right now</div>
+          </div>
+          <div class="field">
+            <span class="lab">How many</span>
+            <div class="inp focus">10</div>
+            <div class="hint">Most you can issue is 890.</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="lab">Who is taking it</span>
+          <div class="inp">Ravi Menon</div>
+          <div class="hint">Taken from someone before — details filled in below.</div>
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <span class="lab">Department</span>
+            <div class="inp">Catering</div>
+          </div>
+          <div class="field">
+            <span class="lab">Their mobile</span>
+            <div class="inp">98861 40023</div>
+          </div>
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <span class="lab">Person incharge (giving it)</span>
+            <div class="inp" style="color:var(--ink-soft)">Anita Rao <span class="sm">(you)</span></div>
+          </div>
+          <div class="field">
+            <span class="lab">Your mobile</span>
+            <div class="inp" style="color:var(--ink-soft)">99001 34562</div>
+          </div>
+        </div>
+
+        <div class="banner warn" style="margin-top:.4rem">Ravi Menon is already holding <strong>40 chairs</strong> and 2 tables from earlier today.</div>
+
+        <div class="btnrow"><span class="btn">Issue 10 chairs to Ravi</span><span class="btn ghost">Cancel</span></div>
+      </div>
+    </div>
+    <figcaption>The amber line is the part a paper book could never do: Anita learns, without asking, that this man already has forty chairs of yours.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="sect-head">
+    <span class="step">Event 3</span>
+    <h2>Someone comes to return chairs</h2>
+  </div>
+  <div class="col">
+    <p>This is the case you were most worried about — <em>how does the person on duty know the man is returning the right number?</em> The answer is that they are never asked to know it.</p>
+    <p>Imran, on duty at 6pm, searches by name, mobile or department. Up comes everything that person is still holding. He picks the line, and <strong>the return quantity is already filled in with the full amount outstanding.</strong> He only changes it if fewer come back — and the moment he does, the shortfall is stated in plain words on the screen.</p>
+    <p>Returning more than was taken is refused outright. And because the man handing things back is not always the man who took them, the person returning is recorded separately.</p>
+  </div>
+
+  <figure>
+    <div class="screen">
+      <div class="chrome"><span class="dot"></span> Someone is returning <span class="who">Imran Sheikh · on duty</span></div>
+      <div class="body">
+        <p class="scr-h">Take stock back</p>
+        <p class="scr-sub">Thursday, 3 September · 6:05 pm</p>
+
+        <div class="field">
+          <span class="lab">Find the person</span>
+          <div class="inp focus">98861</div>
+          <div class="hint">Search by name, mobile or department.</div>
+        </div>
+
+        <p class="lab" style="margin-top:1.1rem">Ravi Menon · Catering · 98861 40023 — still holding</p>
+
+        <div class="outrow pick">
+          <div class="g"><strong>Chairs</strong><div class="sm">Issued 9:40 am by Suresh Kumar · 40 taken, 0 back</div></div>
+          <div class="q">40 out</div>
+        </div>
+        <div class="outrow pick">
+          <div class="g"><strong>Chairs</strong><div class="sm">Issued 2:18 pm by Anita Rao · 10 taken, 0 back</div></div>
+          <div class="q">10 out</div>
+        </div>
+        <div class="outrow">
+          <div class="g"><strong>Round tables</strong><div class="sm">Issued 9:40 am by Suresh Kumar · 2 taken, 0 back</div></div>
+          <div class="q">2 out</div>
+        </div>
+
+        <div class="row2" style="margin-top:1.2rem">
+          <div class="field">
+            <span class="lab">Chairs coming back</span>
+            <div class="inp focus">45</div>
+            <div class="hint bad">5 chairs short — they will stay marked out with Ravi.</div>
+          </div>
+          <div class="field">
+            <span class="lab">Who is handing it back</span>
+            <div class="inp">Ravi Menon</div>
+            <div class="hint">Change it if somebody else brought it.</div>
+          </div>
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <span class="lab">Their mobile</span>
+            <div class="inp">98861 40023</div>
+          </div>
+          <div class="field">
+            <span class="lab">Taken back by</span>
+            <div class="inp" style="color:var(--ink-soft)">Imran Sheikh <span class="sm">(you)</span></div>
+          </div>
+        </div>
+
+        <div style="border-top:1px dashed var(--rule);margin:1.1rem 0 0;padding-top:1rem">
+          <div class="banner bad">5 chairs are short. Say what happened to them before saving.</div>
+
+          <div class="field">
+            <span class="lab">What happened to the 5?</span>
+            <div class="seg">
+              <div class="opt">Still expected back</div>
+              <div class="opt on">Won’t come back — broken or lost</div>
+            </div>
+          </div>
+
+          <div class="field">
+            <span class="lab">Remark</span>
+            <div class="inp focus" style="min-height:3.4rem;align-items:flex-start">5 chairs broke during setup near the stage. Ravi informed.</div>
+            <div class="hint">Whatever you’d have scribbled in the margin of the book.</div>
+          </div>
+        </div>
+
+        <div class="btnrow"><span class="btn">Take back 45 chairs</span><span class="btn ghost">Cancel</span></div>
+      </div>
+    </div>
+    <figcaption>Fifty chairs went out across two separate issues; forty-five come back in one trip. Imran counts chairs — the software does the subtraction, keeps five on Ravi’s name, and holds the remark against them.</figcaption>
+  </figure>
+
+  <div class="col" style="margin-top:2.2rem">
+    <h3>Nothing disappears quietly</h3>
+    <p>Those 5 chairs are not written off. They stay against Ravi’s name with the remark attached, and they stay inside the 490 chairs still owed to Sharma. The only thing the software learned is that <em>waiting</em> is no longer the plan — someone will have to pay for them.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sect-head">
+    <span class="step">End of event</span>
+    <h2>What is owed back to each supplier</h2>
+  </div>
+  <div class="col">
+    <p>Rented things have to go back to whoever they came from. Because stock is pooled — we agreed a chair is a chair, no matter which truck it arrived on — this view works at the level that actually matters: <strong>how many did we take from each supplier, and how many have gone back.</strong></p>
+    <p>It is a list to read, nothing more. There is no button here.</p>
+  </div>
+
+  <figure>
+    <div class="screen" style="max-width:44rem">
+      <div class="chrome"><span class="dot"></span> Suppliers <span class="who">Imran Sheikh &middot; on duty</span></div>
+      <div class="body">
+        <div class="banner bad">327 items are still out with people. Get those back before returning anything to suppliers.</div>
+        <div class="scroller">
+        <table class="stk">
+          <tr><th>Supplier</th><th>Product</th><th class="num">Took</th><th class="num">Given back</th><th class="num">Still owed</th></tr>
+          <tr><td class="nm">Sharma Tent House</td><td>Chairs</td><td class="num">890</td><td class="num">400</td><td class="num"><strong>490</strong><div class="sm" style="color:var(--warn)">5 won&rsquo;t come back</div></td></tr>
+          <tr><td class="nm">Sharma Tent House</td><td>Round tables</td><td class="num">60</td><td class="num">60</td><td class="num"><span class="pill ok">All back</span></td></tr>
+          <tr><td class="nm">Gupta Electricals</td><td>Extension boards</td><td class="num">25</td><td class="num">22</td><td class="num"><strong>3</strong><div class="sm" style="color:var(--warn)">3 won&rsquo;t come back</div></td></tr>
+          <tr><td class="nm"><span class="sm">&mdash; not on rent &mdash;</span></td><td>Water drums (20L)</td><td class="num">40</td><td class="num">&mdash;</td><td class="num"><span class="pill sale">Purchased</span></td></tr>
+        </table>
+        </div>
+      </div>
+    </div>
+    <figcaption>Purchased-for-resale stock is shown but never chased &mdash; nothing is owed on it.</figcaption>
+  </figure>
+
+  <div class="col" style="margin-top:2.2rem">
+    <h3>Lines that never reach zero, and that is fine</h3>
+    <p>Sharma is owed 490 chairs, 5 of which are broken and will never arrive. That line stays open. Whatever is worked out with Mr. Sharma happens over a phone call, not in here &mdash; the software&rsquo;s job is to state the true number, not to close the argument.</p>
+    <p>If the day comes that it should read zero, someone records the 5 as received and it does. No separate machinery, no money screen. If that turns out to be too crude in practice, we build something then.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sect-head">
+    <span class="step">Check</span>
+    <h2>Every column from the book, and where it went</h2>
+  </div>
+  <div class="col">
+    <p>Nothing from the handwritten page was dropped. The two <em>Name</em> boxes and the two <em>Mobile</em> boxes stopped being positional — on screen each one carries a label, so a new person fills it correctly on their first day.</p>
+  </div>
+
+  <div class="scroller">
+  <table class="map">
+    <tr><th></th><th>In the book</th><th>On screen</th><th>Where</th></tr>
+    <tr><td>1</td><td class="p">Product Name</td><td class="p">Product</td><td>Picked from a list · never free-typed</td></tr>
+    <tr><td>2</td><td class="p">QTY</td><td class="p">How many</td><td>Split into came-in / out / on-hand</td></tr>
+    <tr><td>3</td><td class="p">Inward Date</td><td class="p">Date received</td><td>Stuff came in</td></tr>
+    <tr><td>4</td><td class="p">Rent</td><td class="p">On rent</td><td>Drives supplier settlement</td></tr>
+    <tr><td>5</td><td class="p">Purchase / Resale</td><td class="p">Purchased for resale</td><td>Never chased for return</td></tr>
+    <tr><td>6</td><td class="p">Name</td><td class="p">Who is taking it</td><td>Someone is taking</td></tr>
+    <tr><td>7</td><td class="p">Department</td><td class="p">Department</td><td>Someone is taking</td></tr>
+    <tr><td>8</td><td class="p">Person Incharge</td><td class="p">Person incharge</td><td>Filled from who’s on duty</td></tr>
+    <tr><td>9</td><td class="p">Mobile No.</td><td class="p">Their mobile · your mobile</td><td>Both, each labelled</td></tr>
+    <tr><td>10</td><td class="p">Challan No.</td><td class="p">Challan no.</td><td>Stuff came in</td></tr>
+    <tr><td>11</td><td class="p">Outward Date &amp; Time</td><td class="p">Stamped at issue</td><td>Automatic, editable</td></tr>
+    <tr><td>12</td><td class="p">Return Time</td><td class="p">Stamped at return</td><td>Automatic, editable</td></tr>
+    <tr><td>13</td><td class="p">Return Date</td><td class="p">Stamped at return</td><td>Automatic, editable</td></tr>
+    <tr><td>14</td><td class="p">Name</td><td class="p">Who is handing it back</td><td>Someone is returning</td></tr>
+    <tr><td>15</td><td class="p">Mob. No.</td><td class="p">Their mobile</td><td>Someone is returning</td></tr>
+    <tr><td>+</td><td class="p sm">— not on paper —</td><td class="p">Came from (supplier)</td><td>You asked for it out loud</td></tr>
+    <tr><td>+</td><td class="p sm">— not on paper —</td><td class="p">Received by</td><td>You asked for it out loud</td></tr>
+  </table>
+  </div>
+</section>
+
+<section>
+  <div class="sect-head">
+    <span class="step">Agents</span>
+    <h2>The four that will build this</h2>
+  </div>
+  <div class="col">
+    <p>Both collections were searched before anything was written, as CLAUDE.md requires — around 550 agent definitions between them. The honest result: <strong>most are pitched at enterprise work and over-fit this job.</strong> Two were worth adapting, two had to be written, and the rest were left alone.</p>
+    <h3>Adapted from the collections</h3>
+  </div>
+
+  <div class="scroller">
+  <table class="verdict">
+    <tr><th>Ours</th><th>Adapted from</th><th></th><th>What changed</th></tr>
+    <tr><td class="a">spec-writer</td><td class="sm">cct · sdd-spec-writer</td><td><span class="tag use">Adapted</span></td><td>Turns this page into a build contract so the implementation can’t drift. Had no frontmatter at all, so the when-to-use description and read-only-plus-write tools are ours. Test cases must carry real numbers — 890 chairs, not <em>foo</em>.</td></tr>
+    <tr><td class="a">release-gate</td><td class="sm">aa · testing-reality-checker</td><td><span class="tag use">Adapted</span></td><td>Refuses to certify anything without evidence it gathered itself. Persona sections stripped per CLAUDE.md, and the automatic-fail list rewritten around this project: the cross-compile, the atomic-write path, the stock arithmetic, and binding to loopback.</td></tr>
+  </table>
+  </div>
+
+  <div class="col" style="margin-top:2rem">
+    <h3>Written from scratch, because nothing fit</h3>
+  </div>
+
+  <div class="scroller">
+  <table class="verdict">
+    <tr><th>Ours</th><th>Replaces</th><th></th><th>Why nothing existing worked</th></tr>
+    <tr><td class="a">go-local-app-engineer</td><td class="sm">golang-pro</td><td><span class="tag mod">New</span></td><td><code>golang-pro</code> is written for gRPC services, 10k concurrent connections and pprof tuning — the wrong altitude entirely. Ours carries the constraints that actually bind: the cgo-free Windows cross-compile, standard library first, loopback only, and atomic writes with a <code>.bak</code> fallback.</td></tr>
+    <tr><td class="a">plain-language-reviewer</td><td class="sm">— nothing —</td><td><span class="tag mod">New</span></td><td>A search of both collections for microcopy and plain-language roles returned only documentation agents — <code>technical-writer</code>, <code>documentation-expert</code> — which write API references and user guides. None reviews the words on a button. For software run by people who were never trained on it, that is the review that matters most.</td></tr>
+  </table>
+  </div>
+
+  <div class="col" style="margin-top:2rem">
+    <h3>Looked at and left</h3>
+    <p><code>desktop-app-engineer</code> is Electron, Tauri, code signing and auto-update — all four already rejected. <code>backend-architect</code> designs microservice boundaries and Kafka topics; there is one binary and one file. <code>design-persona-walkthrough</code> has exactly the right method — walk each screen as the person using it — but is framed for marketing conversion, so the method was borrowed into this page and the file left where it was.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sect-head">
+    <span class="step">Decided</span>
+    <h2>Things that don’t come back</h2>
+  </div>
+  <div class="ask">
+    <h3>What happens when something never comes back</h3>
+    <p>A chair breaks. A drum walks off. Nothing gets written off quietly: the missing pieces stay against the name of whoever had them, carrying a <strong>remark in plain words</strong> saying what happened — the margin scribble from the old book, given a proper home.</p>
+    <p>They also stay inside what is owed to the supplier, and they stay there. The register keeps showing 490 owed and does not pretend otherwise &mdash; whatever gets worked out with Mr. Sharma is a conversation between two people, and the paper is allowed to sit unsettled while it happens.</p>
+    <p>The one thing the person on duty chooses is whether the missing pieces are still expected back or definitely gone. That is the only part of it a computer cannot work out on its own.</p>
+  </div>
+</section>
+
+</div>
