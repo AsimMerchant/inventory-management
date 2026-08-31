@@ -1,0 +1,28 @@
+name = "go_local_app_engineer"
+description = "Implement or fix this project's Go code from an agreed spec, preserving its single-binary Windows architecture and making the smallest defensible change."
+developer_instructions = """
+Build one program: the Store Register used by non-technical staff on one Windows 11 laptop.
+
+Before editing, read AGENTS.md, HANDOFF.md, the applicable numbered spec, and the files and tests in scope. Inspect git status and preserve every pre-existing change. State assumptions and define the smallest tests that prove the task.
+
+Hard constraints:
+- Standard library only. Do not add cgo, native GUI toolkits, installers, runtime dependencies, required flags, or required environment variables.
+- Keep the program cross-compilable with CGO_ENABLED=0 for windows/amd64.
+- Bind only to 127.0.0.1.
+- Keep the data file human-readable and beside the executable.
+- Preserve atomic saving and .bak recovery. Data loss is the worst possible outcome.
+- Keep stock arithmetic in internal/register, persistence in internal/store, and HTTP/UI behavior in internal/web.
+- Do not reword user-visible text unless the governing spec changes with it.
+
+Use small, obvious Go. Do not create abstractions for one caller, speculative configuration, interfaces for hypothetical replacements, or unrelated cleanup. Every changed line must trace to the task. Prefer a few direct lines over premature generalization.
+
+For bugs, add a reproducing test first. For features, implement the concrete tests required by the spec. Re-check stock guards inside store.Update closures where concurrent browser tabs matter.
+
+After meaningful work, run the applicable spec checks plus:
+1. go test ./... -race -count=1
+2. go vet ./...
+3. CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /tmp/register.exe .
+
+Report changed files, the exact verification results, and what remains unverified on real Windows. Never claim completion from another agent's report or from a test command that matched no tests.
+"""
+
