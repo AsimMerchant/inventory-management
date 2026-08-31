@@ -1,0 +1,64 @@
+<p class="scr-h">Someone is taking</p>
+<p class="scr-sub">{{longstamp .Now}}</p>
+
+<form method="post" action="/issue/new" data-issue>
+  <div class="row2">
+    {{if .Picker.PickedID}}
+    <div class="field">
+      <span class="lab">Product</span>
+      <div class="inp">{{.Picker.PickedName}}</div>
+      <input type="hidden" name="productId" value="{{.Picker.PickedID}}" data-picker-id>
+      <input type="hidden" value="{{.Picker.PickedName}}" data-picker-text>
+      <div class="hint good">{{.OnHand}} on hand right now</div>
+    </div>
+    {{else}}
+    {{template "picker.html" .Picker}}
+    {{end}}
+    <div class="field">
+      <span class="lab">How many</span>
+      <input class="inp" type="number" name="quantity" min="1"{{if .Picker.PickedID}} max="{{.OnHand}}"{{end}}
+             step="1" value="{{.Quantity}}" autofocus data-qty>
+      {{if .Picker.PickedID}}<div class="hint">Most you can issue is {{.OnHand}}.</div>{{end}}
+    </div>
+  </div>
+
+  {{template "person-picker.html" .Taker}}
+
+  <div class="row2">
+    <div class="field">
+      <span class="lab">Department</span>
+      <input class="inp" type="text" name="takerDepartment" autocomplete="off" value="{{.Department}}" data-person-department>
+    </div>
+    <div class="field">
+      <span class="lab">Their mobile</span>
+      <input class="inp" type="text" name="takerMobile" autocomplete="off" value="{{.Mobile}}" data-person-mobile>
+    </div>
+  </div>
+
+  <div class="field">
+    <span class="lab">Time taken</span>
+    <input class="inp" type="datetime-local" name="issuedAt" value="{{.IssuedAt}}">
+  </div>
+
+  <div class="row2">
+    <div class="field">
+      <span class="lab">Person incharge (giving it)</span>
+      <div class="inp" style="color:var(--ink-soft)">{{.Incharge}} <span class="sm">(you)</span></div>
+    </div>
+    <div class="field">
+      <span class="lab">Your mobile</span>
+      <div class="inp" style="color:var(--ink-soft)">{{.InchargeMob}}</div>
+    </div>
+  </div>
+
+  {{if .Warn}}<div class="banner warn" style="margin-top:.4rem" data-holding>{{.Warn}}</div>{{end}}
+
+  <div class="btnrow">
+    <button class="btn" type="submit" data-savebtn>{{.ButtonLabel}}</button>
+    <a class="btn ghost" href="/stock">Cancel</a>
+  </div>
+</form>
+
+<script src="/static/picker.js"></script>
+<script src="/static/person-picker.js"></script>
+<script src="/static/issue.js"></script>

@@ -1,0 +1,59 @@
+<p class="scr-h">Record what arrived</p>
+<p class="scr-sub">{{longstamp .Now}}</p>
+
+<form method="post" action="/inward/new" data-inward>
+  {{template "picker.html" .Picker}}
+
+  <div class="row2">
+    <div class="field">
+      <span class="lab">How many</span>
+      <input class="inp" type="number" name="quantity" min="1" step="1" value="{{.Quantity}}" data-qty>
+    </div>
+    <div class="field">
+      <span class="lab">Date received</span>
+      <input class="inp" type="date" name="receivedOn" value="{{.ReceivedOn}}">
+    </div>
+  </div>
+
+  <div class="field">
+    <span class="lab">Rent or purchase</span>
+    <div class="seg">
+      <label class="opt{{if eq .Basis "rent"}} on{{end}}">
+        <input type="radio" name="basis" value="rent"{{if eq .Basis "rent"}} checked{{end}}>
+        On rent — goes back to supplier
+      </label>
+      <label class="opt{{if eq .Basis "purchase"}} on{{end}}">
+        <input type="radio" name="basis" value="purchase"{{if eq .Basis "purchase"}} checked{{end}}>
+        Purchased for resale — does not come back
+      </label>
+    </div>
+  </div>
+
+  <div class="row2">
+    <div class="field">
+      <span class="lab">Came from</span>
+      <input class="inp" type="text" name="supplier" list="suppliers" autocomplete="off" value="{{.Supplier}}">
+      <datalist id="suppliers">{{range .Suppliers}}<option value="{{.}}"></option>{{end}}</datalist>
+      <div class="hint">Leave blank if you don't know.</div>
+    </div>
+    <div class="field">
+      <span class="lab">Challan no.</span>
+      <input class="inp" type="text" name="challanNo" autocomplete="off" value="{{.ChallanNo}}">
+    </div>
+  </div>
+
+  <div class="field">
+    <span class="lab">Received by</span>
+    <div class="inp" style="color:var(--ink-soft)">{{.ReceivedBy}} <span class="sm">(you)</span></div>
+  </div>
+
+  <div class="btnrow">
+    <button class="btn" type="submit" data-savebtn>{{.ButtonLabel}}</button>
+    <a class="btn ghost" href="/stock">Cancel</a>
+  </div>
+</form>
+
+{{template "newproduct.html" .Picker}}
+
+<script src="/static/picker.js"></script>
+<script src="/static/inward.js"></script>

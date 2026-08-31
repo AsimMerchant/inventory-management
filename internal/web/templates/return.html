@@ -1,0 +1,93 @@
+<p class="scr-h">Someone is returning</p>
+<p class="scr-sub">{{longstamp .Now}}</p>
+
+<form method="get" action="/return/new" data-findform>
+  {{template "person-picker.html" .Find}}
+</form>
+
+{{if .Nobody}}<p class="hint bad">Nobody by that name is holding anything.</p>{{end}}
+
+{{if .Person}}
+<p class="lab" style="margin-top:1.1rem">{{.Name}} · {{.Dept}} · {{.Mobile}} — still holding</p>
+
+{{range .Rows}}
+<a href="{{.Href}}">
+  <div class="outrow{{if .Pick}} pick{{end}}">
+    <div class="g"><strong>{{.ProductName}}</strong><div class="sm">Issued {{clock .IssuedAt}} by {{.IssuedBy}} · {{.Taken}} taken, {{.Back}} back</div></div>
+    <div class="q">{{.Out}} out</div>
+  </div>
+</a>
+{{end}}
+
+{{if .Picked}}
+<form method="post" action="/return/new" data-return>
+  <input type="hidden" name="q" value="{{.Q}}">
+  <input type="hidden" name="productId" value="{{.ProductID}}">
+  {{range .IssueIDs}}<input type="hidden" name="issueIds" value="{{.}}">{{end}}
+
+  <div class="row2" style="margin-top:1.2rem">
+    <div class="field">
+      <span class="lab">{{.ProductName}} coming back</span>
+      <input class="inp" type="number" name="quantity" min="1" max="{{.TotalOut}}" step="1"
+             value="{{.Quantity}}" autofocus data-qty>
+      {{if .Short}}<div class="hint bad">{{.Short}} {{productWord .ProductName}} missing. {{.TakerName}} still has them.</div>{{end}}
+    </div>
+    <div class="field">
+      <span class="lab">Who is handing it back</span>
+      <input class="inp" type="text" name="returnerName" autocomplete="off" value="{{.ReturnerName}}">
+      <div class="hint">Change it if somebody else brought it.</div>
+    </div>
+  </div>
+
+  <div class="row2">
+    <div class="field">
+      <span class="lab">Their mobile</span>
+      <input class="inp" type="text" name="returnerMobile" autocomplete="off" value="{{.ReturnerMobile}}">
+    </div>
+    <div class="field">
+      <span class="lab">Time returned</span>
+      <input class="inp" type="datetime-local" name="returnedAt" value="{{.ReturnedAt}}">
+    </div>
+  </div>
+
+  <div class="field">
+    <span class="lab">Taken back by</span>
+    <div class="inp" style="color:var(--ink-soft)">{{.TakenBackBy}} <span class="sm">(you)</span></div>
+  </div>
+
+  {{if .Short}}
+  <div data-short style="border-top:1px dashed var(--rule);margin:1.1rem 0 0;padding-top:1rem">
+    <div class="banner bad">{{.Short}} {{productWord .ProductName}} are missing. Say what happened before you save.</div>
+
+    <div class="field">
+      <span class="lab">What happened to the {{.Short}} {{productWord .ProductName}}?</span>
+      <div class="seg">
+        <label class="opt{{if eq .Disposition "expected"}} on{{end}}">
+          <input type="radio" name="disposition" value="expected"{{if eq .Disposition "expected"}} checked{{end}}>
+          Still expected back
+        </label>
+        <label class="opt{{if eq .Disposition "wont_return"}} on{{end}}">
+          <input type="radio" name="disposition" value="wont_return"{{if eq .Disposition "wont_return"}} checked{{end}}>
+          Won't come back — broken or lost
+        </label>
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="lab">Remark</span>
+      <textarea class="inp" name="remark" rows="3" style="min-height:3.4rem">{{.Remark}}</textarea>
+      <div class="hint">Write it the way you would say it.</div>
+    </div>
+  </div>
+  {{end}}
+
+  <div class="btnrow">
+    <button class="btn" type="submit" data-savebtn>{{.ButtonLabel}}</button>
+    <a class="btn ghost" href="/stock">Cancel</a>
+  </div>
+</form>
+{{end}}
+{{end}}
+
+<script src="/static/person-picker.js"></script>
+<script src="/static/return.js"></script>

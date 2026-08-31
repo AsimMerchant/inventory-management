@@ -15,6 +15,10 @@
     </select>
   </noscript>
 </div>
+{{/* The add-a-product form is a separate template because it is a <form>, and a
+     form inside the inward form would be illegal HTML. inward.html draws it
+     after its own form closes. */}}
+{{define "newproduct.html"}}
 {{if .AllowNew}}
 {{/* Submitted by the picker's last row. The same form, without script, is the
      block inside <noscript> below it. */}}
@@ -30,4 +34,5 @@
     <button class="btn ghost" type="submit">Add it as a brand-new product</button>
   </form>
 </noscript>
+{{end}}
 {{end}}

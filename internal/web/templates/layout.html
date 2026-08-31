@@ -16,7 +16,7 @@
     {{end}}
     <div class="body">
       {{if .Warning}}<div class="banner bad">{{.Warning}}</div>{{end}}
-      {{if .Banner}}<div class="banner {{.Banner.Kind}}">{{.Banner.Text}}</div>{{end}}
+      {{range .Banners}}<div class="banner {{.Kind}}">{{.Text}}</div>{{end}}
       {{.Content}}
     </div>
   </div>

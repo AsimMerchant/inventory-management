@@ -1,0 +1,13 @@
+{{/* The person picker, shared by the issue screen, the returning screen and the
+     views that link into them. It offers and never insists: no confirmation, no
+     warning, nothing blocked. Rows are drawn here when the server already knows
+     them, and by person-picker.js as the desk types. */}}
+<div class="field" data-people data-scope="{{.Scope}}" data-new="{{if .AllowNew}}yes{{end}}">
+  <span class="lab">{{.Label}}</span>
+  <input class="inp" type="text" name="{{.Field}}" value="{{.Typed}}" autocomplete="off"
+         {{if .Autofocus}}autofocus {{end}}data-people-text>
+  {{if .Hint}}<div class="hint{{if .HintKind}} {{.HintKind}}{{end}}">{{.Hint}}</div>{{end}}
+  <div class="sug"{{if not .Rows}} hidden{{end}} data-people-list>
+    {{range .Rows}}{{if .Href}}<a href="{{.Href}}"><div>{{.Label}}</div></a>{{else}}<div{{if .New}} class="new"{{end}}>{{.Label}}</div>{{end}}{{end}}
+  </div>
+</div>

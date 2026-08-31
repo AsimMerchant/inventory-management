@@ -37,9 +37,19 @@ func (s *Server) apiProducts(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-// suggest matches products by case-insensitive substring, names that start with
-// the query first, alphabetical within each group, capped at eight.
+// suggest is matchProducts capped at eight rows, which is what the picker's
+// dropdown shows. The uncapped list is the <noscript> fallback.
 func suggest(reg *register.Register, query string, inStockOnly bool) []suggestion {
+	rows := matchProducts(reg, query, inStockOnly)
+	if len(rows) > maxSuggestions {
+		rows = rows[:maxSuggestions]
+	}
+	return rows
+}
+
+// matchProducts matches products by case-insensitive substring, names that
+// start with the query first, alphabetical within each group.
+func matchProducts(reg *register.Register, query string, inStockOnly bool) []suggestion {
 	q := strings.ToLower(register.CleanName(query))
 
 	rows := []suggestion{}
@@ -69,9 +79,6 @@ func suggest(reg *register.Register, query string, inStockOnly bool) []suggestio
 		return li < lj
 	})
 
-	if len(rows) > maxSuggestions {
-		rows = rows[:maxSuggestions]
-	}
 	return rows
 }
 
@@ -184,7 +191,7 @@ func (s *Server) renderConfirmProduct(w http.ResponseWriter, typed, existing, ba
 func (s *Server) renderReturnPage(w http.ResponseWriter, back string, b *banner) {
 	p := s.page("Store Register")
 	p.Tabs = false
-	p.Banner = b
+	p.add(b)
 	s.render(w, http.StatusOK, p, "stub.html", nil)
 }
 
@@ -196,4 +203,44 @@ func backPath(v string) string {
 		return v
 	}
 	return "/stock"
+}
+
+// pickerData is what picker.html draws. Products is the whole filtered list,
+// uncapped: it is the <noscript> fallback, and a person without JavaScript must
+// still see every product, not the first eight.
+type pickerData struct {
+	Mode       string
+	AllowNew   bool
+	PickedID   string
+	PickedName string
+	Products   []suggestion
+}
+
+// picker resolves a submitted productId against the list. A productId that
+// names nothing leaves PickedName empty, and every form refuses on that.
+func (s *Server) picker(reg *register.Register, mode string, allowNew bool, pickedID string) pickerData {
+	p := pickerData{Mode: mode, AllowNew: allowNew, PickedID: pickedID}
+	p.Products = matchProducts(reg, "", mode == "instock")
+	for _, prod := range reg.Products {
+		if prod.ID == pickedID {
+			p.PickedName = prod.Name
+		}
+	}
+	if p.PickedName == "" {
+		p.PickedID = ""
+	}
+	return p
+}
+
+// formProductID reads the picked product out of a request. The picker submits a
+// hidden field and the <noscript> fallback submits a <select> of the same name,
+// so both arrive; whichever carries a value is the answer.
+func formProductID(r *http.Request) string {
+	_ = r.ParseForm()
+	for _, v := range r.Form["productId"] {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
 }

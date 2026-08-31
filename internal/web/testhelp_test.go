@@ -25,6 +25,12 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// The walkthrough's three clocks, in the fixture's own zone.
+var (
+	twoEighteen = time.Date(2026, time.September, 3, 14, 18, 0, 0, register.IST)
+	sixOhFive   = time.Date(2026, time.September, 3, 18, 5, 0, 0, register.IST)
+)
+
 // env is one running register: a server, its store and the file underneath it.
 type env struct {
 	*httptest.Server

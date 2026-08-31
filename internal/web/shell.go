@@ -20,9 +20,10 @@ var staticFS embed.FS
 // time as it was given, in its own zone, so a page never depends on where the
 // developer's machine happens to be.
 var funcs = template.FuncMap{
-	"longstamp": longstamp,
-	"clock":     clock,
-	"shortdate": shortdate,
+	"longstamp":   longstamp,
+	"productWord": productWord,
+	"clock":       clock,
+	"shortdate":   shortdate,
 }
 
 // longstamp is the subtitle on every flow page: Thursday, 3 September · 10:42 am.
@@ -59,15 +60,23 @@ type banner struct {
 
 // page is everything layout.html needs. Data carries whatever the page itself needs.
 type page struct {
-	Title   string // the words in the chrome bar
-	Current string // the path of the tab that is on, "" on a flow page
-	Tabs    bool   // flow pages and the shift screen show none
-	OnDuty  string // the on-duty person's name, "" when nobody is
-	Narrow  bool   // the shift screen is 26rem wide, everything else 52rem
-	Warning string // the recovery warning, on every page until restart
-	Banner  *banner
+	Title   string   // the words in the chrome bar
+	Current string   // the path of the tab that is on, "" on a flow page
+	Tabs    bool     // flow pages and the shift screen show none
+	OnDuty  string   // the on-duty person's name, "" when nobody is
+	Narrow  bool     // the shift screen is 26rem wide, everything else 52rem
+	Warning string   // the recovery warning, on every page until restart
+	Banners []banner // usually one; a short return says two things at once
 	Tabbar  []tab
 	Content template.HTML
+}
+
+// add puts a banner on the page. A nil banner is no banner, so every caller can
+// pass whatever it has.
+func (p *page) add(b *banner) {
+	if b != nil {
+		p.Banners = append(p.Banners, *b)
+	}
 }
 
 // render draws one content template inside the shell. The content is rendered

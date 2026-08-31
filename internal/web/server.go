@@ -45,17 +45,17 @@ func (s *Server) routes() {
 	// 12 fills this in.
 	m.HandleFunc("GET /log", s.stubView("Who did what", "/log"))
 
-	// 07, 08, 09 fill these in. Registered now so the shift guard covers them.
-	m.HandleFunc("/inward/new", s.stubFlow("Stuff came in"))
-	m.HandleFunc("/issue/new", s.stubFlow("Someone is taking"))
-	m.HandleFunc("/return/new", s.stubFlow("Someone is returning"))
+	// 07, 08, 09
+	m.HandleFunc("/inward/new", s.inwardNew)
+	m.HandleFunc("/issue/new", s.issueNew)
+	m.HandleFunc("/return/new", s.returnNew)
 
 	// 06
 	m.HandleFunc("POST /product/new", s.productNew)
 	m.HandleFunc("GET /api/products", s.apiProducts)
 
-	// 08 fills this in.
-	m.HandleFunc("GET /api/people", s.apiPeopleStub)
+	// 08
+	m.HandleFunc("GET /api/people", s.apiPeople)
 
 	// 11 fills these in.
 	m.HandleFunc("/entry/{id}/edit", s.stubFlow("Fix this entry"))
@@ -114,11 +114,21 @@ func (s *Server) page(title string) page {
 	return p
 }
 
-// stubView draws one of the read-only tabs before its own spec is built.
+// stubView draws one of the read-only tabs before its own spec is built. The
+// ?saved= confirmation is real already: it is the last thing the three entry
+// flows do, and 10-views.spec.md only draws what 07, 08 and 09 word.
 func (s *Server) stubView(title, path string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		p := s.page(title)
 		p.Current = path
+		// Only the stock tab carries a confirmation: the three entry flows all
+		// land there, and no sentence about goods coming back belongs on the
+		// suppliers page.
+		if id := r.URL.Query().Get("saved"); id != "" && path == "/stock" {
+			s.st.Read(func(reg *register.Register) {
+				p.Banners = savedBanners(reg, id)
+			})
+		}
 		s.render(w, http.StatusOK, p, "stub.html", nil)
 	}
 }
@@ -131,11 +141,4 @@ func (s *Server) stubFlow(title string) http.HandlerFunc {
 		p.Tabs = false
 		s.render(w, http.StatusOK, p, "stub.html", nil)
 	}
-}
-
-// apiPeopleStub answers the person picker. 08 fills it in; until then it finds
-// nobody, which is what an empty register would answer anyway.
-func (s *Server) apiPeopleStub(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write([]byte("[]\n"))
 }

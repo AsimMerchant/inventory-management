@@ -72,7 +72,8 @@ func (s *Server) renderShift(w http.ResponseWriter, status int, selected string,
 	data.Empty = len(data.Options) == 0
 	data.OpenAdder = data.Empty
 
-	p := page{Title: "Store Register", Tabs: false, Narrow: true, Banner: b}
+	p := page{Title: "Store Register", Tabs: false, Narrow: true}
+	p.add(b)
 	s.render(w, status, p, "shift.html", data)
 }
 
