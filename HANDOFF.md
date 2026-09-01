@@ -36,7 +36,47 @@ and that reporting has been more valuable than the code.
 |---|---|---|
 | 01–09 | Core model, persistence, arithmetic and entry flows | **Released in `v1.0.0`** |
 | 10–12 | Read-only views, corrections and activity log | **Released in `v1.0.0`** (`c0adcdc`) |
-| 13 | One issue may name multiple joint recipients | **Merged and verified** (`77a40f0`) |
+| 13 | One issue may name multiple joint recipients | **Released in `v1.0.1`** (`77a40f0`) |
+| 14–16 | Global desk controls, product rename and cascading delete, issue challans and return search | **Released in `v1.1.1`** (`3bc9535`) |
+
+### Before the new `.exe` goes on the laptop — do this in order
+
+`v1.1.1` writes schema 2. `v1.0.1` cannot read it, and **does not refuse it cleanly**:
+its `store.Open` treats a version mismatch exactly like a damaged file, copies the main
+file aside and falls back to `.bak`, which directly after the first `v1.1.1` save is the
+schema-1 pre-upgrade file. The old program therefore opens on pre-upgrade data behind
+the ordinary "Today's register was damaged" banner, and its next save writes schema 1
+back over the main file. Nothing is destroyed — the schema-2 file is kept as
+`store-register.json.corrupt-<timestamp>` — but the banner blames damage when the real
+cause is that somebody ran the old program, and nothing on screen says so.
+
+This cannot be fixed in `v1.1.1`; the defect is in the already-released `v1.0.1` reader.
+The user's decision, 1 September 2026, is to handle it procedurally:
+
+1. Copy `store-register.json` somewhere safe.
+2. Delete the old `.exe` from the laptop **and** from the pen drive.
+3. Put the new `.exe` in its place.
+
+Verified against real binaries by the `v1.1.1` release gate. With no `.bak` beside it,
+`v1.0.1` refuses correctly and touches nothing; after two `v1.1.1` saves both files are
+schema 2 and it refuses correctly again. The exposure is the window in between.
+
+### `v1.1.1` verification, all reproduced independently by the release gate
+
+372 tests pass under `-race -count=1` with no failures and no skips; `go vet` is clean;
+the cgo-disabled Windows amd64 build produces a PE32+ executable; all 57 tests named as
+required by specs 14, 15 and 16 exist and pass; every must-print-nothing grep is silent.
+`internal/register` statement coverage is 95.4% against the documented 95% minimum —
+down from 97.1%, and the uncovered statements are guard returns the web layer checks
+before calling, plus the `Validate` abort at `product.go:145`.
+
+Spec 16's browser acceptance scenario passed in full: all 9 steps through Playwright
+against a real native binary, 67 checks plus 11 more after restarting the binary against
+the saved file, and again server-rendered with no JavaScript at all. Under real
+concurrency at a live binary, 40 simultaneous issues of 10 against 100 on hand accepted
+exactly 10 and refused 30; 20 simultaneous returns against a 10-chair holding accepted
+exactly 1; a delete racing 15 issues on the same product left no live record pointing at
+a deleted product.
 
 `v1.0.1` is the selected version for spec 13. The strict release matrix passes on the
 current tree: the full race suite, vet, Windows amd64 cross-compile, store and feature
@@ -52,6 +92,15 @@ contributor reports that the enhanced workflow passed on Windows; Codex independ
 verified the cross-build and automated matrix but did not reproduce that manual run.
 
 Known spec-text defects found while implementing the required tests:
+
+- Spec 15 stated that a `v1.0.1` executable refuses a schema-2 file. It does not; see
+  the upgrade steps above. Corrected in `83f0a0b`.
+- Spec 15's verification commands grepped `internal/web/products.go` for `store.Update`,
+  which prints nothing because the code calls `s.st.Update`. The guard was present the
+  whole time; the grep could not see it. Corrected in `83f0a0b`.
+- Spec 00's greps used unquoted `--include=*.go` globs, which this project's fish shell
+  expands before `grep` sees them, so they failed outright rather than passing.
+  Corrected in `83f0a0b`.
 
 - Spec 11 shortens the fixture's full return remark in two examples. The implementation
   preserves the complete stored remark.
@@ -158,6 +207,39 @@ internal/web/          handlers, templates, static assets
   together, and say why.
 
 ## Known open, nothing blocking
+
+- **Nine wording findings against `v1.1.1` strings are unactioned.** The
+  `plain_language_reviewer` flagged `Dashboard` (a second, differently-named link to
+  `/stock`, which the tab bar already labels `Stock`), `Change person` (reads as "change
+  who is taking this" mid-entry), the cascading-delete impact block (`Received entries:`
+  / `Issue entries:` / `Return entries:`, and "the working register", a phrase on no
+  other screen), `Outstanding entries with this challan` and `No outstanding issue
+  matches that challan number.` ("outstanding" is a finance word that reads as
+  "excellent" to a second-language reader, while the row below says plain `20 chairs
+  out`), and `Pick this holding` (does not say what tapping it does). The release gate
+  added a tenth: `Currently out: 1 chairs` on the delete screen violates normative
+  decision 10. All are wording, none are defects; each needs its spec and its verbatim
+  test amended together. Put to the user 1 September 2026, deferred, not declined.
+- **The save-time recheck tests are not load-bearing.** The release gate disabled, one
+  at a time, the in-closure `impactVersion` recheck, the in-closure rename duplicate
+  check, `Validate` inside `DeleteProductCascade`, the in-closure `CheckIssue`, and
+  `Product.Changes` deep-copying — and the full suite stayed green for all five. The
+  code is correct and was proved so empirically under real concurrency, but every
+  "rechecks at save time" test stages its conflict *before* the POST, so nothing
+  distinguishes a check inside the `store.Update` closure from one outside it. A future
+  refactor could move one out and no test would notice. This is the code that stops two
+  browser tabs spending the last ten chairs; worth strengthening.
+- **Quantities have no upper bound**, in the field since `v1.0.0` and untouched by
+  `v1.1.1`. The inward field is `min="1"` with no `max` and there is no server-side
+  limit; the gate overflowed int64 and drove on-hand to a large negative number. The
+  realistic failure is not the overflow but one fat-fingered `50000000` inward silently
+  corrupting the headline number. Needs its own spec.
+- **The activity log's person filter records the returner, not the taker**
+  (`internal/register/log.go:114`). Searching the log for the taker misses the return
+  that put their goods back. The release gate confirmed this is what
+  `specs/12-activity-log.spec.md:115` actually prescribes, and that `/out` attributes
+  the shortfall correctly, so no number is wrong — it is discoverability only. Changing
+  it means amending spec 12.
 
 - **Two copies of the program can run at once**, on 8765 and 8766, showing two views of
   one file. Harmless in tests, plausible at a gathering if somebody double-clicks the icon
