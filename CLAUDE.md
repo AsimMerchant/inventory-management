@@ -81,29 +81,21 @@ screen would make someone remember something, that is a design bug, not a wordin
 - Use Read/Write/Edit for file work, Bash for commands.
 - Keep messages short.
 
-## State as of 31 August 2026
+## State as of 1 September 2026
 
-Design approved and specs 01–12 are written. Specs 01–09 are implemented, verified,
-committed and pushed. Specs 10–12 are implemented in the current dirty working tree:
+Specs 01–12 are implemented and released as `v1.0.0`. Spec 13, which lets one issue
+name multiple people sharing one total quantity, was merged through PR #1 at `77a40f0`.
+The selected release version for that enhancement is `v1.0.1`.
 
-- four read-only views — 22 dedicated web tests;
-- corrections and guarded deletion — 27 dedicated web tests;
-- derived activity-log builder — 18 dedicated register tests;
-- activity-log page and filters — 21 dedicated web tests.
-
-Codex reviewed each implementation-agent slice itself and reran the targeted tests,
-the full race suite, vet, Windows amd64 cross-compile and acceptance greps. It caught
-and returned one missed Contract detail: the activity-log picker now reads
-`Which product` while existing entry screens still read `Product`.
+The current tree passes the feature tests, full race suite, store tests, vet, Windows
+amd64 cross-compile, acceptance greps and the documented register coverage gate at
+97.1% (minimum 95%). The spec 13 contributor reports a successful Windows workflow;
+Codex independently cross-compiled the artifact but did not repeat that manual run.
 
 The `plain_language_reviewer` checked 175 built strings and found only the known
 no-supplier wording conflict documented in `HANDOFF.md`; the specs disagree, so no
-code change was made. A native Linux binary passed the end-to-end smoke scenario,
-including persisted JSON and the read-only log. The Windows amd64 artifact was
-cross-compiled but still needs a real Windows runtime check. The independent
-`release_gate` remains. The gate has not certified this build yet. No spec 10–12
-implementation commit has been made because the inherited changes are intertwined;
-commit them only after the complete gate is green.
+code change was made. Native Linux binaries passed the original end-to-end smoke and a
+spec 13 smoke that stored and found one joint issue while counting its quantity once.
 
 See `HANDOFF.md` for the current verification commands, known spec-text defects and
 the exact continuation order. Codex-native project instructions and agents now live in

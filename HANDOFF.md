@@ -22,7 +22,7 @@ more design questions than any other.
 2. `design/store-register.html` — the approved design, with screen mockups. **This is the
    source of truth for screens and wording.** Open it in a browser; it is a real page.
 3. `specs/00-index.spec.md` — build order, binding conventions, every settled decision.
-4. The numbered specs, `01` through `12`.
+4. The numbered specs, `01` through `13`.
 
 The specs are precise and have been reviewed twice: once for correctness, once by a
 plain-language pass over every user-visible string. **Follow them exactly.** Where a spec
@@ -34,25 +34,22 @@ and that reporting has been more valuable than the code.
 
 | Specs | What | Status |
 |---|---|---|
-| 01–03 | Data model + fixture, atomic persistence, stock arithmetic | **Done, committed** (`7c5f9c5`) |
-| 04–06 | Server, page shell, shift screen, product picker | **Done, committed** (`11bb2c7`) |
-| 07–09 | Stuff came in, someone is taking, someone is returning | **Done, committed** (`07bdd66`) |
-| 10 | The four read-only tabs | **Implemented and tested, uncommitted** — 22 dedicated web tests |
-| 11 | Corrections and guarded deletion | **Implemented and tested, uncommitted** — 27 dedicated web tests |
-| 12 | Derived activity log and filters | **Implemented and tested, uncommitted** — 18 register tests and 21 web tests |
+| 01–09 | Core model, persistence, arithmetic and entry flows | **Released in `v1.0.0`** |
+| 10–12 | Read-only views, corrections and activity log | **Released in `v1.0.0`** (`c0adcdc`) |
+| 13 | One issue may name multiple joint recipients | **Merged and verified** (`77a40f0`) |
 
-The spec 10–12 work is a large dirty-tree continuation of the interrupted Claude pass.
-Do not discard or reset it. Codex completed the missing required test suites and reviewed
-each subagent slice independently. As of the latest checkpoint,
-`go test ./... -race -count=1`, `go vet ./...`, the Windows amd64 cross-compile and the
-applicable acceptance greps all pass.
+`v1.0.1` is the selected version for spec 13. The strict release matrix passes on the
+current tree: the full race suite, vet, Windows amd64 cross-compile, store and feature
+tests, architecture/vocabulary greps, and 97.1% `internal/register` statement coverage
+(the documented minimum is 95%).
 
 The read-only `plain_language_reviewer` checked 175 built strings and found only the
 known no-supplier wording conflict recorded below; no code change is warranted while
-the two specs disagree. A native Linux binary also passed the end-to-end smoke
-scenario, including persisted JSON and the read-only log; the Windows amd64 artifact
-was cross-compiled but still needs a real Windows runtime check. The independent
-`release_gate` is the remaining step. Do not call the build ready before that gate.
+the two specs disagree. Native Linux binaries passed both the original end-to-end smoke
+and a spec 13 smoke that stored one 30-chair issue for Ravi, Amit and Suresh, counted it
+once, found it through Amit, and preserved the ordered recipients in JSON. The spec 13
+contributor reports that the enhanced workflow passed on Windows; Codex independently
+verified the cross-build and automated matrix but did not reproduce that manual run.
 
 Known spec-text defects found while implementing the required tests:
 
