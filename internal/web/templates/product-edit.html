@@ -1,0 +1,21 @@
+<p class="scr-h">Fix a product</p>
+{{if .Deleted}}
+<p>This product was deleted. Its history is still in Who did what.</p>
+{{else}}
+{{if .Refusal}}<div class="banner bad">{{.Refusal}}</div>{{end}}
+<form method="post">
+  <div class="field"><span class="lab">Product name</span><input class="inp" name="name" value="{{.FormName}}"></div>
+  <div class="btnrow"><button class="btn" type="submit">Save product name</button><a class="btn ghost" href="/stock">Cancel</a></div>
+</form>
+<details class="add" style="margin-top:1.3rem"><summary style="color:var(--bad)">Delete this product</summary>
+  <p><strong>Delete {{.Name}}?</strong></p>
+  <p>This will remove the product and all of its entries from the working register.</p>
+  <p>Received entries: {{.Impact.InwardEntries}}<br>Issue entries: {{.Impact.IssueEntries}}<br>Return entries: {{.Impact.ReturnEntries}}<br>Currently out: {{.Impact.CurrentlyOut}} {{productWord .Name}}</p>
+  <p>The history will stay in Who did what.</p>
+  <form method="post" action="delete">
+    <input type="hidden" name="impactVersion" value="{{.Impact.Version}}">
+    <div class="field"><span class="lab">Why are you deleting this product?</span><input class="inp" name="reason" value="{{.Reason}}" required><div class="hint">One line is enough — "wrong product", "goods never arrived".</div></div>
+    <button class="btn" style="background:var(--bad)" type="submit">Yes, delete {{.Name}} and its entries</button>
+  </form>
+</details>
+{{end}}

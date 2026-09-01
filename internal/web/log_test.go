@@ -259,7 +259,7 @@ func TestLogEmptyWithFiltersOn(t *testing.T) {
 	e := newTestServer(t, register.WalkthroughT3(), logT4)
 	_, body := e.get("/log?day=2026-09-03&kind=came_back&q=" + url.QueryEscape("Lakshmi Iyer"))
 	assertContains(t, body, "Nothing matches what you picked.")
-	assertContains(t, body, "Tap Every day, Everything, Anybody and Any product.")
+	assertContains(t, body, "Tap Every day, Everything, Anybody, Any product and Any challan.")
 	assertNotContains(t, body, "Nobody wrote anything down on")
 }
 

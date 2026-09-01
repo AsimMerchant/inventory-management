@@ -83,20 +83,30 @@ screen would make someone remember something, that is a design bug, not a wordin
 
 ## State as of 1 September 2026
 
-Specs 01–12 are implemented and released as `v1.0.0`. Spec 13, which lets one issue
-name multiple people sharing one total quantity, was merged through PR #1 at `77a40f0`.
-The selected release version for that enhancement is `v1.0.1`.
+Specs 01–12 shipped as `v1.0.0`. Spec 13, one issue naming multiple joint recipients,
+shipped as `v1.0.1` and went to the stakeholders. Their feedback became specs 14, 15 and
+16, released together as **`v1.1.1`**: `Dashboard` and `Change person` on every screen
+and a working product picker on the log; product rename and one-action cascading
+deletion that tombstones the product and all its entries while `Who did what` keeps
+everything; and an optional challan number on an issue that any part of can be typed to
+find the goods when they come back.
 
-The current tree passes the feature tests, full race suite, store tests, vet, Windows
-amd64 cross-compile, acceptance greps and the documented register coverage gate at
-97.1% (minimum 95%). The spec 13 contributor reports a successful Windows workflow;
-Codex independently cross-compiled the artifact but did not repeat that manual run.
+That work is verified: 372 tests under `-race`, vet clean, PE32+ cross-compile, all 57
+spec-named tests present, every acceptance grep silent, `internal/register` coverage
+95.4% against a 95% minimum. Spec 16's browser scenario passed in full through a real
+browser against a real binary, and again with JavaScript off. The `release_gate`
+reproduced all of it independently and probed the dangerous paths itself — concurrent
+over-issue, concurrent over-return, a delete racing fifteen issues, the schema-1 to
+schema-2 migration against binaries built from both tags.
 
-The `plain_language_reviewer` checked 175 built strings and found only the known
-no-supplier wording conflict documented in `HANDOFF.md`; the specs disagree, so no
-code change was made. Native Linux binaries passed the original end-to-end smoke and a
-spec 13 smoke that stored and found one joint issue while counting its quantity once.
+**The one thing that must happen before the new `.exe` is used:** back up
+`store-register.json`, then delete the old `.exe` from the laptop and the pen drive.
+`v1.0.1` cannot read a schema-2 file and does not refuse it cleanly — it falls back to
+the pre-upgrade `.bak` and blames damage. This cannot be fixed in `v1.1.1`; the defect
+is in the released reader. The user chose the procedural fix on 1 September 2026.
+`HANDOFF.md` has the detail.
 
-See `HANDOFF.md` for the current verification commands, known spec-text defects and
-the exact continuation order. Codex-native project instructions and agents now live in
-`AGENTS.md` and `.codex/`.
+Ten wording findings against the new strings, the non-load-bearing save-time recheck
+tests, and the unbounded quantity field are all open and deferred, not declined. See
+`HANDOFF.md` for the continuation order. Codex-native instructions live in `AGENTS.md`
+and `.codex/`.

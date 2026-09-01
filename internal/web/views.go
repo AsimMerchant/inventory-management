@@ -27,6 +27,7 @@ type stockRow struct {
 	Out       int
 	OnHand    int
 	IssueHref string // "" when there is nothing left to give out
+	FixHref   string
 }
 
 type stockData struct {
@@ -46,6 +47,7 @@ func (s *Server) stockView(w http.ResponseWriter, r *http.Request) {
 				ProductID: row.ProductID, Name: row.Name,
 				PillClass: "pill rent", PillWord: "Rent",
 				CameIn: row.CameIn, Out: row.Out, OnHand: row.OnHand,
+				FixHref: "/product/" + row.ProductID + "/edit",
 			}
 			if row.Basis != register.Rent {
 				out.PillClass, out.PillWord = "pill sale", "Purchase"
@@ -57,6 +59,18 @@ func (s *Server) stockView(w http.ResponseWriter, r *http.Request) {
 		}
 		if id := r.URL.Query().Get("saved"); id != "" {
 			p.Banners = savedBanners(reg, id)
+		}
+		if id := r.URL.Query().Get("renamed"); id != "" {
+			if prod, ok := register.ProductByID(reg, id); ok {
+				p.add(&banner{"ok", "Renamed " + r.URL.Query().Get("old") + " to " + prod.Name + "."})
+			}
+		}
+		if id := r.URL.Query().Get("productDeleted"); id != "" {
+			for _, prod := range reg.Products {
+				if prod.ID == id && prod.Deleted != nil {
+					p.add(&banner{"ok", "Deleted " + prod.Name + " and all of its entries. The history is still in Who did what."})
+				}
+			}
 		}
 	})
 	s.render(w, http.StatusOK, p, "stock.html", data)
@@ -75,6 +89,7 @@ type outLine struct {
 	Shortfalls  []string
 	Changes     []string
 	FixHref     string
+	ChallanNo   string
 }
 
 type personBlock struct {
@@ -162,6 +177,7 @@ func outPage(reg *register.Register, now time.Time) outData {
 				Shortfalls: shortfallsAgainst(reg, l.IssueID),
 				Changes:    changesOn[l.IssueID],
 				FixHref:    "/entry/" + l.IssueID + "/edit",
+				ChallanNo:  l.ChallanNo,
 			})
 		}
 		data.People = append(data.People, block)
@@ -169,6 +185,9 @@ func outPage(reg *register.Register, now time.Time) outData {
 
 	names := productNames(reg)
 	for _, re := range reg.Returns {
+		if _, ok := register.ProductByID(reg, re.ProductID); !ok {
+			continue
+		}
 		line := cameBackLine{
 			At: re.ReturnedAt, ReturnID: re.ID,
 			Headline: strconv.Itoa(re.Quantity()) + " " + productWord(names[re.ProductID]) +
@@ -272,6 +291,9 @@ func (s *Server) inwardsView(w http.ResponseWriter, r *http.Request) {
 		names := productNames(reg)
 		changesOn := changeIndex(reg)
 		for _, in := range reg.Inwards {
+			if _, ok := register.ProductByID(reg, in.ProductID); !ok {
+				continue
+			}
 			row := inwardRow{
 				At: in.RecordedAt, ID: in.ID, ReceivedOn: in.ReceivedOn,
 				ProductName: names[in.ProductID], Quantity: in.Quantity,

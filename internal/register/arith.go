@@ -21,7 +21,7 @@ var ErrUnknownIssue = errors.New("no such issue")
 func LiveInwards(r *Register) []Inward {
 	live := make([]Inward, 0, len(r.Inwards))
 	for i := 0; i < len(r.Inwards); i++ {
-		if r.Inwards[i].Deleted == nil {
+		if r.Inwards[i].Deleted == nil && productExists(r, r.Inwards[i].ProductID) {
 			live = append(live, r.Inwards[i])
 		}
 	}
@@ -32,7 +32,7 @@ func LiveInwards(r *Register) []Inward {
 func LiveIssues(r *Register) []Issue {
 	live := make([]Issue, 0, len(r.Issues))
 	for i := 0; i < len(r.Issues); i++ {
-		if r.Issues[i].Deleted == nil {
+		if r.Issues[i].Deleted == nil && productExists(r, r.Issues[i].ProductID) {
 			live = append(live, r.Issues[i])
 		}
 	}
@@ -43,7 +43,7 @@ func LiveIssues(r *Register) []Issue {
 func LiveReturns(r *Register) []Return {
 	live := make([]Return, 0, len(r.Returns))
 	for i := 0; i < len(r.Returns); i++ {
-		if r.Returns[i].Deleted == nil {
+		if r.Returns[i].Deleted == nil && productExists(r, r.Returns[i].ProductID) {
 			live = append(live, r.Returns[i])
 		}
 	}
@@ -111,6 +111,9 @@ func StockRows(r *Register) []StockRow {
 
 	rows := make([]StockRow, 0, len(r.Products))
 	for _, p := range r.Products {
+		if p.Deleted != nil {
+			continue
+		}
 		basis := Purchase
 		if rent[p.ID] {
 			basis = Rent
@@ -180,6 +183,7 @@ type OutstandingLine struct {
 	Out         int // Taken - Back, always > 0
 	IssuedAt    time.Time
 	IssuedBy    string // Issue.PersonInchargeName
+	ChallanNo   string
 }
 
 // OutstandingForPerson is what one person is still holding, oldest first.
@@ -212,6 +216,7 @@ func OutstandingForPerson(r *Register, name, mobile string) []OutstandingLine {
 			Out:         is.Quantity - back,
 			IssuedAt:    is.IssuedAt,
 			IssuedBy:    is.PersonInchargeName,
+			ChallanNo:   is.ChallanNo,
 		})
 	}
 	sort.Slice(lines, func(i, j int) bool {
@@ -244,7 +249,7 @@ func JointHoldings(r *Register) []JointHolding {
 		if out <= 0 {
 			continue
 		}
-		line := OutstandingLine{IssueID: is.ID, ProductID: is.ProductID, ProductName: names[is.ProductID], Taken: is.Quantity, Back: is.Quantity - out, Out: out, IssuedAt: is.IssuedAt, IssuedBy: is.PersonInchargeName}
+		line := OutstandingLine{IssueID: is.ID, ProductID: is.ProductID, ProductName: names[is.ProductID], Taken: is.Quantity, Back: is.Quantity - out, Out: out, IssuedAt: is.IssuedAt, IssuedBy: is.PersonInchargeName, ChallanNo: is.ChallanNo}
 		recipients := RecipientsOf(is)
 		if len(recipients) > 1 {
 			holdings = append(holdings, JointHolding{AnchorIssueID: is.ID, Recipients: recipients, Label: RecipientLabel(is), TotalOut: out, Lines: []OutstandingLine{line}})
@@ -311,6 +316,9 @@ func JointHoldingForIssue(r *Register, issueID string) (JointHolding, bool) {
 func productNames(r *Register) map[string]string {
 	names := make(map[string]string, len(r.Products))
 	for _, p := range r.Products {
+		if p.Deleted != nil {
+			continue
+		}
 		names[p.ID] = p.Name
 	}
 	return names
@@ -412,8 +420,12 @@ type Tiles struct {
 // TileCounts counts the home screen tiles. OutOverTwoDays counts lines, not
 // items, and counts a line if any quantity on it is still out.
 func TileCounts(r *Register, now time.Time) Tiles {
-	t := Tiles{Products: len(r.Products), PeopleHolding: len(PeopleHolding(r))}
+	t := Tiles{PeopleHolding: len(PeopleHolding(r))}
 	for _, p := range r.Products {
+		if p.Deleted != nil {
+			continue
+		}
+		t.Products++
 		t.OutRightNow += OutWithPeople(r, p.ID)
 	}
 	cutoff := now.Add(-48 * time.Hour)
@@ -523,6 +535,9 @@ func Validate(r *Register) []Problem {
 	problems := []Problem{}
 
 	for _, p := range r.Products {
+		if p.Deleted != nil {
+			continue
+		}
 		if onHand := OnHand(r, p.ID); onHand < 0 {
 			problems = append(problems, Problem{
 				ProductID: p.ID, ProductName: p.Name,
@@ -566,10 +581,11 @@ func (e QuantityError) Error() string {
 // of more than is on hand. now is not read today; it is a parameter because no
 // function in this package may reach for the clock itself.
 func CheckIssue(r *Register, productID string, qty int, now time.Time) error {
-	name, ok := productNames(r)[productID]
+	p, ok := ProductByID(r, productID)
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrUnknownProduct, productID)
 	}
+	name := p.Name
 	allowed := OnHand(r, productID)
 	if qty < 1 || qty > allowed {
 		return QuantityError{Field: "issue", Asked: qty, Allowed: allowed, ProductName: name}

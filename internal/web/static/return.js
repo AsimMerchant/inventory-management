@@ -3,6 +3,13 @@
 // drawn by the server rather than assembled here. This file only asks for the
 // page again when the count crosses that line.
 (function () {
+  var person = document.querySelector('input[name="q"]');
+  var challan = document.querySelector('input[name="challan"]');
+  if (person && challan) {
+    person.addEventListener('input', function () { if (person.value) challan.value = ''; });
+    challan.addEventListener('input', function () { if (challan.value) person.value = ''; });
+  }
+
   var form = document.querySelector('[data-return]');
   if (!form) return;
   var qty = form.querySelector('[data-qty]');
@@ -14,6 +21,7 @@
     var short = (n >= 1 && n < total);
     if (short === showing) return;
     window.location = '/return/new?q=' + encodeURIComponent(form.q.value) +
+      '&challan=' + encodeURIComponent(form.challan.value) +
       '&holdingIssueId=' + encodeURIComponent(form.holdingIssueId.value) +
       '&productId=' + encodeURIComponent(form.productId.value) +
       '&quantity=' + encodeURIComponent(qty.value);

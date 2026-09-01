@@ -53,6 +53,8 @@ type logData struct {
 	AnybodyRef string
 	Product    pickerData
 	AnyProduct string
+	Challan    string
+	AnyChallan string
 	Find       personPicker
 
 	Days []logDay
@@ -84,23 +86,32 @@ func (s *Server) logView(w http.ResponseWriter, r *http.Request) {
 	kind := logKind(q.Get("kind"))
 	query := register.CleanName(q.Get("q"))
 	productID := strings.TrimSpace(q.Get("productId"))
+	challan := register.CleanName(q.Get("challan"))
 
-	data := logData{Day: day, EveryDay: day == "", Query: query, Today: today}
+	data := logData{Day: day, EveryDay: day == "", Query: query, Today: today, Challan: challan}
 
 	p := s.page("Who did what")
 	p.Current = "/log"
 	s.st.Read(func(reg *register.Register) {
-		if productID != "" && productNames(reg)[productID] == "" {
-			productID = ""
+		if productID != "" {
+			found := false
+			for _, p := range reg.Products {
+				if p.ID == productID {
+					found = true
+				}
+			}
+			if !found {
+				productID = ""
+			}
 		}
-		filter := register.LogFilter{Day: day, ProductID: productID, Query: query}
+		filter := register.LogFilter{Day: day, ProductID: productID, Query: query, ChallanQuery: challan}
 		if kind != "" {
 			filter.Kinds = []register.LogKind{kind}
 		}
 		entries := register.FilterLog(reg, register.LogEntries(reg), filter, time.Local)
 		data.Days = logDays(reg, entries)
 
-		data.Product = s.picker(reg, "all", false, productID)
+		data.Product = s.picker(reg, "log", false, productID)
 		data.Product.Label = "Which product"
 		data.Find = personPicker{
 			Label: "Which person", Field: "q", Typed: query, Scope: "log",
@@ -111,7 +122,7 @@ func (s *Server) logView(w http.ResponseWriter, r *http.Request) {
 	base := url.Values{}
 	if day == "" {
 		base.Set("day", "all")
-	} else if day != today {
+	} else if strings.TrimSpace(q.Get("day")) != "" {
 		base.Set("day", day)
 	}
 	if kind != "" {
@@ -123,6 +134,9 @@ func (s *Server) logView(w http.ResponseWriter, r *http.Request) {
 	if productID != "" {
 		base.Set("productId", productID)
 	}
+	if challan != "" {
+		base.Set("challan", challan)
+	}
 
 	data.EveryHref = logHref(base, "day", "all")
 	data.TodayHref = logHref(base, "day", "")
@@ -133,10 +147,13 @@ func (s *Server) logView(w http.ResponseWriter, r *http.Request) {
 	if productID != "" {
 		data.AnyProduct = logHref(base, "productId", "")
 	}
+	if challan != "" {
+		data.AnyChallan = logHref(base, "challan", "")
+	}
 
 	if len(data.Days) == 0 {
 		data.Empty = true
-		if kind == "" && query == "" && productID == "" && day != "" {
+		if kind == "" && query == "" && productID == "" && challan == "" && day != "" {
 			when, err := time.ParseInLocation(dateLayout, day, time.Local)
 			if err == nil {
 				data.EmptyLine = "Nobody wrote anything down on " + daystamp(when) + "."
@@ -144,7 +161,7 @@ func (s *Server) logView(w http.ResponseWriter, r *http.Request) {
 			data.EmptyAdvice = "Pick another day, or tap Every day."
 		} else {
 			data.EmptyLine = "Nothing matches what you picked."
-			data.EmptyAdvice = "Tap Every day, Everything, Anybody and Any product."
+			data.EmptyAdvice = "Tap Every day, Everything, Anybody, Any product and Any challan."
 		}
 	}
 
@@ -259,9 +276,17 @@ func logRowOf(reg *register.Register, e register.LogEntry) logRow {
 	case register.LogCameBack:
 		row.Main = strconv.Itoa(e.Quantity) + " " + word + " came back from " + e.PersonName
 	case register.LogCorrected:
-		row.Main = "Fixed this entry: " + entryName(reg, e.RecordID)
+		if strings.HasPrefix(e.RecordID, "PRD-") {
+			row.Main = "Fixed this product: " + e.ProductName
+		} else {
+			row.Main = "Fixed this entry: " + entryName(reg, e.RecordID)
+		}
 	case register.LogDeleted:
-		row.Main = "Deleted this entry: " + entryName(reg, e.RecordID)
+		if strings.HasPrefix(e.RecordID, "PRD-") {
+			row.Main = "Deleted this product: " + e.ProductName
+		} else {
+			row.Main = "Deleted this entry: " + entryName(reg, e.RecordID)
+		}
 		row.Struck = true
 	case register.LogProductAdded:
 		row.Main = e.ProductName + " added to the product list."
@@ -277,6 +302,9 @@ func logRowOf(reg *register.Register, e register.LogEntry) logRow {
 	}
 	if e.Kind == register.LogWentOut && !e.HappenedAt.Equal(e.At) {
 		row.Notes = append(row.Notes, "Taken at "+clock(e.HappenedAt)+", typed in at "+clock(e.At)+".")
+	}
+	if (e.Kind == register.LogCameIn || e.Kind == register.LogWentOut) && e.ChallanNo != "" {
+		row.Notes = append(row.Notes, "Challan no. "+e.ChallanNo+".")
 	}
 	if e.Kind == register.LogCameBack && !e.HappenedAt.Equal(e.At) {
 		row.Notes = append(row.Notes, "Came back at "+clock(e.HappenedAt)+", typed in at "+clock(e.At)+".")

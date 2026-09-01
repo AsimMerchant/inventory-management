@@ -224,6 +224,7 @@ func editForm(reg *register.Register, id string) (editData, bool) {
 			d.ProductName = names[is.ProductID]
 			d.Word = productWord(d.ProductName)
 			d.Quantity = strconv.Itoa(is.Quantity)
+			d.ChallanNo = is.ChallanNo
 			d.TakerName, d.Department, d.Mobile = is.TakerName, is.TakerDepartment, is.TakerMobile
 			d.Additional = append([]register.IssueRecipient(nil), is.AdditionalTakers...)
 			d.IssuedAt = is.IssuedAt.Format(stampLayout)
@@ -423,6 +424,7 @@ func (d *editData) readForm(r *http.Request) {
 		d.Supplier = register.CleanName(get("supplier", d.Supplier))
 		d.ChallanNo = get("challanNo", d.ChallanNo)
 	case "issue":
+		d.ChallanNo = register.CleanName(get("challanNo", d.ChallanNo))
 		d.TakerName = register.CleanName(get("takerName", d.TakerName))
 		d.Department = register.CleanName(get("takerDepartment", d.Department))
 		d.Mobile = register.CleanName(get("takerMobile", d.Mobile))
@@ -536,6 +538,7 @@ func applyEdit(reg *register.Register, d editData, by string, now time.Time) ([]
 				continue
 			}
 			note("quantity", "How many", strconv.Itoa(is.Quantity), strconv.Itoa(qty))
+			note("challan", "Challan no.", is.ChallanNo, d.ChallanNo)
 			oldRecipients, newRecipients := register.RecipientsOf(*is), recipientsOfEdit(d)
 			if len(oldRecipients) > 1 || len(newRecipients) > 1 {
 				note("recipients", "Who is taking it", register.RecipientLabel(*is), recipientLabelOf(newRecipients))
@@ -548,7 +551,7 @@ func applyEdit(reg *register.Register, d editData, by string, now time.Time) ([]
 				note("mobile", "Their mobile", is.TakerMobile, d.Mobile)
 			}
 			note("time", "Time taken", clock(is.IssuedAt), clock(issuedAt))
-			is.Quantity, is.TakerName = qty, d.TakerName
+			is.Quantity, is.ChallanNo, is.TakerName = qty, d.ChallanNo, d.TakerName
 			is.TakerDepartment, is.TakerMobile = d.Department, d.Mobile
 			is.AdditionalTakers = append([]register.IssueRecipient(nil), d.Additional...)
 			is.IssuedAt = issuedAt

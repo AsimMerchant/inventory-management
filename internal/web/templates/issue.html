@@ -22,6 +22,12 @@
     </div>
   </div>
 
+  <div class="field">
+    <span class="lab">Challan no. (optional)</span>
+    <input class="inp" type="text" name="challanNo" autocomplete="off" value="{{.ChallanNo}}">
+    <div class="hint">Type it from the paper challan.</div>
+  </div>
+
   {{template "person-picker.html" .Taker}}
 
   <div class="row2">

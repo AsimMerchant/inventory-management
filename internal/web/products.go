@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"sort"
@@ -26,11 +27,11 @@ type suggestion struct {
 // apiProducts answers the picker. mode=instock drops what is not there.
 func (s *Server) apiProducts(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
-	inStockOnly := r.URL.Query().Get("mode") == "instock"
+	mode := r.URL.Query().Get("mode")
 
 	var out []suggestion
 	s.st.Read(func(reg *register.Register) {
-		out = suggest(reg, q, inStockOnly)
+		out = suggestMode(reg, q, mode)
 	})
 
 	w.Header().Set("Content-Type", "application/json")
@@ -40,7 +41,15 @@ func (s *Server) apiProducts(w http.ResponseWriter, r *http.Request) {
 // suggest is matchProducts capped at eight rows, which is what the picker's
 // dropdown shows. The uncapped list is the <noscript> fallback.
 func suggest(reg *register.Register, query string, inStockOnly bool) []suggestion {
-	rows := matchProducts(reg, query, inStockOnly)
+	mode := "all"
+	if inStockOnly {
+		mode = "instock"
+	}
+	return suggestMode(reg, query, mode)
+}
+
+func suggestMode(reg *register.Register, query, mode string) []suggestion {
+	rows := matchProductsMode(reg, query, mode)
 	if len(rows) > maxSuggestions {
 		rows = rows[:maxSuggestions]
 	}
@@ -50,21 +59,39 @@ func suggest(reg *register.Register, query string, inStockOnly bool) []suggestio
 // matchProducts matches products by case-insensitive substring, names that
 // start with the query first, alphabetical within each group.
 func matchProducts(reg *register.Register, query string, inStockOnly bool) []suggestion {
+	mode := "all"
+	if inStockOnly {
+		mode = "instock"
+	}
+	return matchProductsMode(reg, query, mode)
+}
+
+func matchProductsMode(reg *register.Register, query, mode string) []suggestion {
 	q := strings.ToLower(register.CleanName(query))
 
 	rows := []suggestion{}
 	for _, p := range reg.Products {
+		if p.Deleted != nil && mode != "log" {
+			continue
+		}
 		lower := strings.ToLower(p.Name)
 		if q != "" && !strings.Contains(lower, q) {
 			continue
 		}
-		onHand := register.OnHand(reg, p.ID)
-		if inStockOnly && onHand == 0 {
+		onHand := 0
+		if p.Deleted == nil {
+			onHand = register.OnHand(reg, p.ID)
+		}
+		if mode == "instock" && onHand == 0 {
 			continue
+		}
+		label := p.Name + " — " + strconv.Itoa(onHand) + " on hand"
+		if p.Deleted != nil {
+			label = p.Name + " — deleted"
 		}
 		rows = append(rows, suggestion{
 			ID: p.ID, Name: p.Name, OnHand: onHand,
-			Label: p.Name + " — " + strconv.Itoa(onHand) + " on hand",
+			Label: label,
 		})
 	}
 
@@ -97,6 +124,9 @@ func (s *Server) productNew(w http.ResponseWriter, r *http.Request) {
 	var existing, nearMatch string
 	s.st.Read(func(reg *register.Register) {
 		for _, p := range reg.Products {
+			if p.Deleted != nil {
+				continue
+			}
 			if register.FoldKey(p.Name) == register.FoldKey(name) {
 				existing = p.Name
 			}
@@ -118,23 +148,43 @@ func (s *Server) productNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The shift guard means somebody is always on duty here, so CreatedBy on a
-	// product is never empty.
-	var addedBy, newID string
-	s.st.Read(func(reg *register.Register) {
-		if who, ok := s.onDuty(reg); ok {
-			addedBy = who.Name
-		}
-	})
-
+	var newID string
 	now := s.now()
 	err := s.st.Update(func(reg *register.Register) error {
+		for _, p := range reg.Products {
+			if p.Deleted != nil {
+				continue
+			}
+			if register.FoldKey(p.Name) == register.FoldKey(name) {
+				existing = p.Name
+				return errProductRefused
+			}
+		}
+		if r.FormValue("confirm") != "yes" {
+			if nearMatch = nearDuplicate(reg, name); nearMatch != "" {
+				return errProductRefused
+			}
+		}
+		who, ok := s.onDuty(reg)
+		if !ok {
+			return errProductRefused
+		}
 		newID = reg.NextID("PRD")
 		reg.Products = append(reg.Products, register.Product{
-			ID: newID, Name: name, CreatedAt: now, CreatedBy: addedBy,
+			ID: newID, Name: name, CreatedAt: now, CreatedBy: who.Name,
 		})
 		return nil
 	})
+	if errors.Is(err, errProductRefused) {
+		if existing != "" {
+			s.renderReturnPage(w, back, &banner{"bad", existing + " is already on the list. Pick it."})
+			return
+		}
+		if nearMatch != "" {
+			s.renderConfirmProduct(w, name, nearMatch, back)
+			return
+		}
+	}
 	if err != nil {
 		s.renderReturnPage(w, back, &banner{"bad", saveFailed})
 		return
@@ -154,6 +204,9 @@ func nearDuplicate(reg *register.Register, n string) string {
 		return ""
 	}
 	for _, p := range reg.Products {
+		if p.Deleted != nil {
+			continue
+		}
 		if prefix4(p.Name) == key {
 			return p.Name
 		}
@@ -221,9 +274,9 @@ type pickerData struct {
 // names nothing leaves PickedName empty, and every form refuses on that.
 func (s *Server) picker(reg *register.Register, mode string, allowNew bool, pickedID string) pickerData {
 	p := pickerData{Label: "Product", Mode: mode, AllowNew: allowNew, PickedID: pickedID}
-	p.Products = matchProducts(reg, "", mode == "instock")
+	p.Products = matchProductsMode(reg, "", mode)
 	for _, prod := range reg.Products {
-		if prod.ID == pickedID {
+		if prod.ID == pickedID && (prod.Deleted == nil || mode == "log") {
 			p.PickedName = prod.Name
 		}
 	}
@@ -231,6 +284,198 @@ func (s *Server) picker(reg *register.Register, mode string, allowNew bool, pick
 		p.PickedID = ""
 	}
 	return p
+}
+
+type productEditData struct {
+	Name     string
+	FormName string
+	Impact   register.ProductImpact
+	Reason   string
+	Refusal  string
+	Deleted  bool
+}
+
+func (s *Server) productEdit(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if r.Method == http.MethodPost {
+		s.productRename(w, r, id)
+		return
+	}
+	s.renderProductEdit(w, id, "", "")
+}
+
+func (s *Server) renderProductEdit(w http.ResponseWriter, id, reason, refusal string) {
+	s.renderProductEditName(w, id, reason, refusal, "")
+}
+
+func (s *Server) renderProductEditName(w http.ResponseWriter, id, reason, refusal, typedName string) {
+	var data productEditData
+	status := http.StatusOK
+	s.st.Read(func(reg *register.Register) {
+		for _, p := range reg.Products {
+			if p.ID != id {
+				continue
+			}
+			data.Name = p.Name
+			data.FormName = p.Name
+			if typedName != "" || refusal == "Type the product's name." {
+				data.FormName = typedName
+			}
+			if p.Deleted != nil {
+				data.Deleted = true
+				return
+			}
+			data.Impact, _ = register.ProductDeletionImpact(reg, id)
+			data.Reason, data.Refusal = reason, refusal
+			return
+		}
+		status = http.StatusNotFound
+	})
+	p := s.page("Fix a product")
+	p.Tabs = false
+	if status == http.StatusNotFound {
+		s.render(w, status, s.page("Store Register"), "notfound.html", nil)
+		return
+	}
+	s.render(w, status, p, "product-edit.html", data)
+}
+
+func renameConflict(reg *register.Register, id, name string) (string, string) {
+	for _, p := range reg.Products {
+		if p.ID == id || p.Deleted != nil {
+			continue
+		}
+		if register.FoldKey(p.Name) == register.FoldKey(name) {
+			return p.Name, ""
+		}
+	}
+	key := prefix4(name)
+	if key != "" {
+		for _, p := range reg.Products {
+			if p.ID != id && p.Deleted == nil && prefix4(p.Name) == key {
+				return "", p.Name
+			}
+		}
+	}
+	return "", ""
+}
+
+var errProductRefused = errors.New("product change refused")
+
+func (s *Server) productRename(w http.ResponseWriter, r *http.Request, id string) {
+	name := register.CleanName(r.FormValue("name"))
+	confirm := r.FormValue("confirm") == "yes"
+	var oldName, refusal string
+	var near string
+	s.st.Read(func(reg *register.Register) {
+		p, ok := register.ProductByID(reg, id)
+		if !ok {
+			return
+		}
+		oldName = p.Name
+		if name == "" {
+			refusal = "Type the product's name."
+			return
+		}
+		if dup, n := renameConflict(reg, id, name); dup != "" {
+			refusal = dup + " is already on the list. Pick a different name."
+		} else {
+			near = n
+		}
+	})
+	if oldName == "" {
+		s.renderProductEdit(w, id, "", "")
+		return
+	}
+	if refusal != "" {
+		s.renderProductEditName(w, id, "", refusal, name)
+		return
+	}
+	if near != "" && !confirm {
+		p := s.page("Fix a product")
+		p.Tabs = false
+		s.render(w, http.StatusOK, p, "product-rename-confirm.html", struct{ ID, Old, New, Existing string }{id, oldName, name, near})
+		return
+	}
+	now := s.now()
+	err := s.st.Update(func(reg *register.Register) error {
+		p, ok := register.ProductByID(reg, id)
+		if !ok {
+			return errProductRefused
+		}
+		oldName = p.Name
+		if name == "" {
+			refusal = "Type the product's name."
+			return errProductRefused
+		}
+		dup, n := renameConflict(reg, id, name)
+		if dup != "" {
+			refusal = dup + " is already on the list. Pick a different name."
+			return errProductRefused
+		}
+		if n != "" && !confirm {
+			refusal = n + " is already on the list. Rename this product to " + name + " anyway?"
+			return errProductRefused
+		}
+		who, ok := s.onDuty(reg)
+		if !ok {
+			return errProductRefused
+		}
+		return register.RenameProduct(reg, id, name, who.Name, now)
+	})
+	if errors.Is(err, errProductRefused) {
+		s.renderProductEditName(w, id, "", refusal, name)
+		return
+	}
+	if err != nil {
+		s.renderProductEditName(w, id, "", saveFailed, name)
+		return
+	}
+	q := url.Values{"renamed": {id}, "old": {oldName}}
+	http.Redirect(w, r, "/stock?"+q.Encode(), http.StatusSeeOther)
+}
+
+func (s *Server) productDelete(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	reason := register.CleanName(r.FormValue("reason"))
+	version := strings.TrimSpace(r.FormValue("impactVersion"))
+	if reason == "" {
+		s.renderProductEdit(w, id, reason, "Write why this product is being deleted.")
+		return
+	}
+	var stale bool
+	s.st.Read(func(reg *register.Register) {
+		impact, ok := register.ProductDeletionImpact(reg, id)
+		stale = ok && (version == "" || version != impact.Version)
+	})
+	if stale {
+		s.renderProductEdit(w, id, reason, "This product changed. Check the numbers and confirm again.")
+		return
+	}
+	now := s.now()
+	err := s.st.Update(func(reg *register.Register) error {
+		impact, ok := register.ProductDeletionImpact(reg, id)
+		if !ok {
+			return errProductRefused
+		}
+		if version != impact.Version {
+			return errProductRefused
+		}
+		who, ok := s.onDuty(reg)
+		if !ok {
+			return errProductRefused
+		}
+		return register.DeleteProductCascade(reg, id, who.Name, now, reason)
+	})
+	if errors.Is(err, errProductRefused) {
+		s.renderProductEdit(w, id, reason, "This product changed. Check the numbers and confirm again.")
+		return
+	}
+	if err != nil {
+		s.renderProductEdit(w, id, reason, saveFailed)
+		return
+	}
+	http.Redirect(w, r, "/stock?productDeleted="+url.QueryEscape(id), http.StatusSeeOther)
 }
 
 // formProductID reads the picked product out of a request. The picker submits a

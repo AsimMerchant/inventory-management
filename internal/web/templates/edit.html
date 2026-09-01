@@ -76,15 +76,14 @@
 
   {{if eq .Kind "issue"}}
   <input type="hidden" name="additionalTakersPresent" value="1">
-  <div class="row2">
-    <div class="field">
-      <span class="lab">How many</span>
-      <input class="inp" type="number" name="quantity" min="1" step="1" value="{{.Quantity}}" autofocus>
-    </div>
-    <div class="field">
-      <span class="lab">Who is taking it</span>
-      <input class="inp" type="text" name="takerName" autocomplete="off" value="{{.TakerName}}">
-    </div>
+  <div class="field">
+    <span class="lab">How many</span>
+    <input class="inp" type="number" name="quantity" min="1" step="1" value="{{.Quantity}}" autofocus>
+  </div>
+  <div class="field"><span class="lab">Challan no. (optional)</span><input class="inp" type="text" name="challanNo" autocomplete="off" value="{{.ChallanNo}}"><div class="hint">Type it from the paper challan.</div></div>
+  <div class="field">
+    <span class="lab">Who is taking it</span>
+    <input class="inp" type="text" name="takerName" autocomplete="off" value="{{.TakerName}}">
   </div>
   <div class="row2">
     <div class="field">

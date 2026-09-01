@@ -9,7 +9,7 @@ import (
 )
 
 // SchemaVersion is the only file version this program reads or writes.
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 // Register is everything the store desk remembers.
 type Register struct {
@@ -29,6 +29,8 @@ type Product struct {
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"createdAt"`
 	CreatedBy string    `json:"createdBy"` // on-duty staff name when it was added
+	Changes   []Change  `json:"changes,omitempty"`
+	Deleted   *Deletion `json:"deleted,omitempty"`
 }
 
 // Staff is a person who can be on duty at the desk.
@@ -90,6 +92,7 @@ type Issue struct {
 	ID                   string           `json:"id"` // "ISS-0001"
 	ProductID            string           `json:"productId"`
 	Quantity             int              `json:"quantity"` // >= 1
+	ChallanNo            string           `json:"challanNo,omitempty"`
 	TakerName            string           `json:"takerName"`
 	TakerDepartment      string           `json:"takerDepartment"`
 	TakerMobile          string           `json:"takerMobile"`
