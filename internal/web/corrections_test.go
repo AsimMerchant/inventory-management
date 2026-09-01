@@ -26,6 +26,62 @@ func issueEditForm() url.Values {
 	}
 }
 
+func TestFixJointRecipientsIsAudited(t *testing.T) {
+	reg := jointReturnRegister()
+	allocation := []register.Allocation{{IssueID: "ISS-9002", Quantity: 5}}
+	reg.Returns = append(reg.Returns, register.Return{ID: "RET-9001", ProductID: "PRD-0001", Allocations: allocation, ReturnerName: "Amit Sharma", ReturnedAt: tenFortyFive, RecordedAt: tenFortyFive})
+	e := newTestServer(t, reg, tenFortyFive)
+	form := url.Values{
+		"quantity":                  {"30"},
+		"takerName":                 {"Ravi Menon"},
+		"takerDepartment":           {"Catering"},
+		"takerMobile":               {"98861 40023"},
+		"additionalTakersPresent":   {"1"},
+		"additionalTakerName":       {"Amit Sharma", "Meera Pillai"},
+		"additionalTakerDepartment": {"Setup", "Hospitality"},
+		"additionalTakerMobile":     {"97740 11298", "95550 11223"},
+		"issuedAt":                  {"2026-09-03T15:01"},
+		"from":                      {"/out"},
+	}
+	if location := postEdit(t, e, "ISS-9002", form); location != "/out?fixed=ISS-9002" {
+		t.Fatalf("redirect = %q", location)
+	}
+	saved := e.saved()
+	if !reflect.DeepEqual(saved.Returns[0].Allocations, allocation) {
+		t.Fatalf("allocation changed from %#v to %#v", allocation, saved.Returns[0].Allocations)
+	}
+	is := saved.Issues[len(saved.Issues)-1]
+	if len(is.Changes) != 2 || is.Changes[0].Field != "recipients" || is.Changes[1].Field != "recipientDetails" {
+		t.Fatalf("changes = %#v", is.Changes)
+	}
+	if is.Changes[0].From != "Ravi Menon, Amit Sharma and Suresh Patel" || is.Changes[0].To != "Ravi Menon, Amit Sharma and Meera Pillai" {
+		t.Fatalf("recipient audit = %#v", is.Changes[0])
+	}
+	if is.Quantity != 30 || len(register.Validate(saved)) != 0 {
+		t.Fatalf("corrected register invalid or quantity changed: %#v", register.Validate(saved))
+	}
+}
+
+func TestFixJointRecipientDetailSwapIsAudited(t *testing.T) {
+	reg := jointReturnRegister()
+	d, ok := editForm(reg, "ISS-9002")
+	if !ok {
+		t.Fatal("joint issue missing")
+	}
+	d.Additional[0].Department, d.Additional[1].Department = d.Additional[1].Department, d.Additional[0].Department
+	d.Additional[0].Mobile, d.Additional[1].Mobile = d.Additional[1].Mobile, d.Additional[0].Mobile
+	changes, refusal := applyEdit(reg, d, "Anita Rao", tenFortyFive)
+	if refusal != "" {
+		t.Fatal(refusal)
+	}
+	if len(changes) != 1 || changes[0].Field != "recipientDetails" {
+		t.Fatalf("changes = %#v, want one recipientDetails audit", changes)
+	}
+	if changes[0].From == changes[0].To {
+		t.Fatalf("detail audit did not preserve ordered before/after values: %#v", changes[0])
+	}
+}
+
 func returnEditForm() url.Values {
 	return url.Values{
 		"quantity": {"45"}, "returnerName": {"Ravi Menon"}, "returnerMobile": {"98861 40023"},

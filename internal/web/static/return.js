@@ -14,6 +14,7 @@
     var short = (n >= 1 && n < total);
     if (short === showing) return;
     window.location = '/return/new?q=' + encodeURIComponent(form.q.value) +
+      '&holdingIssueId=' + encodeURIComponent(form.holdingIssueId.value) +
       '&productId=' + encodeURIComponent(form.productId.value) +
       '&quantity=' + encodeURIComponent(qty.value);
   });

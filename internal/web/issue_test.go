@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -30,6 +31,156 @@ func walkthroughIssue() url.Values {
 		"takerMobile":     {"98861 40023"},
 		"issuedAt":        {"2026-09-03T14:18"},
 	}
+}
+
+func TestIssue30ChairsToThreePeople(t *testing.T) {
+	e := newTestServer(t, anitaOnDuty(), twoEighteen)
+	form := walkthroughIssue()
+	form.Set("quantity", "30")
+	form["additionalTakerName"] = []string{"Amit Sharma", "Suresh Patel"}
+	form["additionalTakerDepartment"] = []string{"Setup", "Logistics"}
+	form["additionalTakerMobile"] = []string{"97740 11298", "90080 77001"}
+	resp, _ := e.post("/issue/new", form)
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", resp.StatusCode)
+	}
+	reg := e.saved()
+	got := reg.Issues[len(reg.Issues)-1]
+	if got.Quantity != 30 || len(got.AdditionalTakers) != 2 || got.AdditionalTakers[0].Name != "Amit Sharma" || got.AdditionalTakers[1].Name != "Suresh Patel" {
+		t.Fatalf("saved issue = %#v", got)
+	}
+	if onHand := register.OnHand(reg, "PRD-0001"); onHand != 860 {
+		t.Fatalf("on hand = %d, want 860", onHand)
+	}
+	_, body := e.get(resp.Header.Get("Location"))
+	assertContains(t, body, "Gave 30 chairs to Ravi Menon, Amit Sharma and Suresh Patel. Chairs: 860 on hand.")
+}
+
+func TestIssueRefusesBlankAdditionalName(t *testing.T) {
+	e := newTestServer(t, anitaOnDuty(), twoEighteen)
+	form := walkthroughIssue()
+	form["additionalTakerName"] = []string{""}
+	form["additionalTakerDepartment"] = []string{"Setup"}
+	form["additionalTakerMobile"] = []string{"97740 11298"}
+	resp, body := e.post("/issue/new", form)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	assertContains(t, body, "Type the name of every person taking it.")
+	if got := len(e.saved().Issues); got != len(anitaOnDuty().Issues) {
+		t.Fatalf("issues = %d after refusal", got)
+	}
+}
+
+func TestIssueAddRemovePersonWithoutJavaScript(t *testing.T) {
+	e := newTestServer(t, anitaOnDuty(), twoEighteen)
+	before := len(e.saved().Issues)
+
+	form := walkthroughIssue()
+	form.Set("addPerson", "1")
+	resp, body := e.post("/issue/new", form)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("add status = %d", resp.StatusCode)
+	}
+	assertContains(t, body, `name="additionalTakerName"`)
+	assertContains(t, body, `value="Ravi Menon"`)
+
+	form["additionalTakerName"] = []string{"Amit Sharma"}
+	form["additionalTakerDepartment"] = []string{"Setup"}
+	form["additionalTakerMobile"] = []string{"97740 11298"}
+	resp, body = e.post("/issue/new", form)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("second add status = %d", resp.StatusCode)
+	}
+	if got := strings.Count(body, `name="additionalTakerName"`); got != 2 {
+		t.Fatalf("second add rendered %d additional names, want 2", got)
+	}
+
+	form.Del("addPerson")
+	form.Set("removePerson", "0")
+	form["additionalTakerName"] = []string{"Amit Sharma", "Suresh Patel"}
+	form["additionalTakerDepartment"] = []string{"Setup", "Logistics"}
+	form["additionalTakerMobile"] = []string{"97740 11298", "90080 77001"}
+	resp, body = e.post("/issue/new", form)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("remove status = %d", resp.StatusCode)
+	}
+	for _, want := range []string{`value="Ravi Menon"`, `value="10"`, `value="Suresh Patel"`, `value="Logistics"`, `value="90080 77001"`} {
+		assertContains(t, body, want)
+	}
+	for _, gone := range []string{"Amit Sharma", `value="Setup"`, `value="97740 11298"`} {
+		assertNotContains(t, body, gone)
+	}
+	for _, field := range []string{"additionalTakerName", "additionalTakerDepartment", "additionalTakerMobile"} {
+		if got := strings.Count(body, `name="`+field+`"`); got != 1 {
+			t.Fatalf("%s rendered %d times after remove, want aligned one", field, got)
+		}
+	}
+	if got := len(e.saved().Issues); got != before {
+		t.Fatalf("add/remove wrote %d issues, started with %d", got, before)
+	}
+}
+
+func TestEachRecipientPickerFillsOnlyItsRow(t *testing.T) {
+	e := newTestServer(t, anitaOnDuty(), twoEighteen)
+	form := walkthroughIssue()
+	form.Set("addPerson", "1")
+	form["additionalTakerName"] = []string{"Amit Sharma"}
+	form["additionalTakerDepartment"] = []string{"Setup"}
+	form["additionalTakerMobile"] = []string{"97740 11298"}
+	_, body := e.post("/issue/new", form)
+	if got := strings.Count(body, "data-person-row"); got != 2 {
+		t.Fatalf("rendered %d scoped additional rows, want 2", got)
+	}
+	rows := strings.Split(body, "data-person-row")
+	for i, row := range rows[1:] {
+		for _, want := range []string{"data-people", "data-person-department", "data-person-mobile"} {
+			if !strings.Contains(row, want) {
+				t.Fatalf("additional row %d lacks %s", i+1, want)
+			}
+		}
+	}
+	js, err := os.ReadFile("static/person-picker.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"box.closest('[data-person-row]')", "fieldScope.querySelector('[data-person-department]')", "fieldScope.querySelector('[data-person-mobile]')"} {
+		if !strings.Contains(string(js), want) {
+			t.Fatalf("person picker JS lacks row-scoped lookup %q", want)
+		}
+	}
+}
+
+func TestIssueSinglePersonRemainsCompatible(t *testing.T) {
+	e := newTestServer(t, anitaOnDuty(), twoEighteen)
+	resp, _ := e.post("/issue/new", walkthroughIssue())
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	got := e.saved().Issues[len(e.saved().Issues)-1]
+	if got.TakerName != "Ravi Menon" || len(got.AdditionalTakers) != 0 {
+		t.Fatalf("issue = %#v", got)
+	}
+	_, body := e.get("/stock?saved=" + got.ID)
+	assertContains(t, body, "Gave 10 chairs to Ravi Menon. Chairs: 880 on hand.")
+}
+
+func TestJointIssueRechecksStockAtSaveTime(t *testing.T) {
+	e := newTestServer(t, anitaOnDuty(), twoEighteen)
+	_, page := e.get("/issue/new?productId=PRD-0001")
+	assertContains(t, page, "890 on hand right now")
+	if err := e.st.Update(func(reg *register.Register) error {
+		reg.Issues = append(reg.Issues, register.Issue{ID: "ISS-9000", ProductID: "PRD-0001", Quantity: 870, TakerName: "Farida Begum", IssuedAt: twoEighteen, RecordedAt: twoEighteen})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	form := walkthroughIssue()
+	form.Set("quantity", "30")
+	form["additionalTakerName"] = []string{"Amit Sharma", "Suresh Patel"}
+	form["additionalTakerDepartment"] = []string{"Setup", "Logistics"}
+	form["additionalTakerMobile"] = []string{"97740 11298", "90080 77001"}
+	refusedIssue(t, e, form, "You have 20 chairs. You cannot give out more than 20.")
 }
 
 // twoRaviKumars is the T1 register with the two men of one name the spec keeps

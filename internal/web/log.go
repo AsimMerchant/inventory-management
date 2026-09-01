@@ -250,7 +250,12 @@ func logRowOf(reg *register.Register, e register.LogEntry) logRow {
 			row.Main = strconv.Itoa(e.Quantity) + " " + word + " came in from " + e.Supplier
 		}
 	case register.LogWentOut:
-		row.Main = strconv.Itoa(e.Quantity) + " " + word + " went out to " + e.PersonName
+		label := e.PersonName
+		if len(e.Recipients) > 0 {
+			is := register.Issue{TakerName: e.Recipients[0].Name, TakerDepartment: e.Recipients[0].Department, TakerMobile: e.Recipients[0].Mobile, AdditionalTakers: e.Recipients[1:]}
+			label = register.RecipientLabel(is)
+		}
+		row.Main = strconv.Itoa(e.Quantity) + " " + word + " went out to " + label
 	case register.LogCameBack:
 		row.Main = strconv.Itoa(e.Quantity) + " " + word + " came back from " + e.PersonName
 	case register.LogCorrected:

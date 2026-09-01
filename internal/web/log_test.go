@@ -17,6 +17,17 @@ import (
 
 var logT4 = time.Date(2026, time.September, 3, 18, 10, 0, 0, register.IST)
 
+func TestLogNamesEveryJointRecipient(t *testing.T) {
+	e := newTestServer(t, jointReturnRegister(), logT4)
+	for _, query := range []string{"Ravi", "Amit", "Suresh", "9774011298"} {
+		_, body := e.get("/log?day=all&q=" + url.QueryEscape(query))
+		assertContains(t, body, "30 chairs went out to Ravi Menon, Amit Sharma and Suresh Patel")
+		if got := strings.Count(html.UnescapeString(body), "30 chairs went out to Ravi Menon, Amit Sharma and Suresh Patel"); got != 1 {
+			t.Fatalf("query %q showed %d rows", query, got)
+		}
+	}
+}
+
 func TestLogTabIsInTheChromeBar(t *testing.T) {
 	e := newTestServer(t, register.WalkthroughT3(), logT4)
 	_, stock := e.get("/stock")

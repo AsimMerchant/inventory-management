@@ -35,6 +35,26 @@
     </div>
   </div>
 
+  {{range .Additional}}
+  <div data-person-row>
+    {{template "person-picker.html" .Picker}}
+    <div class="row2">
+      <div class="field">
+        <span class="lab">Department</span>
+        <input class="inp" type="text" name="additionalTakerDepartment" autocomplete="off" value="{{.Department}}" data-person-department>
+      </div>
+      <div class="field">
+        <span class="lab">Their mobile</span>
+        <input class="inp" type="text" name="additionalTakerMobile" autocomplete="off" value="{{.Mobile}}" data-person-mobile>
+      </div>
+    </div>
+    <button class="btn ghost" type="submit" name="removePerson" value="{{.Index}}">Remove this person</button>
+  </div>
+  {{if eq .Index 0}}<div class="hint">These people are taking it together. Enter the total quantity only once.</div>{{end}}
+  {{end}}
+
+  <button class="btn ghost" type="submit" name="addPerson" value="1">+ Add another person</button>
+
   <div class="field">
     <span class="lab">Time taken</span>
     <input class="inp" type="datetime-local" name="issuedAt" value="{{.IssuedAt}}">

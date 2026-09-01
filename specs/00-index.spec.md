@@ -26,6 +26,7 @@ Each spec depends only on the ones above it.
 | 10 | `10-views.spec.md` | Stock, Out with people, Stuff came in, Suppliers | half a day |
 | 11 | `11-corrections.spec.md` | Fixing and deleting a wrong entry, with guards and an audit line | one day |
 | 12 | `12-activity-log.spec.md` | Who did what — one chronological list derived from the records, with day, person, kind and product filters | one day |
+| 13 | `13-multi-person-issue.spec.md` | One issue can name every person collecting one shared total; solo and joint holdings stay distinct | more than one focused day |
 
 Spec 01 must be built first: it contains the fixture that every other spec's test cases
 are written against. A test that says "at T1, 890 chairs are on hand" is meaningless
@@ -43,7 +44,7 @@ storeregister/
   specs/                       00-index, 01-data-model, 02-persistence, 03-stock-arithmetic,
                                04-server-and-shell, 05-shift-and-people, 06-products,
                                07-inward, 08-issue, 09-return, 10-views, 11-corrections,
-                               12-activity-log
+                               12-activity-log, 13-multi-person-issue
 ```
 
 **The chrome bar has five tabs**, in this order: `Stock`, `Out with people`,
@@ -123,6 +124,10 @@ Every spec assumes these and none of them may be traded away:
   tombstone that counts towards nothing.
 - No correction may leave the register in a state `register.Validate` complains about.
 - Every arithmetic function skips deleted records. There is no function that sees them.
+- One issue may name one or more recipients but carries one total product quantity.
+  Recipient count never divides or multiplies stock. Multi-person membership belongs
+  only to that issue; it creates no permanent group and does not merge a person's solo
+  holding with a joint holding.
 
 ## Whole-build verification
 

@@ -41,6 +41,7 @@ type LogEntry struct {
 	PersonName       string // the subject person; "" when the event has none
 	PersonMobile     string
 	PersonDepartment string
+	Recipients       []IssueRecipient
 
 	ProductID   string // "" only for LogPersonAdded
 	ProductName string
@@ -98,6 +99,7 @@ func LogEntries(r *Register) []LogEntry {
 			Who: is.PersonInchargeName, WhoMobile: is.PersonInchargeMobile,
 			PersonName: is.TakerName, PersonMobile: is.TakerMobile,
 			PersonDepartment: is.TakerDepartment,
+			Recipients:       RecipientsOf(is),
 			ProductID:        is.ProductID, ProductName: names[is.ProductID],
 			Quantity: is.Quantity, HappenedAt: is.IssuedAt,
 		}
@@ -263,13 +265,18 @@ func matchesQuery(e LogEntry, query string) bool {
 	if text == "" {
 		return true
 	}
+	digits := MobileKey(query)
 	if strings.Contains(FoldKey(e.Who), text) ||
 		strings.Contains(FoldKey(e.PersonName), text) ||
 		strings.Contains(FoldKey(e.PersonDepartment), text) ||
 		strings.Contains(FoldKey(e.ReceivedBy), text) {
 		return true
 	}
-	digits := MobileKey(query)
+	for _, recipient := range e.Recipients {
+		if strings.Contains(FoldKey(recipient.Name), text) || strings.Contains(FoldKey(recipient.Department), text) || (digits != "" && strings.Contains(MobileKey(recipient.Mobile), digits)) {
+			return true
+		}
+	}
 	if digits == "" {
 		return false
 	}
@@ -314,7 +321,9 @@ func PeopleInLog(r *Register) []PersonSummary {
 		take(st.Name, st.Mobile, "", st.CreatedAt)
 	}
 	for _, is := range r.Issues {
-		take(is.TakerName, is.TakerMobile, is.TakerDepartment, is.RecordedAt)
+		for _, recipient := range RecipientsOf(is) {
+			take(recipient.Name, recipient.Mobile, recipient.Department, is.RecordedAt)
+		}
 	}
 	for _, re := range r.Returns {
 		take(re.ReturnerName, re.ReturnerMobile, "", re.RecordedAt)

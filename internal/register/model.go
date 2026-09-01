@@ -87,18 +87,55 @@ type Inward struct {
 
 // Issue is one handover of stock to a person.
 type Issue struct {
-	ID                   string    `json:"id"` // "ISS-0001"
-	ProductID            string    `json:"productId"`
-	Quantity             int       `json:"quantity"` // >= 1
-	TakerName            string    `json:"takerName"`
-	TakerDepartment      string    `json:"takerDepartment"`
-	TakerMobile          string    `json:"takerMobile"`
-	PersonInchargeName   string    `json:"personInchargeName"`
-	PersonInchargeMobile string    `json:"personInchargeMobile"`
-	IssuedAt             time.Time `json:"issuedAt"`   // auto-filled, editable
-	RecordedAt           time.Time `json:"recordedAt"` // never editable
-	Changes              []Change  `json:"changes,omitempty"`
-	Deleted              *Deletion `json:"deleted,omitempty"`
+	ID                   string           `json:"id"` // "ISS-0001"
+	ProductID            string           `json:"productId"`
+	Quantity             int              `json:"quantity"` // >= 1
+	TakerName            string           `json:"takerName"`
+	TakerDepartment      string           `json:"takerDepartment"`
+	TakerMobile          string           `json:"takerMobile"`
+	AdditionalTakers     []IssueRecipient `json:"additionalTakers,omitempty"`
+	PersonInchargeName   string           `json:"personInchargeName"`
+	PersonInchargeMobile string           `json:"personInchargeMobile"`
+	IssuedAt             time.Time        `json:"issuedAt"`   // auto-filled, editable
+	RecordedAt           time.Time        `json:"recordedAt"` // never editable
+	Changes              []Change         `json:"changes,omitempty"`
+	Deleted              *Deletion        `json:"deleted,omitempty"`
+}
+
+// IssueRecipient is one named member of the set collecting an issue. The
+// quantity belongs to the issue as a whole, never to an individual recipient.
+type IssueRecipient struct {
+	Name       string `json:"name"`
+	Department string `json:"department"`
+	Mobile     string `json:"mobile"`
+}
+
+// RecipientsOf returns the legacy first recipient followed by any additional
+// recipients, in the order entered. The returned slice is independent of the
+// issue's stored slice.
+func RecipientsOf(is Issue) []IssueRecipient {
+	out := make([]IssueRecipient, 0, 1+len(is.AdditionalTakers))
+	out = append(out, IssueRecipient{Name: is.TakerName, Department: is.TakerDepartment, Mobile: is.TakerMobile})
+	out = append(out, is.AdditionalTakers...)
+	return out
+}
+
+// RecipientLabel names every recipient in ordinary prose, without an Oxford
+// comma: "Ravi, Amit and Suresh".
+func RecipientLabel(is Issue) string {
+	recipients := RecipientsOf(is)
+	names := make([]string, 0, len(recipients))
+	for _, recipient := range recipients {
+		names = append(names, recipient.Name)
+	}
+	switch len(names) {
+	case 0:
+		return ""
+	case 1:
+		return names[0]
+	default:
+		return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
+	}
 }
 
 // Disposition is what the desk was told about a shortfall.

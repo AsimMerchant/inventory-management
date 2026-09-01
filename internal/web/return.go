@@ -14,8 +14,9 @@ import (
 // outRow is one thing the person in front of the desk is still holding.
 type outRow struct {
 	register.OutstandingLine
-	Pick bool   // every row of the picked product, because a chair is a chair
-	Href string // tapping the row picks that product
+	Heading string
+	Pick    bool   // every row of the picked product, because a chair is a chair
+	Href    string // tapping the row picks that product
 }
 
 // returnData is everything return.html draws.
@@ -32,14 +33,16 @@ type returnData struct {
 	Q         string // what the form carries forward to find this person again
 	Rows      []outRow
 	TakerName string
+	StillVerb string
 
-	Picked      bool
-	ProductID   string
-	ProductName string
-	IssueIDs    []string
-	TotalOut    int
-	Quantity    string
-	Short       int
+	Picked         bool
+	ProductID      string
+	ProductName    string
+	IssueIDs       []string
+	HoldingIssueID string
+	TotalOut       int
+	Quantity       string
+	Short          int
 
 	ReturnerName   string
 	ReturnerMobile string
@@ -48,6 +51,7 @@ type returnData struct {
 	Disposition    string
 	Remark         string
 	ButtonLabel    string
+	Stale          bool
 }
 
 // returnNew is the form and the save.
@@ -56,7 +60,12 @@ func (s *Server) returnNew(w http.ResponseWriter, r *http.Request) {
 		s.returnSave(w, r)
 		return
 	}
-	s.render(w, http.StatusOK, s.returnPage(), "return.html", s.returnForm(r))
+	data := s.returnForm(r)
+	p := s.returnPage()
+	if data.Stale {
+		p.add(&banner{"bad", "That holding has changed. Pick it again from the list."})
+	}
+	s.render(w, http.StatusOK, p, "return.html", data)
 }
 
 func (s *Server) returnPage() page {
@@ -74,6 +83,7 @@ func (s *Server) returnForm(r *http.Request) returnData {
 
 	q := register.CleanName(r.FormValue("q"))
 	productID := formProductID(r)
+	holdingIssueID := strings.TrimSpace(r.FormValue("holdingIssueId"))
 	quantity := strings.TrimSpace(r.FormValue("quantity"))
 
 	data := returnData{
@@ -81,6 +91,8 @@ func (s *Server) returnForm(r *http.Request) returnData {
 		Q:              q,
 		Searched:       q != "",
 		Quantity:       quantity,
+		HoldingIssueID: holdingIssueID,
+		StillVerb:      "has",
 		ReturnerName:   register.CleanName(r.FormValue("returnerName")),
 		ReturnerMobile: register.CleanName(r.FormValue("returnerMobile")),
 		ReturnedAt:     strings.TrimSpace(r.FormValue("returnedAt")),
@@ -97,6 +109,11 @@ func (s *Server) returnForm(r *http.Request) returnData {
 		}
 
 		found := register.FindPeople(reg, q)
+		if holdingIssueID != "" {
+			if _, ok := register.JointHoldingForIssue(reg, holdingIssueID); !ok {
+				data.Stale = true
+			}
+		}
 		// Somebody who has never taken anything has nothing to bring back, so
 		// this picker never offers to make a new person.
 		data.Find = personPicker{
@@ -106,7 +123,7 @@ func (s *Server) returnForm(r *http.Request) returnData {
 
 		switch {
 		case len(found) == 1:
-			s.fillHolding(reg, &data, found[0], productID)
+			s.fillHolding(reg, &data, found[0], holdingIssueID, productID)
 		case len(found) == 0:
 			data.Nobody = data.Searched
 		default:
@@ -120,7 +137,7 @@ func (s *Server) returnForm(r *http.Request) returnData {
 
 // fillHolding lays out one person's outstanding lines and, when a product has
 // been tapped, the quantity block that goes with it.
-func (s *Server) fillHolding(reg *register.Register, data *returnData, p register.PersonSummary, productID string) {
+func (s *Server) fillHolding(reg *register.Register, data *returnData, p register.PersonSummary, holdingIssueID, productID string) {
 	data.Person = true
 	data.Name, data.Mobile, data.Dept = p.Name, p.Mobile, p.Department
 	data.TakerName = p.Name
@@ -132,26 +149,78 @@ func (s *Server) fillHolding(reg *register.Register, data *returnData, p registe
 	// made, because selection is by product: tapping one chair line picks every
 	// chair line, and rows that move together read together. Within a group the
 	// oldest issue is first, which is also the order the return fills them.
-	for _, l := range inProductGroups(p.Lines) {
-		data.Rows = append(data.Rows, outRow{
-			OutstandingLine: l,
-			Pick:            l.ProductID == productID,
-			Href:            "/return/new?q=" + url.QueryEscape(data.Q) + "&productId=" + l.ProductID,
-		})
+	var selected register.JointHolding
+	holdings := register.JointHoldings(reg)
+	personHoldings := 0
+	for _, holding := range holdings {
+		for _, recipient := range holding.Recipients {
+			if register.PersonOf(recipient.Name, recipient.Mobile) == p.ID {
+				personHoldings++
+				break
+			}
+		}
 	}
-
-	for _, h := range register.HoldingByProduct(p.Lines) {
-		if h.ProductID != productID {
+	if holdingIssueID == "" && productID != "" {
+		for _, holding := range holdings {
+			if len(holding.Recipients) != 1 || register.PersonOf(holding.Recipients[0].Name, holding.Recipients[0].Mobile) != p.ID {
+				continue
+			}
+			for _, line := range holding.Lines {
+				if line.ProductID == productID {
+					holdingIssueID, data.HoldingIssueID = holding.AnchorIssueID, holding.AnchorIssueID
+					break
+				}
+			}
+		}
+	}
+	for _, holding := range holdings {
+		member := false
+		for _, recipient := range holding.Recipients {
+			if register.PersonOf(recipient.Name, recipient.Mobile) == p.ID {
+				member = true
+			}
+		}
+		if !member {
 			continue
 		}
-		data.Picked = true
-		data.ProductID, data.ProductName, data.TotalOut = h.ProductID, h.ProductName, h.Out
+		context := ""
+		if len(holding.Recipients) > 1 {
+			context = " - holding together"
+		} else if personHoldings > 1 {
+			context = " - holding alone"
+		}
+		for i, l := range inProductGroups(holding.Lines) {
+			heading := ""
+			if i == 0 && context != "" {
+				heading = holding.Label + context
+			}
+			data.Rows = append(data.Rows, outRow{OutstandingLine: l, Heading: heading, Pick: holding.AnchorIssueID == holdingIssueID && l.ProductID == productID, Href: "/return/new?q=" + url.QueryEscape(data.Q) + "&holdingIssueId=" + holding.AnchorIssueID + "&productId=" + l.ProductID})
+		}
+		if holding.AnchorIssueID == holdingIssueID {
+			selected = holding
+		}
+	}
+	if holdingIssueID != "" && selected.AnchorIssueID == "" {
+		data.Stale = true
+		return
+	}
+	for _, h := range register.HoldingByProduct(selected.Lines) {
+		if h.ProductID == productID {
+			data.Picked = true
+			data.ProductID, data.ProductName, data.TotalOut = h.ProductID, h.ProductName, h.Out
+		}
+	}
+	if selected.Label != "" {
+		data.TakerName = selected.Label
+		if len(selected.Recipients) > 1 {
+			data.StillVerb = "have"
+		}
 	}
 	if !data.Picked {
 		return
 	}
 
-	for _, l := range p.Lines {
+	for _, l := range selected.Lines {
 		if l.ProductID == productID {
 			data.IssueIDs = append(data.IssueIDs, l.IssueID)
 		}
@@ -231,6 +300,7 @@ func (s *Server) returnSave(w http.ResponseWriter, r *http.Request) {
 	}
 
 	issueIDs := r.Form["issueIds"]
+	holdingIssueID := strings.TrimSpace(r.FormValue("holdingIssueId"))
 	quantity := strings.TrimSpace(r.FormValue("quantity"))
 	returnerName := register.CleanName(r.FormValue("returnerName"))
 	returnerMobile := register.CleanName(r.FormValue("returnerMobile"))
@@ -240,7 +310,7 @@ func (s *Server) returnSave(w http.ResponseWriter, r *http.Request) {
 	var plan register.ReturnPlan
 	var refusal string
 	s.st.Read(func(reg *register.Register) {
-		plan, refusal = planReturn(reg, issueIDs, quantity, returnerName, disposition, remark)
+		plan, refusal = planReturnForHolding(reg, holdingIssueID, issueIDs, quantity, returnerName, disposition, remark)
 	})
 	if refusal != "" {
 		refuse(refusal)
@@ -259,7 +329,7 @@ func (s *Server) returnSave(w http.ResponseWriter, r *http.Request) {
 		// Re-run against the register as it is at this instant, not against the
 		// numbers the page was drawn with: two tabs must not return the same
 		// fifty chairs twice.
-		plan, refusal = planReturn(reg, issueIDs, quantity, returnerName, disposition, remark)
+		plan, refusal = planReturnForHolding(reg, holdingIssueID, issueIDs, quantity, returnerName, disposition, remark)
 		if refusal != "" {
 			return errRefused
 		}
@@ -290,6 +360,42 @@ func (s *Server) returnSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/stock?saved="+newID, http.StatusSeeOther)
+}
+
+func planReturnForHolding(reg *register.Register, anchor string, postedIssueIDs []string, quantity, returnerName, disposition, remark string) (register.ReturnPlan, string) {
+	// Old schema-1 pages and stakeholder bookmarks did not carry an anchor.
+	// Keep those one-person posts working exactly as before; every newly drawn
+	// form carries an anchor and receives the stronger holding-boundary guard.
+	if anchor == "" {
+		return planReturn(reg, postedIssueIDs, quantity, returnerName, disposition, remark)
+	}
+	holding, ok := register.JointHoldingForIssue(reg, anchor)
+	if !ok {
+		return register.ReturnPlan{}, "That holding has changed. Pick it again from the list."
+	}
+	productID := ""
+	for _, is := range register.LiveIssues(reg) {
+		for _, id := range postedIssueIDs {
+			if is.ID == id {
+				productID = is.ProductID
+			}
+		}
+	}
+	var issueIDs []string
+	for _, line := range holding.Lines {
+		if line.ProductID == productID {
+			issueIDs = append(issueIDs, line.IssueID)
+		}
+	}
+	if len(issueIDs) != len(postedIssueIDs) {
+		return register.ReturnPlan{}, "That holding has changed. Pick it again from the list."
+	}
+	for i := range issueIDs {
+		if issueIDs[i] != postedIssueIDs[i] {
+			return register.ReturnPlan{}, "That holding has changed. Pick it again from the list."
+		}
+	}
+	return planReturn(reg, issueIDs, quantity, returnerName, disposition, remark)
 }
 
 // planReturn is every refusal on the returning screen, in order, and the plan

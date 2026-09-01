@@ -47,7 +47,7 @@ func PlanReturn(r *Register, issueIDs []string, qty int) ReturnPlan {
 	left := qty
 	for _, is := range chosen {
 		if plan.TakerName == "" {
-			plan.TakerName = is.TakerName
+			plan.TakerName = RecipientLabel(is)
 			plan.TakerMobile = is.TakerMobile
 			plan.ProductID = is.ProductID
 			plan.ProductName = names[is.ProductID]
@@ -77,7 +77,7 @@ func TakerOf(r *Register, allocations []Allocation) string {
 	for _, a := range allocations {
 		for _, is := range LiveIssues(r) {
 			if is.ID == a.IssueID {
-				return is.TakerName
+				return RecipientLabel(is)
 			}
 		}
 	}
