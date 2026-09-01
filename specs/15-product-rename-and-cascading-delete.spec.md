@@ -56,11 +56,27 @@ successful ordinary update writes schema 2 through the existing atomic path. Fre
 registers start at schema 2. Any version other than 1 or 2 retains the existing
 different-version refusal.
 
-This bump is mandatory downgrade protection, not a new file: a `v1.0.1` executable
-only understands schema 1 and therefore refuses a schema-2 file instead of ignoring
-`Product.Deleted` and resurrecting a retired product on its next save. Saving an
-unchanged live product omits both lifecycle fields. `Product.ID`, `CreatedAt` and
-`CreatedBy` never change.
+This bump stops an older executable ignoring `Product.Deleted` and resurrecting a
+retired product on its next save: `v1.0.1` only understands schema 1, so it never
+parses a schema-2 file and cannot discard the new fields.
+
+It is **not** full downgrade protection, and the difference matters in the field.
+`v1.0.1`'s `store.Open` treats a version mismatch exactly like a damaged file: it
+copies the main file aside and falls back to `.bak`. Directly after the first
+`v1.1.1` save that `.bak` is the schema-1 pre-upgrade file, so an old executable
+started at that moment opens, shows the ordinary "the register was damaged, this is
+the last good copy" banner, and silently presents pre-upgrade data. Its own next save
+writes schema 1 over the main file. Nothing is lost — the schema-2 file survives as
+`store-register.json.corrupt-<timestamp>` — but the banner names the wrong cause and
+the right remedy ("you are running the old program") appears nowhere.
+
+This cannot be fixed in `v1.1.1`, because the defect is in the already-released
+`v1.0.1` reader. The protection is procedural: the old `.exe` must be deleted from
+the laptop and the pen drive before the new one is used. Verified by the `v1.1.1`
+release gate against real binaries; recorded in `HANDOFF.md`.
+
+Saving an unchanged live product omits both lifecycle fields. `Product.ID`,
+`CreatedAt` and `CreatedBy` never change.
 
 Add in `internal/register/product.go`:
 
@@ -392,7 +408,7 @@ go vet ./...
 rg -n 'DeleteProductCascade|ProductDeletionImpact|Validate' internal/web/products.go
 rg -n 'append\(.*Products\[:|Products\[.*:\]|append\(.*Inwards\[:|append\(.*Issues\[:|append\(.*Returns\[:' internal --glob '*.go' --glob '!**/*_test.go' # must print nothing
 rg -n 'net/http' internal/register internal/store # must print nothing
-rg -n 'store.Update' internal/web/products.go
+rg -n 's\.st\.Update' internal/web/products.go   # the rename and cascade each run in one closure
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /tmp/register.exe .
 ```
 
