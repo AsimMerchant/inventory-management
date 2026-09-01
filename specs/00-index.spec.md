@@ -4,7 +4,7 @@ Non-normative. Every rule lives in a numbered spec; this page is a map and a lis
 the questions that must be settled before or during the build.
 
 The approved design is the walkthrough at
-`scratchpad/store-register.html`. Every spec traces to it. Where it is silent, the spec
+`design/store-register.html`. Every spec traces to it. Where it is silent, the spec
 says so under its own `## Open` rather than inventing an answer, and those questions are
 gathered at the bottom of this page.
 
@@ -27,6 +27,9 @@ Each spec depends only on the ones above it.
 | 11 | `11-corrections.spec.md` | Fixing and deleting a wrong entry, with guards and an audit line | one day |
 | 12 | `12-activity-log.spec.md` | Who did what — one chronological list derived from the records, with day, person, kind and product filters | one day |
 | 13 | `13-multi-person-issue.spec.md` | One issue can name every person collecting one shared total; solo and joint holdings stay distinct | more than one focused day |
+| 14 | `14-global-controls-and-log-product-picker.spec.md` | Dashboard/change-person controls everywhere; working select-only product autocomplete on the log | one focused day |
+| 15 | `15-product-rename-and-cascading-delete.spec.md` | Rename products; atomically tombstone a product and every related entry while retaining audit history | one focused day |
+| 16 | `16-issue-challan-and-return-search.spec.md` | Optional reusable issue challans; correction/log audit and partial challan search for returns | one focused day |
 
 Spec 01 must be built first: it contains the fixture that every other spec's test cases
 are written against. A test that says "at T1, 890 chairs are on hand" is meaningless
@@ -44,7 +47,10 @@ storeregister/
   specs/                       00-index, 01-data-model, 02-persistence, 03-stock-arithmetic,
                                04-server-and-shell, 05-shift-and-people, 06-products,
                                07-inward, 08-issue, 09-return, 10-views, 11-corrections,
-                               12-activity-log, 13-multi-person-issue
+                               12-activity-log, 13-multi-person-issue,
+                               14-global-controls-and-log-product-picker,
+                               15-product-rename-and-cascading-delete,
+                               16-issue-challan-and-return-search
 ```
 
 **The chrome bar has five tabs**, in this order: `Stock`, `Out with people`,
@@ -128,6 +134,24 @@ Every spec assumes these and none of them may be traded away:
   Recipient count never divides or multiplies stock. Multi-person membership belongs
   only to that issue; it creates no permanent group and does not merge a person's solo
   holding with a joint holding.
+- Every rendered screen has direct `Dashboard` (`/stock`) and `Change person`
+  (`/shift`) links. Changing the person affects future actions only.
+- A product rename preserves its ID and stock history. A product deletion is an atomic
+  cascading tombstone of the product and all related inwards, issues and returns;
+  nothing is physically erased and the activity log remains complete.
+- An issue challan is optional free text, may be reused across products and recipient
+  groups, and is never an internal ID or an allocation key.
+- `v1.1.1` writes schema 2. It reads schema 1 without writing during open, migrates in
+  memory, and writes schema 2 on the next successful atomic save. This prevents older
+  executables from silently discarding product tombstones or issue challans.
+
+## `v1.1.1` release group
+
+Specs 14, 15 and 16 are one stakeholder release and must ship together as `v1.1.1`.
+Spec 13's multi-recipient feature was already released in `v1.0.1`; these specs extend
+it but do not rebuild or reinterpret its one-quantity semantics. The combined release
+is not ready until every spec's unit/race/vet/Windows checks and spec 16's real-browser
+acceptance scenario pass, followed by an independent `release_gate` result of `READY`.
 
 ## Whole-build verification
 
@@ -188,7 +212,7 @@ old items 3 and 16.
 |---|---|
 | 4 | Chairs split 390 rent from Sharma + 310 purchase at T0. Fixture-only; affects no shipped behaviour. |
 | 5 | A product with both rent and purchase inwards shows `Rent` if any inward is rent. |
-| 7 | No product rename in v1. |
+| 7 | No product rename in `v1.0.x`. Superseded for `v1.1.1` by spec 15: rename keeps the product ID and records old/new, actor and time. |
 | 8 | Near-duplicate product names: confirmation step on a shared 4-character prefix. |
 | 9 | Supplier names stay free text with a case-fold guard, so `Sharma tent house` reuses `Sharma Tent House`. |
 | 10 | No pluralisation logic. Rephrase any label that would read `1 chairs` rather than build a pluraliser. |

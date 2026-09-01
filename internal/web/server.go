@@ -52,6 +52,9 @@ func (s *Server) routes() {
 
 	// 06
 	m.HandleFunc("POST /product/new", s.productNew)
+	m.HandleFunc("GET /product/{id}/edit", s.productEdit)
+	m.HandleFunc("POST /product/{id}/edit", s.productEdit)
+	m.HandleFunc("POST /product/{id}/delete", s.productDelete)
 	m.HandleFunc("GET /api/products", s.apiProducts)
 
 	// 08

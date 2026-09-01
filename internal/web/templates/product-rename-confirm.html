@@ -1,0 +1,6 @@
+<p class="scr-h">Fix a product</p>
+<p>{{.Existing}} is already on the list. Rename this product to {{.New}} anyway?</p>
+<form method="post" action="/product/{{.ID}}/edit">
+  <input type="hidden" name="name" value="{{.New}}"><input type="hidden" name="confirm" value="yes">
+  <div class="btnrow"><a class="btn ghost" href="/product/{{.ID}}/edit">No, keep {{.Old}}</a><button class="btn" type="submit">Yes, rename it</button></div>
+</form>

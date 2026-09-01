@@ -21,10 +21,14 @@ type outRow struct {
 
 // returnData is everything return.html draws.
 type returnData struct {
-	Now      time.Time
-	Find     personPicker
-	Searched bool // something was typed
-	Nobody   bool // and nobody is holding anything under it
+	Now             time.Time
+	Find            personPicker
+	Searched        bool // something was typed
+	Nobody          bool // and nobody is holding anything under it
+	Challan         string
+	ChallanSearched bool
+	NoChallan       bool
+	ChallanRows     []challanRow
 
 	Person    bool
 	Name      string
@@ -52,6 +56,11 @@ type returnData struct {
 	Remark         string
 	ButtonLabel    string
 	Stale          bool
+}
+
+type challanRow struct {
+	register.ChallanMatch
+	Href string
 }
 
 // returnNew is the form and the save.
@@ -82,22 +91,28 @@ func (s *Server) returnForm(r *http.Request) returnData {
 	now := s.now()
 
 	q := register.CleanName(r.FormValue("q"))
+	challan := register.CleanName(r.FormValue("challan"))
+	if challan != "" {
+		q = ""
+	}
 	productID := formProductID(r)
 	holdingIssueID := strings.TrimSpace(r.FormValue("holdingIssueId"))
 	quantity := strings.TrimSpace(r.FormValue("quantity"))
 
 	data := returnData{
-		Now:            now,
-		Q:              q,
-		Searched:       q != "",
-		Quantity:       quantity,
-		HoldingIssueID: holdingIssueID,
-		StillVerb:      "has",
-		ReturnerName:   register.CleanName(r.FormValue("returnerName")),
-		ReturnerMobile: register.CleanName(r.FormValue("returnerMobile")),
-		ReturnedAt:     strings.TrimSpace(r.FormValue("returnedAt")),
-		Disposition:    strings.TrimSpace(r.FormValue("disposition")),
-		Remark:         register.CleanName(r.FormValue("remark")),
+		Now:             now,
+		Q:               q,
+		Challan:         challan,
+		ChallanSearched: challan != "",
+		Searched:        q != "",
+		Quantity:        quantity,
+		HoldingIssueID:  holdingIssueID,
+		StillVerb:       "has",
+		ReturnerName:    register.CleanName(r.FormValue("returnerName")),
+		ReturnerMobile:  register.CleanName(r.FormValue("returnerMobile")),
+		ReturnedAt:      strings.TrimSpace(r.FormValue("returnedAt")),
+		Disposition:     strings.TrimSpace(r.FormValue("disposition")),
+		Remark:          register.CleanName(r.FormValue("remark")),
 	}
 	if data.ReturnedAt == "" {
 		data.ReturnedAt = now.Format(stampLayout)
@@ -119,6 +134,26 @@ func (s *Server) returnForm(r *http.Request) returnData {
 		data.Find = personPicker{
 			Label: "Find the person", Field: "q", Typed: q,
 			Hint: "Search by name, mobile or department.", Autofocus: true,
+		}
+
+		if challan != "" {
+			matches := register.FindOutstandingByChallan(reg, challan)
+			data.NoChallan = len(matches) == 0
+			for _, match := range matches {
+				v := url.Values{"challan": {challan}, "holdingIssueId": {match.HoldingIssueID}, "productId": {match.ProductID}}
+				data.ChallanRows = append(data.ChallanRows, challanRow{ChallanMatch: match, Href: "/return/new?" + v.Encode()})
+			}
+			if holdingIssueID != "" {
+				holding, ok := register.JointHoldingForIssue(reg, holdingIssueID)
+				if !ok || len(holding.Recipients) == 0 {
+					data.Stale = true
+					return
+				}
+				first := holding.Recipients[0]
+				p := register.PersonSummary{ID: register.PersonOf(first.Name, first.Mobile), Name: first.Name, Mobile: first.Mobile, Department: first.Department}
+				s.fillHolding(reg, &data, p, holdingIssueID, productID)
+			}
+			return
 		}
 
 		switch {

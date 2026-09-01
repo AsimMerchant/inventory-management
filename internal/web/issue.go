@@ -23,6 +23,7 @@ type issueData struct {
 	Picker      pickerData
 	OnHand      int
 	Quantity    string
+	ChallanNo   string
 	Taker       personPicker
 	Department  string
 	Mobile      string
@@ -78,7 +79,7 @@ func (s *Server) issueForm(r *http.Request) issueData {
 		issuedAt = now.Format(stampLayout)
 	}
 
-	data := issueData{Now: now, Quantity: quantity, IssuedAt: issuedAt}
+	data := issueData{Now: now, Quantity: quantity, ChallanNo: register.CleanName(r.FormValue("challanNo")), IssuedAt: issuedAt}
 	names := append([]string(nil), r.Form["additionalTakerName"]...)
 	departments := append([]string(nil), r.Form["additionalTakerDepartment"]...)
 	mobiles := append([]string(nil), r.Form["additionalTakerMobile"]...)
@@ -292,6 +293,7 @@ func (s *Server) issueSave(w http.ResponseWriter, r *http.Request) {
 		newID = reg.NextID("ISS")
 		reg.Issues = append(reg.Issues, register.Issue{
 			ID: newID, ProductID: productID, Quantity: n,
+			ChallanNo: register.CleanName(r.FormValue("challanNo")),
 			TakerName: takerName, TakerDepartment: data.Department,
 			TakerMobile:        data.Mobile,
 			AdditionalTakers:   additional,

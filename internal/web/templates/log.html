@@ -21,6 +21,8 @@
   {{template "person-picker.html" .Find}}
   {{template "picker.html" .Product}}
   {{if .AnyProduct}}<a class="opt" href="{{.AnyProduct}}">Any product</a>{{end}}
+  <div class="field"><span class="lab">Challan no.</span><input class="inp" type="text" name="challan" value="{{.Challan}}"><div class="hint">Type any part of the challan number.</div></div>
+  {{if .AnyChallan}}<a class="opt" href="{{.AnyChallan}}">Any challan</a>{{end}}
   {{if .AnybodyRef}}<a class="opt" href="{{.AnybodyRef}}">Anybody</a>{{end}}
 
   <div class="btnrow">
@@ -32,6 +34,8 @@
 <p style="margin-top:1.2rem">{{.EmptyLine}}</p>
 <p class="sm">{{.EmptyAdvice}}</p>
 {{end}}
+
+<script src="/static/picker.js"></script>
 
 {{range .Days}}
 <p class="lab" style="margin-top:1.3rem">{{.Heading}}</p>

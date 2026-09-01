@@ -12,6 +12,7 @@
     <strong>{{.ProductName}}</strong>
     {{if .Aged}}<span class="pill rent">Out over 2 days</span>{{end}}
     <div class="sm">{{.Middle}}</div>
+    {{if .ChallanNo}}<div class="sm">Challan no. {{.ChallanNo}}</div>{{end}}
     {{range .Shortfalls}}<div class="sm">{{.}}</div>{{end}}
     {{range .Changes}}<div class="sm">{{.}}</div>{{end}}
   </div>

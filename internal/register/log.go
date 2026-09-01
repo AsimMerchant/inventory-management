@@ -45,6 +45,7 @@ type LogEntry struct {
 
 	ProductID   string // "" only for LogPersonAdded
 	ProductName string
+	ChallanNo   string
 	Quantity    int // 0 for the added, corrected and deleted kinds
 
 	Supplier   string // LogCameIn only
@@ -65,7 +66,7 @@ type LogEntry struct {
 // LogEntries is everything that has ever happened at the desk, newest first.
 // Deleted records are in the list, marked, along with the deletion itself.
 func LogEntries(r *Register) []LogEntry {
-	names := productNames(r)
+	names := allProductNames(r)
 	mobiles := staffMobiles(r)
 	var out []LogEntry
 
@@ -74,7 +75,8 @@ func LogEntries(r *Register) []LogEntry {
 			At: p.CreatedAt, Kind: LogProductAdded, RecordID: p.ID,
 			Who: p.CreatedBy, ProductID: p.ID, ProductName: p.Name,
 		}
-		out = append(out, fill(r, e, nil, mobiles))
+		out = append(out, fill(r, e, p.Deleted, mobiles))
+		out = append(out, changesOf(r, e, p.Changes, p.Deleted, mobiles)...)
 	}
 	for _, st := range r.Staff {
 		e := LogEntry{
@@ -88,7 +90,7 @@ func LogEntries(r *Register) []LogEntry {
 			At: in.RecordedAt, Kind: LogCameIn, RecordID: in.ID, RecordTab: "/inwards",
 			Who: in.RecordedBy, ProductID: in.ProductID, ProductName: names[in.ProductID],
 			Quantity: in.Quantity, Supplier: in.Supplier, ReceivedBy: in.ReceivedBy,
-			ReceivedOn: in.ReceivedOn,
+			ReceivedOn: in.ReceivedOn, ChallanNo: in.ChallanNo,
 		}
 		out = append(out, fill(r, e, in.Deleted, mobiles))
 		out = append(out, changesOf(r, e, in.Changes, in.Deleted, mobiles)...)
@@ -101,7 +103,7 @@ func LogEntries(r *Register) []LogEntry {
 			PersonDepartment: is.TakerDepartment,
 			Recipients:       RecipientsOf(is),
 			ProductID:        is.ProductID, ProductName: names[is.ProductID],
-			Quantity: is.Quantity, HappenedAt: is.IssuedAt,
+			Quantity: is.Quantity, HappenedAt: is.IssuedAt, ChallanNo: is.ChallanNo,
 		}
 		out = append(out, fill(r, e, is.Deleted, mobiles))
 		out = append(out, changesOf(r, e, is.Changes, is.Deleted, mobiles)...)
@@ -121,6 +123,14 @@ func LogEntries(r *Register) []LogEntry {
 
 	sortLog(out)
 	return out
+}
+
+func allProductNames(r *Register) map[string]string {
+	names := make(map[string]string, len(r.Products))
+	for _, p := range r.Products {
+		names[p.ID] = p.Name
+	}
+	return names
 }
 
 // fill finishes a record's own row: the actor's mobile where the register knows
@@ -221,10 +231,11 @@ func sortLog(entries []LogEntry) {
 // entry is shown only if it matches every active one, and an entry that has no
 // value for a filtered dimension does not match.
 type LogFilter struct {
-	Day       string // "2026-09-03", or "" meaning every day
-	Kinds     []LogKind
-	ProductID string
-	Query     string
+	Day          string // "2026-09-03", or "" meaning every day
+	Kinds        []LogKind
+	ProductID    string
+	Query        string
+	ChallanQuery string
 }
 
 // FilterLog narrows the log. loc is the zone Day is read in; no clock is read
@@ -241,12 +252,27 @@ func FilterLog(r *Register, entries []LogEntry, f LogFilter, loc *time.Location)
 		if f.ProductID != "" && e.ProductID != f.ProductID {
 			continue
 		}
+		if !matchesChallan(e, f.ChallanQuery) {
+			continue
+		}
 		if !matchesQuery(e, f.Query) {
 			continue
 		}
 		out = append(out, e)
 	}
 	return out
+}
+
+func matchesChallan(e LogEntry, query string) bool {
+	want := FoldKey(query)
+	if want == "" {
+		return true
+	}
+	if strings.Contains(FoldKey(e.ChallanNo), want) {
+		return true
+	}
+	return e.Kind == LogCorrected && e.Change != nil && e.Change.Field == "challan" &&
+		(strings.Contains(FoldKey(e.Change.From), want) || strings.Contains(FoldKey(e.Change.To), want))
 }
 
 func hasKind(kinds []LogKind, k LogKind) bool {

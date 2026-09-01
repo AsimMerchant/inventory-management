@@ -184,9 +184,10 @@ func readRegister(path string) (*register.Register, error) {
 	if err := json.Unmarshal(data, &reg); err != nil {
 		return nil, fmt.Errorf("%s is not a readable register: %w", path, err)
 	}
-	if reg.SchemaVersion != register.SchemaVersion {
+	if reg.SchemaVersion != 1 && reg.SchemaVersion != register.SchemaVersion {
 		return nil, fmt.Errorf("%s was written by a different version of this program (schema %d)", path, reg.SchemaVersion)
 	}
+	reg.SchemaVersion = register.SchemaVersion
 	normalise(&reg)
 	return &reg, nil
 }
@@ -262,6 +263,10 @@ func deepCopy(r *register.Register) *register.Register {
 		c.ShiftStartedAt = &t
 	}
 	c.Products = append([]register.Product{}, r.Products...)
+	for i := range c.Products {
+		c.Products[i].Changes = copyChanges(c.Products[i].Changes)
+		c.Products[i].Deleted = copyDeletion(c.Products[i].Deleted)
+	}
 	c.Staff = append([]register.Staff{}, r.Staff...)
 
 	c.Inwards = append([]register.Inward{}, r.Inwards...)
@@ -271,6 +276,7 @@ func deepCopy(r *register.Register) *register.Register {
 	}
 	c.Issues = append([]register.Issue{}, r.Issues...)
 	for i := range c.Issues {
+		c.Issues[i].AdditionalTakers = append([]register.IssueRecipient(nil), c.Issues[i].AdditionalTakers...)
 		c.Issues[i].Changes = copyChanges(c.Issues[i].Changes)
 		c.Issues[i].Deleted = copyDeletion(c.Issues[i].Deleted)
 	}

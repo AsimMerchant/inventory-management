@@ -5,6 +5,22 @@
   {{template "person-picker.html" .Find}}
 </form>
 
+<form method="get" action="/return/new">
+  <div class="field">
+    <span class="lab">Find by challan no.</span>
+    <input class="inp" type="text" name="challan" autocomplete="off" value="{{.Challan}}">
+    <div class="hint">Type any part of the challan number.</div>
+  </div>
+</form>
+
+{{if .ChallanSearched}}
+<p class="lab" style="margin-top:1.1rem">Outstanding entries with this challan</p>
+{{range .ChallanRows}}
+<a href="{{.Href}}"><div class="outrow"><div class="g"><strong>Challan {{.ChallanNo}}</strong><div>{{.Outstanding}} {{productWord .ProductName}} out</div><div class="sm">{{.RecipientLabel}} · taken {{shortdate .IssuedAt}} · {{clock .IssuedAt}}</div></div><div class="sm">Pick this holding</div></div></a>
+{{end}}
+{{if .NoChallan}}<p class="hint bad">No outstanding issue matches that challan number.</p>{{end}}
+{{end}}
+
 {{if .Nobody}}<p class="hint bad">Nobody by that name is holding anything.</p>{{end}}
 
 {{if .Person}}
@@ -14,7 +30,7 @@
 {{if .Heading}}<p class="lab" style="margin-top:1.1rem">{{.Heading}}</p>{{end}}
 <a href="{{.Href}}">
   <div class="outrow{{if .Pick}} pick{{end}}">
-    <div class="g"><strong>{{.ProductName}}</strong><div class="sm">Issued {{clock .IssuedAt}} by {{.IssuedBy}} · {{.Taken}} taken, {{.Back}} back</div></div>
+    <div class="g"><strong>{{.ProductName}}</strong><div class="sm">Issued {{clock .IssuedAt}} by {{.IssuedBy}} · {{.Taken}} taken, {{.Back}} back</div>{{if .ChallanNo}}<div class="sm">Challan no. {{.ChallanNo}}</div>{{end}}</div>
     <div class="q">{{.Out}} out</div>
   </div>
 </a>
@@ -23,6 +39,7 @@
 {{if .Picked}}
 <form method="post" action="/return/new" data-return>
   <input type="hidden" name="q" value="{{.Q}}">
+  <input type="hidden" name="challan" value="{{.Challan}}">
   <input type="hidden" name="productId" value="{{.ProductID}}">
   <input type="hidden" name="holdingIssueId" value="{{.HoldingIssueID}}">
   {{range .IssueIDs}}<input type="hidden" name="issueIds" value="{{.}}">{{end}}

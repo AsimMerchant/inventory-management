@@ -99,10 +99,12 @@ func TestOnDiskFixtureMatchesCode(t *testing.T) {
 	if err := json.Unmarshal(data, &reg); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(&reg, register.WalkthroughT0()) {
+	want := register.WalkthroughT0()
+	want.SchemaVersion = 1
+	if !reflect.DeepEqual(&reg, want) {
 		t.Error("testdata/walkthrough-t0.json no longer matches register.WalkthroughT0()")
 	}
-	encoded, err := json.MarshalIndent(register.WalkthroughT0(), "", "  ")
+	encoded, err := json.MarshalIndent(want, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +123,7 @@ func TestFileIsHumanReadable(t *testing.T) {
 	}
 	text := string(data)
 	for _, want := range []string{
-		"  \"schemaVersion\": 1,\n",
+		"  \"schemaVersion\": 2,\n",
 		"      \"name\": \"Chairs\",\n",
 		"      \"supplier\": \"Sharma Tent House\",\n",
 		"Sharma Tent House",
@@ -333,8 +335,8 @@ func TestFreshDirectoryStartsEmpty(t *testing.T) {
 		t.Errorf("Source = %v, want Fresh", res.Source)
 	}
 	s.Read(func(r *register.Register) {
-		if r.SchemaVersion != 1 {
-			t.Errorf("SchemaVersion = %d, want 1", r.SchemaVersion)
+		if r.SchemaVersion != register.SchemaVersion {
+			t.Errorf("SchemaVersion = %d, want %d", r.SchemaVersion, register.SchemaVersion)
 		}
 		if len(r.Products) != 0 || len(r.Staff) != 0 || len(r.Inwards) != 0 {
 			t.Error("a fresh register is not empty")
@@ -357,7 +359,7 @@ func TestWrongSchemaVersionRefused(t *testing.T) {
 	path := filepath.Join(dir, FileName)
 
 	future := mustEncode(t, register.WalkthroughT0())
-	future = []byte(strings.Replace(string(future), `"schemaVersion": 1`, `"schemaVersion": 2`, 1))
+	future = []byte(strings.Replace(string(future), `"schemaVersion": 2`, `"schemaVersion": 3`, 1))
 	if err := os.WriteFile(path, future, 0600); err != nil {
 		t.Fatal(err)
 	}

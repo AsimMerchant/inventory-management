@@ -20,6 +20,7 @@
     <td class="num">
       {{if .IssueHref}}<a class="btn" style="padding:.3rem .7rem;font-size:.78rem" href="{{.IssueHref}}">Issue</a>
       {{else}}<span class="opt" style="padding:.3rem .7rem;font-size:.78rem">None left</span>{{end}}
+      <a class="sm" href="{{.FixHref}}">Fix product</a>
     </td>
   </tr>
   {{end}}
