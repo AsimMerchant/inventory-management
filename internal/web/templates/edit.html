@@ -75,6 +75,7 @@
   {{end}}
 
   {{if eq .Kind "issue"}}
+  <input type="hidden" name="additionalTakersPresent" value="1">
   <div class="row2">
     <div class="field">
       <span class="lab">How many</span>
@@ -105,6 +106,18 @@
       <div class="inp" style="color:var(--ink-soft)">{{.Incharge}}</div>
     </div>
   </div>
+  {{range $i, $t := .Additional}}
+  <div data-person-row>
+    <div class="field"><span class="lab">Another person taking it</span><input class="inp" type="text" name="additionalTakerName" autocomplete="off" value="{{$t.Name}}"></div>
+    <div class="row2">
+      <div class="field"><span class="lab">Department</span><input class="inp" type="text" name="additionalTakerDepartment" value="{{$t.Department}}"></div>
+      <div class="field"><span class="lab">Their mobile</span><input class="inp" type="text" name="additionalTakerMobile" value="{{$t.Mobile}}"></div>
+    </div>
+    <button class="btn ghost" type="submit" name="removePerson" value="{{$i}}">Remove this person</button>
+  </div>
+  {{if eq $i 0}}<div class="hint">These people are taking it together. Enter the total quantity only once.</div>{{end}}
+  {{end}}
+  <button class="btn ghost" type="submit" name="addPerson" value="1">+ Add another person</button>
   {{end}}
 
   {{if eq .Kind "return"}}

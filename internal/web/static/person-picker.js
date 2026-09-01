@@ -10,8 +10,10 @@
     var list = box.querySelector('[data-people-list]');
     var scope = box.getAttribute('data-scope') || '';
     var allowNew = box.getAttribute('data-new') === 'yes';
-    var department = document.querySelector('[data-person-department]');
-    var mobile = document.querySelector('[data-person-mobile]');
+    var personRow = box.closest('[data-person-row]');
+    var fieldScope = personRow || document;
+    var department = fieldScope.querySelector('[data-person-department]');
+    var mobile = fieldScope.querySelector('[data-person-mobile]');
 
     text.addEventListener('input', function () { load(text.value); });
     text.addEventListener('focus', function () { load(text.value); });

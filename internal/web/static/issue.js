@@ -8,7 +8,8 @@
   var qty = form.querySelector('[data-qty]');
   var product = form.querySelector('[data-picker-text]');
   var id = form.querySelector('[data-picker-id]');
-  var taker = form.querySelector('[data-people-text]');
+  var takers = form.querySelectorAll('[data-people-text]');
+  var taker = takers[0];
   var mobile = form.querySelector('[data-person-mobile]');
 
   function word(n) {
@@ -22,9 +23,15 @@
 
   function paint() {
     var n = parseInt(qty.value, 10);
-    var first = taker.value.split(/\s+/)[0];
-    if (!id.value || !(n >= 1) || !first) { btn.textContent = 'Issue'; return; }
-    btn.textContent = 'Issue ' + n + ' ' + word(product.value) + ' to ' + first;
+    var names = [];
+    for (var i = 0; i < takers.length; i++) {
+      var first = takers[i].value.trim().split(/\s+/)[0];
+      if (!first) { btn.textContent = 'Issue'; return; }
+      names.push(first);
+    }
+    if (!id.value || !(n >= 1) || !names.length) { btn.textContent = 'Issue'; return; }
+    var joined = names.length === 1 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+    btn.textContent = 'Issue ' + n + ' ' + word(product.value) + ' to ' + joined;
   }
 
   // The amber line is drawn again whenever the person changes, by asking the
@@ -49,5 +56,6 @@
   taker.addEventListener('input', paint);
   taker.addEventListener('change', function () { paint(); holdings(); });
   mobile.addEventListener('change', holdings);
+  for (var i = 1; i < takers.length; i++) takers[i].addEventListener('input', paint);
   paint();
 })();

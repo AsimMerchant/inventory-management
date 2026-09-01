@@ -36,6 +36,117 @@ func walkthroughReturn() url.Values {
 	}
 }
 
+func jointReturnRegister() *register.Register {
+	reg := anitaOnDuty()
+	// This fixture is the stakeholder's exact scenario: Ravi's one solo issue
+	// and one joint issue, without the walkthrough's earlier Ravi holdings.
+	reg.Issues = nil
+	reg.Returns = nil
+	at := time.Date(2026, time.September, 3, 15, 0, 0, 0, register.IST)
+	reg.Issues = append(reg.Issues,
+		register.Issue{ID: "ISS-9001", ProductID: "PRD-0001", Quantity: 3, TakerName: "Ravi Menon", TakerDepartment: "Catering", TakerMobile: "98861 40023", IssuedAt: at, RecordedAt: at},
+		register.Issue{ID: "ISS-9002", ProductID: "PRD-0001", Quantity: 30, TakerName: "Ravi Menon", TakerDepartment: "Catering", TakerMobile: "98861 40023", IssuedAt: at.Add(time.Minute), RecordedAt: at.Add(time.Minute), AdditionalTakers: []register.IssueRecipient{{Name: "Amit Sharma", Department: "Setup", Mobile: "97740 11298"}, {Name: "Suresh Patel", Department: "Logistics", Mobile: "90080 77001"}}},
+	)
+	return reg
+}
+
+func TestReturnSearchFindsGroupByEveryMember(t *testing.T) {
+	e := newTestServer(t, jointReturnRegister(), sixOhFive)
+	for _, query := range []string{"Ravi", "Amit", "Suresh", "9774011298"} {
+		_, body := e.get("/return/new?q=" + url.QueryEscape(query))
+		assertContains(t, body, "Ravi Menon, Amit Sharma and Suresh Patel - holding together")
+		assertContains(t, body, "30 out")
+	}
+	_, ravi := e.get("/return/new?q=98861")
+	assertContains(t, ravi, "Ravi Menon - holding alone")
+	if got := strings.Count(ravi, "Ravi Menon - holding alone"); got != 1 {
+		t.Fatalf("solo context heading shown %d times, want once", got)
+	}
+	if got := strings.Count(ravi, "Ravi Menon, Amit Sharma and Suresh Patel - holding together"); got != 1 {
+		t.Fatalf("joint context heading shown %d times, want once", got)
+	}
+}
+
+func TestReturnSoloOnlyKeepsLegacyRowsWithoutContextHeadings(t *testing.T) {
+	e := newTestServer(t, imranOnDuty(), sixOhFive)
+	_, body := e.get("/return/new?q=98861")
+	assertNotContains(t, body, "holding alone")
+	assertNotContains(t, body, "holding together")
+}
+
+func TestReturn20FromGroup(t *testing.T) {
+	e := newTestServer(t, jointReturnRegister(), sixOhFive)
+	form := url.Values{"q": {"98861"}, "productId": {"PRD-0001"}, "holdingIssueId": {"ISS-9002"}, "issueIds": {"ISS-9002"}, "quantity": {"20"}, "returnerName": {"Amit Sharma"}, "returnerMobile": {"97740 11298"}, "returnedAt": {"2026-09-03T18:05"}, "disposition": {"expected"}, "remark": {"Ten chairs are coming later."}}
+	resp, _ := e.post("/return/new", form)
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	reg := e.saved()
+	re := reg.Returns[len(reg.Returns)-1]
+	if len(re.Allocations) != 1 || re.Allocations[0].IssueID != "ISS-9002" || register.OutstandingOnIssue(reg, "ISS-9001") != 3 || register.OutstandingOnIssue(reg, "ISS-9002") != 10 {
+		t.Fatalf("return = %#v", re)
+	}
+}
+
+func TestReturn3FromRaviAlone(t *testing.T) {
+	e := newTestServer(t, jointReturnRegister(), sixOhFive)
+	form := url.Values{"q": {"98861"}, "productId": {"PRD-0001"}, "holdingIssueId": {"ISS-9001"}, "issueIds": {"ISS-9001"}, "quantity": {"3"}, "returnerName": {"Ravi Menon"}, "returnerMobile": {"98861 40023"}, "returnedAt": {"2026-09-03T18:05"}}
+	resp, _ := e.post("/return/new", form)
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	reg := e.saved()
+	if register.OutstandingOnIssue(reg, "ISS-9001") != 0 || register.OutstandingOnIssue(reg, "ISS-9002") != 30 {
+		t.Fatalf("holdings crossed: %#v", reg.Returns[len(reg.Returns)-1])
+	}
+}
+
+func TestOutShowsJointQuantityOnce(t *testing.T) {
+	e := newTestServer(t, jointReturnRegister(), sixOhFive)
+	_, body := e.get("/out")
+	assertContains(t, body, "Ravi Menon - holding alone - 3 out")
+	assertContains(t, body, "Ravi Menon, Amit Sharma and Suresh Patel - holding together - 30 out")
+	assertNotContains(t, body, "holding together ·")
+	if got := strings.Count(body, "30 taken, 0 back"); got != 1 {
+		t.Fatalf("group quantity shown %d times", got)
+	}
+}
+
+func TestReturnRefusesStaleGroup(t *testing.T) {
+	e := newTestServer(t, jointReturnRegister(), sixOhFive)
+	if err := e.st.Update(func(reg *register.Register) error {
+		reg.Returns = append(reg.Returns, register.Return{ID: "RET-9001", ProductID: "PRD-0001", Allocations: []register.Allocation{{IssueID: "ISS-9002", Quantity: 30}}, ReturnerName: "Amit Sharma", ReturnedAt: sixOhFive, RecordedAt: sixOhFive})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	form := url.Values{"q": {"98861"}, "productId": {"PRD-0001"}, "holdingIssueId": {"ISS-9002"}, "issueIds": {"ISS-9002"}, "quantity": {"1"}, "returnerName": {"Ravi Menon"}, "returnedAt": {"2026-09-03T18:05"}}
+	before := len(e.saved().Returns)
+	resp, body := e.post("/return/new", form)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	assertContains(t, body, "That holding has changed. Pick it again from the list.")
+	if reg := e.saved(); len(reg.Returns) != before || len(register.Validate(reg)) != 0 {
+		t.Fatalf("stale return changed register: %#v", reg.Returns)
+	}
+}
+
+func TestShortReturnStaysAgainstWholeGroup(t *testing.T) {
+	e := newTestServer(t, jointReturnRegister(), sixOhFive)
+	_, hint := e.get("/return/new?q=9774011298&holdingIssueId=ISS-9002&productId=PRD-0001&quantity=25")
+	assertContains(t, hint, "5 chairs missing. Ravi Menon, Amit Sharma and Suresh Patel still have them.")
+	form := url.Values{"q": {"9774011298"}, "productId": {"PRD-0001"}, "holdingIssueId": {"ISS-9002"}, "issueIds": {"ISS-9002"}, "quantity": {"25"}, "returnerName": {"Meera Pillai"}, "returnedAt": {"2026-09-03T18:05"}, "disposition": {"expected"}, "remark": {"Five chairs are coming later."}}
+	resp, _ := e.post("/return/new", form)
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	reg := e.saved()
+	if got := register.OutstandingOnIssue(reg, "ISS-9002"); got != 5 {
+		t.Fatalf("group outstanding = %d", got)
+	}
+}
+
 func TestReturnFormRendersWalkthroughLabels(t *testing.T) {
 	e := newTestServer(t, imranOnDuty(), sixOhFive)
 

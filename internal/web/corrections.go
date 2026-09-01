@@ -43,7 +43,7 @@ func entryName(reg *register.Register, recordID string) string {
 	for _, is := range reg.Issues {
 		if is.ID == recordID {
 			return strconv.Itoa(is.Quantity) + " " + productWord(names[is.ProductID]) +
-				" to " + is.TakerName
+				" to " + register.RecipientLabel(is)
 		}
 	}
 	for _, re := range reg.Returns {
@@ -89,6 +89,10 @@ func changePhrase(c register.Change, word string) string {
 		return "Changed the challan no. from " + c.From + " to " + c.To
 	case "taker", "returner":
 		return "Changed who took it from " + c.From + " to " + c.To
+	case "recipients":
+		return "Changed who took it from " + c.From + " to " + c.To
+	case "recipientDetails":
+		return "Changed their details from " + c.From + " to " + c.To
 	case "department":
 		return "Changed the department from " + c.From + " to " + c.To
 	case "mobile":
@@ -163,6 +167,7 @@ type editData struct {
 	TakerName  string
 	Department string
 	Mobile     string
+	Additional []register.IssueRecipient
 	IssuedAt   string
 	Incharge   string
 
@@ -220,6 +225,7 @@ func editForm(reg *register.Register, id string) (editData, bool) {
 			d.Word = productWord(d.ProductName)
 			d.Quantity = strconv.Itoa(is.Quantity)
 			d.TakerName, d.Department, d.Mobile = is.TakerName, is.TakerDepartment, is.TakerMobile
+			d.Additional = append([]register.IssueRecipient(nil), is.AdditionalTakers...)
 			d.IssuedAt = is.IssuedAt.Format(stampLayout)
 			d.Incharge = is.PersonInchargeName
 			d.Subheading = entryName(reg, id) + ", " + clock(is.IssuedAt)
@@ -268,7 +274,7 @@ func takerOfReturn(reg *register.Register, re register.Return) string {
 	for _, a := range re.Allocations {
 		for _, is := range reg.Issues {
 			if is.ID == a.IssueID {
-				return is.TakerName
+				return register.RecipientLabel(is)
 			}
 		}
 	}
@@ -344,6 +350,18 @@ func (s *Server) entrySave(w http.ResponseWriter, r *http.Request, id string) {
 	// nothing is typed twice.
 	typed := data
 	typed.readForm(r)
+	if typed.Kind == "issue" && r.FormValue("addPerson") != "" {
+		typed.Additional = append(typed.Additional, register.IssueRecipient{})
+		s.renderEdit(w, typed, nil)
+		return
+	}
+	if typed.Kind == "issue" && r.FormValue("removePerson") != "" {
+		if at, err := strconv.Atoi(r.FormValue("removePerson")); err == nil && at >= 0 && at < len(typed.Additional) {
+			typed.Additional = append(typed.Additional[:at], typed.Additional[at+1:]...)
+		}
+		s.renderEdit(w, typed, nil)
+		return
+	}
 
 	refuse := func(text string) {
 		s.renderEdit(w, typed, &banner{"bad", text})
@@ -408,6 +426,20 @@ func (d *editData) readForm(r *http.Request) {
 		d.TakerName = register.CleanName(get("takerName", d.TakerName))
 		d.Department = register.CleanName(get("takerDepartment", d.Department))
 		d.Mobile = register.CleanName(get("takerMobile", d.Mobile))
+		if _, ok := r.Form["additionalTakersPresent"]; ok {
+			names, departments, mobiles := r.Form["additionalTakerName"], r.Form["additionalTakerDepartment"], r.Form["additionalTakerMobile"]
+			d.Additional = nil
+			for i, name := range names {
+				recipient := register.IssueRecipient{Name: register.CleanName(name)}
+				if i < len(departments) {
+					recipient.Department = register.CleanName(departments[i])
+				}
+				if i < len(mobiles) {
+					recipient.Mobile = register.CleanName(mobiles[i])
+				}
+				d.Additional = append(d.Additional, recipient)
+			}
+		}
 		d.IssuedAt = get("issuedAt", d.IssuedAt)
 	case "return":
 		d.ReturnerName = register.CleanName(get("returnerName", d.ReturnerName))
@@ -446,6 +478,11 @@ func fieldRefusal(d editData) string {
 	case "issue":
 		if d.TakerName == "" {
 			return "Who is taking it? Type their name."
+		}
+		for _, recipient := range d.Additional {
+			if recipient.Name == "" {
+				return "Type the name of every person taking it."
+			}
 		}
 		if _, err := time.ParseInLocation(stampLayout, d.IssuedAt, time.Local); err != nil {
 			return "Type the time like this: 14:18."
@@ -499,12 +536,21 @@ func applyEdit(reg *register.Register, d editData, by string, now time.Time) ([]
 				continue
 			}
 			note("quantity", "How many", strconv.Itoa(is.Quantity), strconv.Itoa(qty))
-			note("taker", "Who is taking it", is.TakerName, d.TakerName)
-			note("department", "Department", is.TakerDepartment, d.Department)
-			note("mobile", "Their mobile", is.TakerMobile, d.Mobile)
+			oldRecipients, newRecipients := register.RecipientsOf(*is), recipientsOfEdit(d)
+			if len(oldRecipients) > 1 || len(newRecipients) > 1 {
+				note("recipients", "Who is taking it", register.RecipientLabel(*is), recipientLabelOf(newRecipients))
+				if recipientContactChanged(oldRecipients, newRecipients) {
+					note("recipientDetails", "Their details", recipientDetails(oldRecipients), recipientDetails(newRecipients))
+				}
+			} else {
+				note("taker", "Who is taking it", is.TakerName, d.TakerName)
+				note("department", "Department", is.TakerDepartment, d.Department)
+				note("mobile", "Their mobile", is.TakerMobile, d.Mobile)
+			}
 			note("time", "Time taken", clock(is.IssuedAt), clock(issuedAt))
 			is.Quantity, is.TakerName = qty, d.TakerName
 			is.TakerDepartment, is.TakerMobile = d.Department, d.Mobile
+			is.AdditionalTakers = append([]register.IssueRecipient(nil), d.Additional...)
 			is.IssuedAt = issuedAt
 		}
 	case "return":
@@ -513,6 +559,28 @@ func applyEdit(reg *register.Register, d editData, by string, now time.Time) ([]
 		}
 	}
 	return changes, ""
+}
+
+func recipientsOfEdit(d editData) []register.IssueRecipient {
+	out := []register.IssueRecipient{{Name: d.TakerName, Department: d.Department, Mobile: d.Mobile}}
+	return append(out, d.Additional...)
+}
+
+func recipientLabelOf(recipients []register.IssueRecipient) string {
+	is := register.Issue{TakerName: recipients[0].Name, TakerDepartment: recipients[0].Department, TakerMobile: recipients[0].Mobile, AdditionalTakers: recipients[1:]}
+	return register.RecipientLabel(is)
+}
+
+func recipientDetails(recipients []register.IssueRecipient) string {
+	parts := make([]string, 0, len(recipients))
+	for _, recipient := range recipients {
+		parts = append(parts, recipient.Name+" | "+recipient.Department+" | "+recipient.Mobile)
+	}
+	return strings.Join(parts, "; ")
+}
+
+func recipientContactChanged(old, new []register.IssueRecipient) bool {
+	return recipientDetails(old) != recipientDetails(new)
 }
 
 // applyReturnEdit re-runs the oldest-first allocation from scratch, exactly as
@@ -531,10 +599,37 @@ func applyReturnEdit(reg *register.Register, d editData, qty int,
 		}
 		was := re.Quantity()
 		taker := takerOfReturn(reg, *re)
+		var holding register.JointHolding
+		var groupIssueID string
+		if len(re.Allocations) > 0 {
+			for _, is := range register.LiveIssues(reg) {
+				if is.ID == re.Allocations[0].IssueID && len(is.AdditionalTakers) > 0 {
+					groupIssueID = is.ID
+				}
+			}
+			for _, candidate := range register.JointHoldings(reg) {
+				for _, line := range candidate.Lines {
+					if line.IssueID == re.Allocations[0].IssueID {
+						holding = candidate
+					}
+				}
+			}
+		}
 		// The old allocations go first, so what is outstanding on each issue
 		// reads as it did before this return was ever entered.
 		re.Allocations = nil
-		issueIDs := issuesFor(reg, re.ProductID, taker)
+		var issueIDs []string
+		if groupIssueID != "" {
+			issueIDs = []string{groupIssueID}
+		}
+		for _, line := range holding.Lines {
+			if groupIssueID == "" && line.ProductID == re.ProductID {
+				issueIDs = append(issueIDs, line.IssueID)
+			}
+		}
+		if len(issueIDs) == 0 {
+			issueIDs = issuesFor(reg, re.ProductID, taker)
+		}
 
 		plan := register.PlanReturn(reg, issueIDs, qty)
 		// Let Validate decide an over-return too. PlanReturn stops at what is

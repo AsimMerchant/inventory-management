@@ -11,6 +11,7 @@
 <p class="lab" style="margin-top:1.1rem">{{.Name}} · {{.Dept}} · {{.Mobile}} — still holding</p>
 
 {{range .Rows}}
+{{if .Heading}}<p class="lab" style="margin-top:1.1rem">{{.Heading}}</p>{{end}}
 <a href="{{.Href}}">
   <div class="outrow{{if .Pick}} pick{{end}}">
     <div class="g"><strong>{{.ProductName}}</strong><div class="sm">Issued {{clock .IssuedAt}} by {{.IssuedBy}} · {{.Taken}} taken, {{.Back}} back</div></div>
@@ -23,6 +24,7 @@
 <form method="post" action="/return/new" data-return>
   <input type="hidden" name="q" value="{{.Q}}">
   <input type="hidden" name="productId" value="{{.ProductID}}">
+  <input type="hidden" name="holdingIssueId" value="{{.HoldingIssueID}}">
   {{range .IssueIDs}}<input type="hidden" name="issueIds" value="{{.}}">{{end}}
 
   <div class="row2" style="margin-top:1.2rem">
@@ -30,7 +32,7 @@
       <span class="lab">{{.ProductName}} coming back</span>
       <input class="inp" type="number" name="quantity" min="1" max="{{.TotalOut}}" step="1"
              value="{{.Quantity}}" autofocus data-qty>
-      {{if .Short}}<div class="hint bad">{{.Short}} {{productWord .ProductName}} missing. {{.TakerName}} still has them.</div>{{end}}
+      {{if .Short}}<div class="hint bad">{{.Short}} {{productWord .ProductName}} missing. {{.TakerName}} still {{.StillVerb}} them.</div>{{end}}
     </div>
     <div class="field">
       <span class="lab">Who is handing it back</span>

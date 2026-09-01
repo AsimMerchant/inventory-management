@@ -189,7 +189,14 @@ func OutstandingForPerson(r *Register, name, mobile string) []OutstandingLine {
 
 	var lines []OutstandingLine
 	for _, is := range LiveIssues(r) {
-		if PersonOf(is.TakerName, is.TakerMobile) != want {
+		member := false
+		for _, recipient := range RecipientsOf(is) {
+			if PersonOf(recipient.Name, recipient.Mobile) == want {
+				member = true
+				break
+			}
+		}
+		if !member {
 			continue
 		}
 		back := allocatedTo(r, is.ID)
@@ -216,6 +223,91 @@ func OutstandingForPerson(r *Register, name, mobile string) []OutstandingLine {
 	return lines
 }
 
+// JointHolding is one selectable responsibility context. Solo issues for the
+// same person are combined as before; every multi-person issue stands alone.
+type JointHolding struct {
+	AnchorIssueID string
+	Recipients    []IssueRecipient
+	Label         string
+	TotalOut      int
+	Lines         []OutstandingLine
+}
+
+// JointHoldings returns every live outstanding holding without duplicating a
+// joint quantity for each of its members.
+func JointHoldings(r *Register) []JointHolding {
+	names := productNames(r)
+	soloAt := map[PersonID]int{}
+	var holdings []JointHolding
+	for _, is := range LiveIssues(r) {
+		out := OutstandingOnIssue(r, is.ID)
+		if out <= 0 {
+			continue
+		}
+		line := OutstandingLine{IssueID: is.ID, ProductID: is.ProductID, ProductName: names[is.ProductID], Taken: is.Quantity, Back: is.Quantity - out, Out: out, IssuedAt: is.IssuedAt, IssuedBy: is.PersonInchargeName}
+		recipients := RecipientsOf(is)
+		if len(recipients) > 1 {
+			holdings = append(holdings, JointHolding{AnchorIssueID: is.ID, Recipients: recipients, Label: RecipientLabel(is), TotalOut: out, Lines: []OutstandingLine{line}})
+			continue
+		}
+		id := PersonOf(is.TakerName, is.TakerMobile)
+		if at, ok := soloAt[id]; ok {
+			holdings[at].TotalOut += out
+			holdings[at].Lines = append(holdings[at].Lines, line)
+			continue
+		}
+		soloAt[id] = len(holdings)
+		holdings = append(holdings, JointHolding{AnchorIssueID: is.ID, Recipients: recipients, Label: RecipientLabel(is), TotalOut: out, Lines: []OutstandingLine{line}})
+	}
+	for i := range holdings {
+		sort.Slice(holdings[i].Lines, func(a, b int) bool {
+			if !holdings[i].Lines[a].IssuedAt.Equal(holdings[i].Lines[b].IssuedAt) {
+				return holdings[i].Lines[a].IssuedAt.Before(holdings[i].Lines[b].IssuedAt)
+			}
+			return holdings[i].Lines[a].IssueID < holdings[i].Lines[b].IssueID
+		})
+		holdings[i].AnchorIssueID = holdings[i].Lines[0].IssueID
+	}
+	sort.Slice(holdings, func(i, j int) bool {
+		if a, b := FoldKey(holdings[i].Label), FoldKey(holdings[j].Label); a != b {
+			return a < b
+		}
+		if !holdings[i].Lines[0].IssuedAt.Equal(holdings[j].Lines[0].IssuedAt) {
+			return holdings[i].Lines[0].IssuedAt.Before(holdings[j].Lines[0].IssuedAt)
+		}
+		return holdings[i].AnchorIssueID < holdings[j].AnchorIssueID
+	})
+	return holdings
+}
+
+// FindJointHoldings finds each holding once when any recipient matches.
+func FindJointHoldings(r *Register, query string) []JointHolding {
+	text, digits := FoldKey(query), MobileKey(query)
+	var found []JointHolding
+	for _, holding := range JointHoldings(r) {
+		match := text == ""
+		for _, recipient := range holding.Recipients {
+			if strings.Contains(FoldKey(recipient.Name), text) || strings.Contains(FoldKey(recipient.Department), text) || (digits != "" && strings.Contains(MobileKey(recipient.Mobile), digits)) {
+				match = true
+			}
+		}
+		if match {
+			found = append(found, holding)
+		}
+	}
+	return found
+}
+
+// JointHoldingForIssue re-derives a selectable holding from its anchor.
+func JointHoldingForIssue(r *Register, issueID string) (JointHolding, bool) {
+	for _, holding := range JointHoldings(r) {
+		if holding.AnchorIssueID == issueID {
+			return holding, true
+		}
+	}
+	return JointHolding{}, false
+}
+
 func productNames(r *Register) map[string]string {
 	names := make(map[string]string, len(r.Products))
 	for _, p := range r.Products {
@@ -237,25 +329,29 @@ type PersonSummary struct {
 // PeopleHolding is everybody holding something, by name A to Z, ties broken by
 // mobile so two people of the same name have a stable order.
 func PeopleHolding(r *Register) []PersonSummary {
-	latest := map[PersonID]Issue{}
+	type latestRecipient struct {
+		issue     Issue
+		recipient IssueRecipient
+	}
+	latest := map[PersonID]latestRecipient{}
 	var order []PersonID
 	for _, is := range LiveIssues(r) {
-		id := PersonOf(is.TakerName, is.TakerMobile)
-		prev, seen := latest[id]
-		if !seen {
-			order = append(order, id)
-			latest[id] = is
-			continue
-		}
-		if is.IssuedAt.After(prev.IssuedAt) || (is.IssuedAt.Equal(prev.IssuedAt) && is.ID > prev.ID) {
-			latest[id] = is
+		for _, recipient := range RecipientsOf(is) {
+			id := PersonOf(recipient.Name, recipient.Mobile)
+			prev, seen := latest[id]
+			if !seen {
+				order = append(order, id)
+			}
+			if !seen || is.IssuedAt.After(prev.issue.IssuedAt) || (is.IssuedAt.Equal(prev.issue.IssuedAt) && is.ID > prev.issue.ID) {
+				latest[id] = latestRecipient{issue: is, recipient: recipient}
+			}
 		}
 	}
 
 	var people []PersonSummary
 	for _, id := range order {
 		newest := latest[id]
-		lines := OutstandingForPerson(r, newest.TakerName, newest.TakerMobile)
+		lines := OutstandingForPerson(r, newest.recipient.Name, newest.recipient.Mobile)
 		total := 0
 		for _, l := range lines {
 			total += l.Out
@@ -265,9 +361,9 @@ func PeopleHolding(r *Register) []PersonSummary {
 		}
 		people = append(people, PersonSummary{
 			ID:         id,
-			Name:       newest.TakerName,
-			Department: newest.TakerDepartment,
-			Mobile:     newest.TakerMobile,
+			Name:       newest.recipient.Name,
+			Department: newest.recipient.Department,
+			Mobile:     newest.recipient.Mobile,
 			TotalOut:   total,
 			Lines:      lines,
 		})

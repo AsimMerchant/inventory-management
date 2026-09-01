@@ -26,6 +26,7 @@ type issueData struct {
 	Taker       personPicker
 	Department  string
 	Mobile      string
+	Additional  []additionalTakerData
 	IssuedAt    string
 	Incharge    string
 	InchargeMob string
@@ -33,11 +34,23 @@ type issueData struct {
 	ButtonLabel string
 }
 
+type additionalTakerData struct {
+	Picker     personPicker
+	Department string
+	Mobile     string
+	Index      int
+}
+
 // issueNew is the form and the save. The same fields are read from a GET and
 // from a refused POST, so the page a person sees after a refusal is drawn by
 // exactly the code that drew it the first time.
 func (s *Server) issueNew(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
+		_ = r.ParseForm()
+		if r.FormValue("addPerson") != "" || r.FormValue("removePerson") != "" {
+			s.render(w, http.StatusOK, s.issuePage(), "issue.html", s.issueForm(r))
+			return
+		}
 		s.issueSave(w, r)
 		return
 	}
@@ -66,6 +79,40 @@ func (s *Server) issueForm(r *http.Request) issueData {
 	}
 
 	data := issueData{Now: now, Quantity: quantity, IssuedAt: issuedAt}
+	names := append([]string(nil), r.Form["additionalTakerName"]...)
+	departments := append([]string(nil), r.Form["additionalTakerDepartment"]...)
+	mobiles := append([]string(nil), r.Form["additionalTakerMobile"]...)
+	count := len(names)
+	if len(departments) > count {
+		count = len(departments)
+	}
+	if len(mobiles) > count {
+		count = len(mobiles)
+	}
+	if r.FormValue("addPerson") != "" {
+		count++
+	}
+	if raw := r.FormValue("removePerson"); raw != "" {
+		if remove, err := strconv.Atoi(raw); err == nil && remove >= 0 && remove < count {
+			names = removeStringAt(names, remove)
+			departments = removeStringAt(departments, remove)
+			mobiles = removeStringAt(mobiles, remove)
+			count--
+		}
+	}
+	for i := 0; i < count; i++ {
+		additional := additionalTakerData{Index: i, Picker: personPicker{Label: "Another person taking it", Field: "additionalTakerName", AllowNew: true}}
+		if i < len(names) {
+			additional.Picker.Typed = register.CleanName(names[i])
+		}
+		if i < len(departments) {
+			additional.Department = register.CleanName(departments[i])
+		}
+		if i < len(mobiles) {
+			additional.Mobile = register.CleanName(mobiles[i])
+		}
+		data.Additional = append(data.Additional, additional)
+	}
 	s.st.Read(func(reg *register.Register) {
 		data.Picker = s.picker(reg, "instock", false, productID)
 		if data.Picker.PickedID != "" {
@@ -93,8 +140,19 @@ func (s *Server) issueForm(r *http.Request) issueData {
 		data.Warn = holdingWarning(reg, takerName, mobile, now)
 	})
 
-	data.ButtonLabel = issueButtonLabel(data.Picker.PickedName, quantity, takerName)
+	buttonNames := []string{takerName}
+	for _, additional := range data.Additional {
+		buttonNames = append(buttonNames, additional.Picker.Typed)
+	}
+	data.ButtonLabel = issueButtonLabel(data.Picker.PickedName, quantity, buttonNames...)
 	return data
+}
+
+func removeStringAt(values []string, at int) []string {
+	if at < 0 || at >= len(values) {
+		return values
+	}
+	return append(values[:at], values[at+1:]...)
 }
 
 // holdingWarning is the amber line: what this person already has of yours. It
@@ -143,13 +201,18 @@ func joinClauses(parts []string) string {
 
 // issueButtonLabel is "Issue 10 chairs to Ravi": the first name only, because
 // that is how the sentence is said out loud at the desk.
-func issueButtonLabel(productName, quantity, takerName string) string {
+func issueButtonLabel(productName, quantity string, takerNames ...string) string {
 	n, err := strconv.Atoi(strings.TrimSpace(quantity))
-	first := firstWord(takerName)
-	if productName == "" || err != nil || n < 1 || first == "" {
+	firsts := make([]string, 0, len(takerNames))
+	for _, name := range takerNames {
+		if first := firstWord(name); first != "" {
+			firsts = append(firsts, first)
+		}
+	}
+	if productName == "" || err != nil || n < 1 || len(firsts) != len(takerNames) || len(firsts) == 0 {
 		return "Issue"
 	}
-	return "Issue " + strconv.Itoa(n) + " " + productWord(productName) + " to " + first
+	return "Issue " + strconv.Itoa(n) + " " + productWord(productName) + " to " + joinClauses(firsts)
 }
 
 func firstWord(s string) string {
@@ -198,6 +261,18 @@ func (s *Server) issueSave(w http.ResponseWriter, r *http.Request) {
 		refuse("Who is taking it? Type their name.")
 		return
 	}
+	if len(r.Form["additionalTakerName"]) != len(r.Form["additionalTakerDepartment"]) || len(r.Form["additionalTakerName"]) != len(r.Form["additionalTakerMobile"]) {
+		refuse("Type the name of every person taking it.")
+		return
+	}
+	additional := make([]register.IssueRecipient, 0, len(data.Additional))
+	for _, taker := range data.Additional {
+		if taker.Picker.Typed == "" {
+			refuse("Type the name of every person taking it.")
+			return
+		}
+		additional = append(additional, register.IssueRecipient{Name: taker.Picker.Typed, Department: taker.Department, Mobile: taker.Mobile})
+	}
 	issuedAt, err := time.ParseInLocation(stampLayout, data.IssuedAt, time.Local)
 	if err != nil {
 		refuse("Type the time like this: 14:18.")
@@ -219,6 +294,7 @@ func (s *Server) issueSave(w http.ResponseWriter, r *http.Request) {
 			ID: newID, ProductID: productID, Quantity: n,
 			TakerName: takerName, TakerDepartment: data.Department,
 			TakerMobile:        data.Mobile,
+			AdditionalTakers:   additional,
 			PersonInchargeName: incharge, PersonInchargeMobile: inchargeMobile,
 			IssuedAt: issuedAt, RecordedAt: now,
 		})

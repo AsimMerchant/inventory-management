@@ -33,7 +33,7 @@ func savedBanners(reg *register.Register, id string) []banner {
 			if is.ID == id {
 				name := names[is.ProductID]
 				return []banner{{"ok", "Gave " + strconv.Itoa(is.Quantity) + " " +
-					productWord(name) + " to " + is.TakerName + ". " + onHand(is.ProductID)}}
+					productWord(name) + " to " + register.RecipientLabel(is) + ". " + onHand(is.ProductID)}}
 			}
 		}
 	case strings.HasPrefix(id, "RET-"):

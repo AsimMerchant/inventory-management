@@ -69,7 +69,7 @@ func (s *Server) stockView(w http.ResponseWriter, r *http.Request) {
 type outLine struct {
 	IssueID     string
 	ProductName string
-	Middle      string // "Issued 9:40 am by Suresh Kumar · 40 taken, 0 back"
+	Middle      string // "Issued 9:40 am by the staff member · 40 taken, 0 back"
 	Out         int
 	Aged        bool
 	Shortfalls  []string
@@ -78,12 +78,13 @@ type outLine struct {
 }
 
 type personBlock struct {
-	Name       string
-	Department string
-	Mobile     string
-	TotalOut   int
-	ReturnHref string
-	Lines      []outLine
+	Name           string
+	Department     string
+	Mobile         string
+	TotalOut       int
+	ContextSummary string
+	ReturnHref     string
+	Lines          []outLine
 }
 
 type cameBackLine struct {
@@ -120,13 +121,37 @@ func outPage(reg *register.Register, now time.Time) outData {
 	cutoff := now.Add(-48 * time.Hour)
 	changesOn := changeIndex(reg)
 
-	for _, person := range register.PeopleHolding(reg) {
-		block := personBlock{
-			Name: person.Name, Department: person.Department, Mobile: person.Mobile,
-			TotalOut:   person.TotalOut,
-			ReturnHref: "/return/new?q=" + url.QueryEscape(personQuery(person)),
+	holdings := register.JointHoldings(reg)
+	jointMember := map[register.PersonID]bool{}
+	for _, holding := range holdings {
+		if len(holding.Recipients) > 1 {
+			for _, recipient := range holding.Recipients {
+				jointMember[register.PersonOf(recipient.Name, recipient.Mobile)] = true
+			}
 		}
-		for _, l := range person.Lines {
+	}
+	for _, holding := range holdings {
+		first := holding.Recipients[0]
+		query := first.Mobile
+		if query == "" {
+			query = first.Name
+		}
+		context := ""
+		if len(holding.Recipients) > 1 {
+			context = " - holding together"
+		} else if jointMember[register.PersonOf(first.Name, first.Mobile)] {
+			context = " - holding alone"
+		}
+		block := personBlock{
+			Name: holding.Label + context, Department: first.Department, Mobile: first.Mobile,
+			TotalOut:   holding.TotalOut,
+			ReturnHref: "/return/new?q=" + url.QueryEscape(query) + "&holdingIssueId=" + holding.AnchorIssueID,
+		}
+		if context != "" {
+			block.Name, block.Department, block.Mobile = holding.Label, "", ""
+			block.ContextSummary = holding.Label + context + " - " + strconv.Itoa(holding.TotalOut) + " out"
+		}
+		for _, l := range holding.Lines {
 			block.Lines = append(block.Lines, outLine{
 				IssueID:     l.IssueID,
 				ProductName: l.ProductName,
