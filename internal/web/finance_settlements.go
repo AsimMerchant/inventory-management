@@ -14,23 +14,24 @@ import (
 // settlementDraft is the Return rented goods or Record a sale form, held as
 // typed so a refusal hands the whole page back.
 type settlementDraft struct {
-	CSRF       string
-	Kind       string
-	Heading    string
-	Submit     string
-	PartyLabel string
-	Action     string
-	ID         string
-	Error      string
-	Party      valuePicker
-	ProductID  string
-	Quantity   string
-	At         string
-	Reference  string
-	Remarks    string
-	Available  int
-	Products   []suggestion
-	Editing    bool
+	CSRF        string
+	Kind        string
+	Heading     string
+	Submit      string
+	PartyLabel  string
+	Action      string
+	ID          string
+	Error       string
+	Party       valuePicker
+	ProductID   string
+	ProductName string
+	Quantity    string
+	At          string
+	Reference   string
+	Remarks     string
+	Available   int
+	Products    []suggestion
+	Editing     bool
 }
 
 func (s *Server) readSettlementDraft(r *http.Request, kind string) settlementDraft {
@@ -45,6 +46,11 @@ func (s *Server) readSettlementDraft(r *http.Request, kind string) settlementDra
 	}
 	d.Party.PickedID = r.FormValue("partyId")
 	d.Party.PickedText = register.CleanName(r.FormValue("partyName"))
+	if typed := register.CleanName(r.FormValue("partyNameNew")); typed != "" {
+		d.Party.PickedID, d.Party.PickedText = "", typed
+	} else if picked := r.FormValue("partyIdChoice"); picked != "" {
+		d.Party.PickedID, d.Party.PickedText = picked, ""
+	}
 	return d
 }
 
@@ -56,6 +62,9 @@ func (s *Server) fillSettlement(d *settlementDraft, r *http.Request) {
 		d.At = s.now().Format("2006-01-02T15:04")
 	}
 	_ = s.st.ReadBoth(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) {
+		if p, ok := register.ProductByID(reg, d.ProductID); ok {
+			d.ProductName = p.Name
+		}
 		label := "Supplier"
 		if d.Kind == "sale" {
 			label = "Buyer or other party"
@@ -322,7 +331,7 @@ func (s *Server) financeObligations(w http.ResponseWriter, r *http.Request) {
 	_ = s.st.ReadBoth(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) {
 		data.Rows = register.SupplierObligations(reg, f)
 	})
-	s.financePage(w, r, "What suppliers are still owed", "finance-obligations.html", data)
+	s.financePage(w, r, "Rented goods still to return", "finance-obligations.html", data)
 }
 
 // financeSettlementEdit corrects one settlement. The product itself cannot
@@ -349,6 +358,18 @@ func (s *Server) financeSettlementEdit(w http.ResponseWriter, r *http.Request) {
 	d.ID, d.Editing = id, true
 	d.Action = "/finance/settlements/" + kind + "/" + id + "/edit"
 	d.Heading, d.Submit = "Fix this record", "Save the correction"
+	original, ok := s.draftFromSettlement(r, kind, id)
+	if !ok {
+		s.financeNotFound(w, r)
+		return
+	}
+	if d.ProductID != "" && d.ProductID != original.ProductID {
+		d.ProductID, d.ProductName = original.ProductID, original.ProductName
+		d.Error = "The product cannot be changed here. Void this entry and record it again."
+		s.renderSettlement(w, r, d)
+		return
+	}
+	d.ProductID, d.ProductName = original.ProductID, original.ProductName
 
 	now := s.now()
 	quantity, at, productName, refusal := s.settlementFields(r, &d)
@@ -396,7 +417,7 @@ func (s *Server) draftFromSettlement(r *http.Request, kind, id string) (settleme
 			for _, x := range f.SupplierReturns {
 				if x.ID == id && x.Voided == nil {
 					found = true
-					d.Party.PickedID, d.ProductID = x.PartyID, x.Product.ProductID
+					d.Party.PickedID, d.ProductID, d.ProductName = x.PartyID, x.Product.ProductID, x.Product.ProductName
 					d.Quantity = strconv.Itoa(x.Quantity())
 					d.At = x.ReturnedAt.Format("2006-01-02T15:04")
 					d.Reference, d.Remarks = x.Reference, x.Remarks
@@ -407,7 +428,7 @@ func (s *Server) draftFromSettlement(r *http.Request, kind, id string) (settleme
 		for _, x := range f.Sales {
 			if x.ID == id && x.Voided == nil {
 				found = true
-				d.Party.PickedID, d.ProductID = x.BuyerPartyID, x.Product.ProductID
+				d.Party.PickedID, d.ProductID, d.ProductName = x.BuyerPartyID, x.Product.ProductID, x.Product.ProductName
 				d.Quantity = strconv.Itoa(x.Quantity())
 				d.At = x.SoldAt.Format("2006-01-02T15:04")
 				d.Reference, d.Remarks = x.Reference, x.Remarks
@@ -423,8 +444,38 @@ func (s *Server) financeSettlementVoid(w http.ResponseWriter, r *http.Request) {
 	kind, id := r.PathValue("kind"), r.PathValue("id")
 	sess := financeSessionOf(r)
 	reason := register.CleanName(r.FormValue("reason"))
+	if kind != "supplier_return" && kind != "sale" {
+		s.financeNotFound(w, r)
+		return
+	}
+	if r.FormValue("confirm") != "yes" {
+		if _, ok := s.draftFromSettlement(r, kind, id); !ok {
+			s.financeNotFound(w, r)
+			return
+		}
+		extra := "Any linked money received will not change."
+		if kind == "sale" {
+			extra = "Any linked sale proceeds will not change."
+		}
+		s.renderFinanceConfirm(w, r, financeConfirmData{
+			Heading:      "Void this stock movement?",
+			Warning:      "Stock will be put back into the store totals. This entry will stay in Stock returned or sold and in Financial activity.",
+			ExtraWarning: extra, Action: "/finance/settlements/" + kind + "/" + id + "/void",
+			Button: "Yes, void this stock movement", AskReason: true,
+			ReasonLabel: "Why are you voiding this record?", Reason: reason,
+		})
+		return
+	}
 	if reason == "" {
-		s.renderSettlements(w, r, "Say why you are voiding this record.")
+		extra := "Any linked money received will not change."
+		if kind == "sale" {
+			extra = "Any linked sale proceeds will not change."
+		}
+		s.renderFinanceConfirm(w, r, financeConfirmData{
+			Heading: "Void this stock movement?", Warning: "Stock will be put back into the store totals. This entry will stay in Stock returned or sold and in Financial activity.",
+			ExtraWarning: extra, Action: "/finance/settlements/" + kind + "/" + id + "/void",
+			Button: "Yes, void this stock movement", AskReason: true, ReasonLabel: "Why are you voiding this record?", Error: "Say why you are voiding this record.",
+		})
 		return
 	}
 	err := s.st.VoidSettlement(sess.vaultKey, sess.accountID, kind, id, reason, s.now())

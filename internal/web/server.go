@@ -84,6 +84,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveFinance(w, r)
 		return
 	}
+	// An authorized person may place an order before inventory staff start a
+	// shift. The finance order picker reuses the public product-name endpoint,
+	// so allow that read-only request for a confirmed finance session only.
+	if r.URL.Path == "/api/products" {
+		if sess, _ := s.authenticatedFinanceSession(r); sess != nil && !sess.recoveryPending {
+			s.mux.ServeHTTP(w, r)
+			return
+		}
+	}
 	_, pattern := s.mux.Handler(r)
 	if pattern != "/" && !exemptFromShift(r.URL.Path) {
 		var running bool

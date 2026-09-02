@@ -1,6 +1,6 @@
 <h1>Authorized login</h1>
 {{if .Expired}}<p>You were logged out because the computer was left idle.</p>{{end}}
 {{if .Error}}<div class="banner bad">{{.Error}}</div>{{end}}
-<form method="post"><input type="hidden" name="csrf" value="{{.CSRF}}"><label>Mobile number <input name="mobile"></label><label>Password <input type="password" name="password"></label><button type="submit">Log in</button></form>
+<form method="post" class="auth-form"><input type="hidden" name="csrf" value="{{.CSRF}}"><fieldset class="auth-section"><legend>Log in to authorized access</legend><div class="field"><label class="lab" for="login-mobile">Mobile number</label><input class="inp" id="login-mobile" name="mobile" value="{{.Mobile}}"></div><div class="field"><label class="lab" for="login-password">Password</label><input class="inp" id="login-password" type="password" name="password" autocomplete="current-password"></div><button class="btn" type="submit">Log in</button></fieldset></form>
 {{if .CanSetup}}<p><a href="/finance/setup">Set up authorized access</a></p>{{end}}
 <p><a href="/finance/activate">Activate my account</a></p><p><a href="/finance/recover">Recover access</a></p>

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"storeregister/internal/register"
 	"storeregister/internal/store"
@@ -289,6 +290,7 @@ func (s *Server) financePage(w http.ResponseWriter, r *http.Request, title, name
 
 type authFormData struct {
 	CSRF, Error       string
+	Name, Mobile      string
 	Expired, CanSetup bool
 }
 
@@ -308,6 +310,7 @@ func (s *Server) financeLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mobile := r.FormValue("mobile")
+	d.Mobile = mobile
 	if s.throttled(mobile) {
 		d.Error = "Too many attempts. Wait 15 minutes and try again."
 		s.publicFinancePage(w, "finance-login.html", d)
@@ -353,8 +356,14 @@ func (s *Server) financeSetup(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "This page expired. Go back and try again.", 403)
 		return
 	}
+	d.Name, d.Mobile = r.FormValue("name"), r.FormValue("mobile")
 	if r.FormValue("password") != r.FormValue("again") {
 		d.Error = "The passwords do not match."
+		s.publicFinancePage(w, "finance-setup.html", d)
+		return
+	}
+	if utf8.RuneCountInString(r.FormValue("password")) < 8 {
+		d.Error = "Password must be at least 8 characters."
 		s.publicFinancePage(w, "finance-setup.html", d)
 		return
 	}
@@ -398,6 +407,7 @@ func (s *Server) financeActivate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mobile := r.FormValue("mobile")
+	d.Mobile = mobile
 	if s.throttled(mobile) {
 		d.Error = "Too many attempts. Wait 15 minutes and try again."
 		s.publicFinancePage(w, "finance-activate.html", d)
@@ -405,6 +415,11 @@ func (s *Server) financeActivate(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.FormValue("password") != r.FormValue("again") {
 		d.Error = "The passwords do not match."
+		s.publicFinancePage(w, "finance-activate.html", d)
+		return
+	}
+	if utf8.RuneCountInString(r.FormValue("password")) < 8 {
+		d.Error = "Password must be at least 8 characters."
 		s.publicFinancePage(w, "finance-activate.html", d)
 		return
 	}
@@ -435,6 +450,7 @@ func (s *Server) financeRecover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mobile := r.FormValue("mobile")
+	d.Mobile = mobile
 	if s.throttled(mobile) {
 		d.Error = "Too many attempts. Wait 15 minutes and try again."
 		s.publicFinancePage(w, "finance-recover.html", d)
@@ -442,6 +458,11 @@ func (s *Server) financeRecover(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.FormValue("password") != r.FormValue("again") {
 		d.Error = "The passwords do not match."
+		s.publicFinancePage(w, "finance-recover.html", d)
+		return
+	}
+	if utf8.RuneCountInString(r.FormValue("password")) < 8 {
+		d.Error = "Password must be at least 8 characters."
 		s.publicFinancePage(w, "finance-recover.html", d)
 		return
 	}
@@ -480,8 +501,19 @@ func (s *Server) financeLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 type accountsPageData struct {
-	Accounts          []register.FinanceAccount
-	CSRF, Code, Error string
+	Accounts                    []register.FinanceAccount
+	CSRF, Code, CodeName, Error string
+}
+
+type financeConfirmData struct {
+	Heading, Warning, ExtraWarning, Action, Button            string
+	CSRF, Target, ConfirmedTarget, Error, Reason, ReasonLabel string
+	AskReason, AskPassword                                    bool
+}
+
+func (s *Server) renderFinanceConfirm(w http.ResponseWriter, r *http.Request, d financeConfirmData) {
+	d.CSRF = financeSessionOf(r).csrf
+	s.financePage(w, r, d.Heading, "finance-action-confirm.html", d)
 }
 
 func (s *Server) financeAccounts(w http.ResponseWriter, r *http.Request) {
@@ -492,8 +524,9 @@ func (s *Server) financeAccounts(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) financeAccountNew(w http.ResponseWriter, r *http.Request) {
 	sess := r.Context().Value(financeContextKey{}).(*financeSession)
-	_, code, err := s.st.AuthorizeFinanceAccount(sess.vaultKey, sess.accountID, r.FormValue("name"), r.FormValue("mobile"), register.FinanceRole(r.FormValue("role")), s.now())
-	d := accountsPageData{CSRF: sess.csrf, Code: code}
+	name := register.CleanName(r.FormValue("name"))
+	_, code, err := s.st.AuthorizeFinanceAccount(sess.vaultKey, sess.accountID, name, r.FormValue("mobile"), register.FinanceRole(r.FormValue("role")), s.now())
+	d := accountsPageData{CSRF: sess.csrf, Code: code, CodeName: name}
 	if err != nil {
 		d.Error = err.Error()
 	}
@@ -503,6 +536,19 @@ func (s *Server) financeAccountNew(w http.ResponseWriter, r *http.Request) {
 func (s *Server) financeAccountDisable(w http.ResponseWriter, r *http.Request) {
 	sess := r.Context().Value(financeContextKey{}).(*financeSession)
 	id := r.PathValue("id")
+	name, found := s.financeAccountName(sess, id)
+	if !found {
+		s.financeNotFound(w, r)
+		return
+	}
+	if r.FormValue("confirm") != "yes" {
+		s.renderFinanceConfirm(w, r, financeConfirmData{
+			Heading: "Disable authorized access for " + name + "?",
+			Warning: "They will be logged out and will not be able to open the financial ledger. Their earlier ledger entries and audit history will stay.",
+			Action:  "/finance/accounts/" + id + "/disable", Button: "Yes, disable authorized access",
+		})
+		return
+	}
 	if err := s.st.DisableFinanceAccount(sess.vaultKey, sess.accountID, id, s.now()); err != nil {
 		http.Error(w, err.Error(), 400)
 		return
@@ -513,15 +559,40 @@ func (s *Server) financeAccountDisable(w http.ResponseWriter, r *http.Request) {
 func (s *Server) financeAccountReset(w http.ResponseWriter, r *http.Request) {
 	sess := r.Context().Value(financeContextKey{}).(*financeSession)
 	id := r.PathValue("id")
+	name, found := s.financeAccountName(sess, id)
+	if !found {
+		s.financeNotFound(w, r)
+		return
+	}
+	if r.FormValue("confirm") != "yes" {
+		s.renderFinanceConfirm(w, r, financeConfirmData{
+			Heading: "Reset password access for " + name + "?",
+			Warning: "Their current password and every earlier setup code will stop working. You will receive a new one-time setup code to give them.",
+			Action:  "/finance/accounts/" + id + "/reset", Button: "Yes, reset password access",
+		})
+		return
+	}
 	code, err := s.st.ResetFinanceAccount(sess.vaultKey, sess.accountID, id, s.now())
 	if err != nil {
 		http.Error(w, err.Error(), 400)
 		return
 	}
 	s.invalidateAccountSessions(id, "")
-	d := accountsPageData{CSRF: sess.csrf, Code: code}
+	d := accountsPageData{CSRF: sess.csrf, Code: code, CodeName: name}
 	_ = s.st.ReadFinance(sess.vaultKey, func(f *register.FinanceData) { d.Accounts = append([]register.FinanceAccount{}, f.Accounts...) })
 	s.financePage(w, r, "Authorized people", "finance-accounts.html", d)
+}
+
+func (s *Server) financeAccountName(sess *financeSession, id string) (string, bool) {
+	var name string
+	_ = s.st.ReadFinance(sess.vaultKey, func(f *register.FinanceData) {
+		for _, a := range f.Accounts {
+			if a.ID == id {
+				name = a.DisplayName
+			}
+		}
+	})
+	return name, name != ""
 }
 
 type editPageData struct {
@@ -557,6 +628,8 @@ func (s *Server) financePassword(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		if r.FormValue("password") != r.FormValue("again") {
 			d.Error = "The passwords do not match."
+		} else if utf8.RuneCountInString(r.FormValue("password")) < 8 {
+			d.Error = "Password must be at least 8 characters."
 		} else if err := s.st.ChangeFinancePassword(sess.vaultKey, sess.accountID, r.FormValue("current"), r.FormValue("password"), s.now()); err != nil {
 			d.Error = publicAuthError(err)
 		} else {
@@ -577,7 +650,22 @@ func (s *Server) financeRecoveryNew(w http.ResponseWriter, r *http.Request) {
 	sess := r.Context().Value(financeContextKey{}).(*financeSession)
 	d := authFormData{CSRF: sess.csrf}
 	if r.Method == http.MethodPost {
-		recovery, err := s.st.ReplaceFinanceRecovery(sess.vaultKey, sess.accountID, r.FormValue("password"), s.now())
+		if r.FormValue("confirm") != "yes" {
+			s.renderFinanceConfirm(w, r, financeConfirmData{
+				Heading: "Replace the recovery key?",
+				Warning: "The current recovery key will stop working. You must save and confirm the new key before you can return to the financial ledger.",
+				Action:  "/finance/recovery-key/new", Button: "Yes, replace recovery key",
+				AskPassword: !sess.recoveryPending,
+			})
+			return
+		}
+		var recovery string
+		var err error
+		if sess.recoveryPending {
+			recovery, err = s.st.ReplaceUnconfirmedFinanceRecovery(sess.vaultKey, sess.accountID, s.now())
+		} else {
+			recovery, err = s.st.ReplaceFinanceRecovery(sess.vaultKey, sess.accountID, r.FormValue("password"), s.now())
+		}
 		if err != nil {
 			d.Error = publicAuthError(err)
 		} else {

@@ -1,25 +1,23 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transaction journal</title>
+<link rel="stylesheet" href="/static/app.css">
+<main class="body">
 <h1>{{.Heading}}</h1>
+{{if .Error}}<div class="banner bad">{{.Error}}</div>{{end}}
 <p>Showing {{.FilterLabel}}</p>
 <p>Printed {{.PrintedAt}}</p>
 <table class="journal">
-  <tr><th>When</th><th>Paid or received</th><th>Amount</th><th>Party</th><th>Purpose</th><th>Mode</th><th>Order and products</th><th>Reference</th><th>Recorded by</th></tr>
+  <tr><th>When</th><th>Paid or received</th><th>Amount</th><th>Party</th><th>Purpose</th><th>Mode</th><th>Related records</th><th>Reference</th><th>Recorded by</th></tr>
   {{range .Rows}}
-  <tr>
-    <td>{{longstamp .OccurredAt}}</td>
-    <td>{{.Direction}}</td>
-    <td>{{.Amount}}</td>
-    <td>{{.Party}}</td>
-    <td>{{.Purpose}}</td>
-    <td>{{.Mode}}</td>
-    <td>{{.Order}} {{.Products}}</td>
-    <td>{{.Reference}}</td>
-    <td>{{.RecordedBy}}</td>
-  </tr>
+  <tr><td>{{longstamp .OccurredAt}}</td><td>{{.Direction}}</td><td>{{.Amount}}</td><td>{{.Party}}</td><td>{{.Purpose}}</td><td>{{.Mode}}</td><td>{{.Order}} {{.Products}} {{.Settlement}}</td><td>{{.Reference}}</td><td>Recorded by {{.RecordedBy}} · {{.RecordedMob}} · {{longstamp .RecordedAt}}</td></tr>
   {{if .Remarks}}<tr><td colspan="9">Remarks: {{.Remarks}}</td></tr>{{end}}
-  {{range .Changes}}<tr><td colspan="9">{{.Label}}: {{.From}} → {{.To}} · {{.ByName}}</td></tr>{{end}}
-  {{if .VoidLine}}<tr><td colspan="9">{{.VoidLine}}</td></tr>{{end}}
+  {{range .Changes}}<tr><td colspan="9">{{.Label}}: {{.From}} → {{.To}} · {{.ByName}} · {{if .ByMobile}}{{.ByMobile}}{{else}}mobile not recorded{{end}} · {{longstamp .At}}</td></tr>{{end}}
+  {{if .VoidLine}}<tr><td colspan="9">{{.VoidLine}} · {{.Voided.ByName}} · {{if .Voided.ByMobile}}{{.Voided.ByMobile}}{{else}}mobile not recorded{{end}} · {{longstamp .Voided.At}}</td></tr>{{end}}
   {{end}}
 </table>
 <p>Money paid {{.Totals.Paid}} · Money received {{.Totals.Received}} · Net paid {{.Totals.Net}}</p>
 <p class="noprint"><button class="btn" type="button" data-print>Print</button></p>
+</main>
 <script src="/static/print.js"></script>

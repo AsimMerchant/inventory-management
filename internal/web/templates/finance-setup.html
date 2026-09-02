@@ -1,3 +1,8 @@
-<h1>Set up authorized access</h1>
+<h1>Authorized access</h1>
 {{if .Error}}<div class="banner bad">{{.Error}}</div>{{end}}
-<form method="post"><input type="hidden" name="csrf" value="{{.CSRF}}"><label>Your name <input name="name"></label><label>Mobile number <input name="mobile"></label><label>Create password <input type="password" name="password"></label><label>Type password again <input type="password" name="again"></label><button type="submit">Set up authorized access</button></form>
+<form method="post" class="auth-form"><input type="hidden" name="csrf" value="{{.CSRF}}"><fieldset class="auth-section"><legend>Set up authorized access</legend>
+<div class="field"><label class="lab" for="setup-name">Your name</label><input class="inp" id="setup-name" name="name" value="{{.Name}}"></div>
+<div class="field"><label class="lab" for="setup-mobile">Mobile number</label><input class="inp" id="setup-mobile" name="mobile" value="{{.Mobile}}"></div>
+<div class="field"><label class="lab" for="setup-password">Create password</label><input class="inp" id="setup-password" type="password" name="password" autocomplete="new-password"></div>
+<div class="field"><label class="lab" for="setup-again">Type password again</label><input class="inp" id="setup-again" type="password" name="again" autocomplete="new-password"></div>
+<button class="btn" type="submit">Set up authorized access</button></fieldset></form>

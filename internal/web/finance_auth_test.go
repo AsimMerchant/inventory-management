@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"html"
 	"io"
 	"net/http"
@@ -130,7 +131,9 @@ func TestLostRecoveryConfirmationRotatesBeforeLedgerAccess(t *testing.T) {
 	}
 	_, body = financeRequest(t, c, "GET", e.URL+"/finance/recovery-key/new", nil)
 	csrf = csrfFrom(t, body)
-	_, body = financeRequest(t, c, "POST", e.URL+"/finance/recovery-key/new", url.Values{"csrf": {csrf}, "password": {"correct horse"}})
+	_, body = financeRequest(t, c, "POST", e.URL+"/finance/recovery-key/new", url.Values{"csrf": {csrf}})
+	csrf = csrfFrom(t, body)
+	_, body = financeRequest(t, c, "POST", e.URL+"/finance/recovery-key/new", url.Values{"csrf": {csrf}, "confirm": {"yes"}})
 	m := recoveryShown.FindStringSubmatch(body)
 	if len(m) != 2 {
 		t.Fatal("replacement recovery not shown")
@@ -228,6 +231,76 @@ func TestAdminResetAndOfflineRecovery(t *testing.T) {
 		}
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAccountDestructiveActionsRequireImpactConfirmation(t *testing.T) {
+	e := newTestServer(t, nil, financeNow)
+	admin, key, adminID := financeAdmin(t, e)
+	_, userID := financeUser(t, e, key, adminID, "Rohan Das", "9900134562", "rohan pass")
+	before := mustReadFile(t, e.path)
+	status, body := admin.post(t, "/finance/accounts/"+userID+"/reset", nil)
+	if status != 200 || !strings.Contains(body, "Reset password access for Rohan Das?") ||
+		!strings.Contains(body, "Yes, reset password access") {
+		t.Fatalf("reset confirmation = %d: %s", status, body)
+	}
+	if !bytes.Equal(before, mustReadFile(t, e.path)) {
+		t.Fatal("first reset step wrote the store")
+	}
+	if status, body = admin.post(t, "/finance/accounts/"+userID+"/reset", url.Values{"confirm": {"yes"}}); status != 200 ||
+		!strings.Contains(body, "Give this setup code to Rohan Das") || !strings.Contains(body, "expires in 24 hours") {
+		t.Fatalf("confirmed reset = %d: %s", status, body)
+	}
+
+	before = mustReadFile(t, e.path)
+	status, body = admin.post(t, "/finance/accounts/"+userID+"/disable", nil)
+	if status != 200 || !strings.Contains(body, "Disable authorized access for Rohan Das?") ||
+		!strings.Contains(body, "Yes, disable authorized access") {
+		t.Fatalf("disable confirmation = %d: %s", status, body)
+	}
+	if !bytes.Equal(before, mustReadFile(t, e.path)) {
+		t.Fatal("first disable step wrote the store")
+	}
+	if status, body = admin.post(t, "/finance/accounts/"+userID+"/disable", url.Values{"confirm": {"yes"}}); status != 303 {
+		t.Fatalf("confirmed disable = %d: %s", status, body)
+	}
+}
+
+func TestNewPasswordMinimumIsPlainAndSecretsCleared(t *testing.T) {
+	fresh := newTestServer(t, nil, financeNow)
+	setupClient := financeClient(t)
+	_, setupPage := financeRequest(t, setupClient, "GET", fresh.URL+"/finance/setup", nil)
+	_, setupBody := financeRequest(t, setupClient, "POST", fresh.URL+"/finance/setup", url.Values{
+		"csrf": {csrfFrom(t, setupPage)}, "name": {"Asha Mehta"}, "mobile": {"9886140023"}, "password": {"short"}, "again": {"short"},
+	})
+	if !strings.Contains(setupBody, "Password must be at least 8 characters.") || !strings.Contains(setupBody, `value="Asha Mehta"`) || !strings.Contains(setupBody, `value="9886140023"`) || strings.Contains(setupBody, `value="short"`) {
+		t.Fatal("setup minimum/refusal did not preserve only name and mobile")
+	}
+
+	e := newTestServer(t, nil, financeNow)
+	admin, key, adminID := financeAdmin(t, e)
+	_, code, err := e.st.AuthorizeFinanceAccount(key, adminID, "Rohan Das", "9900134562", register.FinanceUser, financeNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	public := financeClient(t)
+	_, page := financeRequest(t, public, "GET", e.URL+"/finance/activate", nil)
+	_, body := financeRequest(t, public, "POST", e.URL+"/finance/activate", url.Values{
+		"csrf": {csrfFrom(t, page)}, "mobile": {"9900134562"}, "code": {code}, "password": {"short"}, "again": {"short"},
+	})
+	if !strings.Contains(body, "Password must be at least 8 characters.") || !strings.Contains(body, `value="9900134562"`) || strings.Contains(body, code) || strings.Contains(body, `value="short"`) {
+		t.Fatal("activation minimum/refusal did not preserve only mobile")
+	}
+	_, page = financeRequest(t, public, "GET", e.URL+"/finance/recover", nil)
+	_, body = financeRequest(t, public, "POST", e.URL+"/finance/recover", url.Values{
+		"csrf": {csrfFrom(t, page)}, "mobile": {"9886140023"}, "recovery": {"secret-recovery"}, "password": {"short"}, "again": {"short"},
+	})
+	if !strings.Contains(body, "Password must be at least 8 characters.") || !strings.Contains(body, `value="9886140023"`) || strings.Contains(body, "secret-recovery") || strings.Contains(body, `value="short"`) {
+		t.Fatal("recovery minimum/refusal did not preserve only mobile")
+	}
+	_, body = admin.post(t, "/finance/password", url.Values{"current": {"correct horse"}, "password": {"short"}, "again": {"short"}})
+	if !strings.Contains(body, "Password must be at least 8 characters.") || strings.Contains(body, `value="correct horse"`) || strings.Contains(body, `value="short"`) {
+		t.Fatal("password-change minimum leaked a secret")
 	}
 }
 

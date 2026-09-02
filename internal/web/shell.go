@@ -113,3 +113,16 @@ func (s *Server) render(w http.ResponseWriter, status int, p page, name string, 
 	w.WriteHeader(status)
 	_, _ = w.Write(full.Bytes())
 }
+
+// renderBare draws a complete standalone document. Printable finance output
+// uses it so interactive chrome and controls are absent from the response.
+func (s *Server) renderBare(w http.ResponseWriter, status int, name string, data any) {
+	var full bytes.Buffer
+	if err := templates.ExecuteTemplate(&full, name, data); err != nil {
+		http.Error(w, "The page could not be drawn. Go back to the register.", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	_, _ = w.Write(full.Bytes())
+}

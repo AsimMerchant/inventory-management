@@ -17,22 +17,24 @@ var errMoneyRefused = errors.New("money refused")
 // moneyRow is one row of the Record money form, held exactly as typed so a
 // refusal hands the whole page back untouched.
 type moneyRow struct {
-	Index      int
-	Direction  string
-	Amount     string
-	OccurredAt string
-	Party      valuePicker
-	Purpose    valuePicker
-	Mode       valuePicker
-	OrderID    string
-	LineIDs    []string
-	ProductIDs []string
-	Reference  string
-	Remarks    string
-	Orders     []moneyOrderChoice
-	Lines      []moneyLineChoice
-	Products   []suggestion
-	Removable  bool
+	Index       int
+	Direction   string
+	Amount      string
+	OccurredAt  string
+	Party       valuePicker
+	Purpose     valuePicker
+	Mode        valuePicker
+	OrderID     string
+	LineIDs     []string
+	ProductIDs  []string
+	Settlement  string
+	Reference   string
+	Remarks     string
+	Orders      []moneyOrderChoice
+	Lines       []moneyLineChoice
+	Products    []suggestion
+	Settlements []moneySettlementChoice
+	Removable   bool
 }
 
 type moneyOrderChoice struct {
@@ -43,6 +45,11 @@ type moneyOrderChoice struct {
 type moneyLineChoice struct {
 	ID, Label string
 	Selected  bool
+}
+
+type moneySettlementChoice struct {
+	Value, Label string
+	Selected     bool
 }
 
 // moneyDraft is the whole Record money form. Several rows are how one
@@ -77,7 +84,11 @@ func (s *Server) readMoneyDraft(r *http.Request) moneyDraft {
 	partyIDs, partyNames := r.Form["partyId"], r.Form["partyName"]
 	purposeIDs, purposeNames := r.Form["purposeId"], r.Form["purposeName"]
 	modeIDs, modeNames := r.Form["modeId"], r.Form["modeName"]
+	partyChoices, partyNew := r.Form["partyIdChoice"], r.Form["partyNameNew"]
+	purposeChoices, purposeNew := r.Form["purposeIdChoice"], r.Form["purposeNameNew"]
+	modeChoices, modeNew := r.Form["modeIdChoice"], r.Form["modeNameNew"]
 	orders := r.Form["orderId"]
+	settlements := r.Form["settlement"]
 	references, remarks := r.Form["reference"], r.Form["remarks"]
 
 	count := len(amounts)
@@ -92,12 +103,17 @@ func (s *Server) readMoneyDraft(r *http.Request) moneyDraft {
 
 	d := moneyDraft{}
 	for i := 0; i < count; i++ {
+		direction := at(directions, i)
+		if indexed, ok := r.Form[rowField("direction", i)]; ok {
+			direction = at(indexed, 0)
+		}
 		row := moneyRow{
 			Index:      i,
-			Direction:  at(directions, i),
+			Direction:  direction,
 			Amount:     strings.TrimSpace(at(amounts, i)),
 			OccurredAt: strings.TrimSpace(at(occurred, i)),
 			OrderID:    at(orders, i),
+			Settlement: at(settlements, i),
 			Reference:  register.CleanName(at(references, i)),
 			Remarks:    register.CleanName(at(remarks, i)),
 			// Per-row multi-selects are named with the row index, because a
@@ -108,9 +124,20 @@ func (s *Server) readMoneyDraft(r *http.Request) moneyDraft {
 		row.Party.PickedID, row.Party.PickedText = at(partyIDs, i), register.CleanName(at(partyNames, i))
 		row.Purpose.PickedID, row.Purpose.PickedText = at(purposeIDs, i), register.CleanName(at(purposeNames, i))
 		row.Mode.PickedID, row.Mode.PickedText = at(modeIDs, i), register.CleanName(at(modeNames, i))
+		applyNoScriptValue(&row.Party, at(partyChoices, i), at(partyNew, i))
+		applyNoScriptValue(&row.Purpose, at(purposeChoices, i), at(purposeNew, i))
+		applyNoScriptValue(&row.Mode, at(modeChoices, i), at(modeNew, i))
 		d.Rows = append(d.Rows, row)
 	}
 	return d
+}
+
+func applyNoScriptValue(p *valuePicker, choice, typed string) {
+	if typed = register.CleanName(typed); typed != "" {
+		p.PickedID, p.PickedText = "", typed
+	} else if choice != "" {
+		p.PickedID, p.PickedText = choice, ""
+	}
 }
 
 func rowField(name string, i int) string {
@@ -169,8 +196,24 @@ func (s *Server) fillMoney(d *moneyDraft, r *http.Request) {
 				}
 			}
 			row.Products = d.Products
+			row.Settlements = settlementChoices(f, row.Settlement)
 		}
 	})
+}
+
+func settlementChoices(f *register.FinanceData, selected string) []moneySettlementChoice {
+	var out []moneySettlementChoice
+	for _, x := range f.SupplierReturns {
+		value := "supplier_return:" + x.ID
+		out = append(out, moneySettlementChoice{Value: value, Selected: value == selected,
+			Label: "Supplier return " + x.ID + " — " + strconv.Itoa(x.Quantity()) + " " + x.Product.ProductName + " — " + register.FinanceValueText(f, x.PartyID)})
+	}
+	for _, x := range f.Sales {
+		value := "sale:" + x.ID
+		out = append(out, moneySettlementChoice{Value: value, Selected: value == selected,
+			Label: "Sale " + x.ID + " — " + strconv.Itoa(x.Quantity()) + " " + x.Product.ProductName + " — " + register.FinanceValueText(f, x.BuyerPartyID)})
+	}
+	return out
 }
 
 func containsID(all []string, want string) bool {
@@ -217,7 +260,7 @@ func (s *Server) financeMoneyNew(w http.ResponseWriter, r *http.Request) {
 			Direction: last.Direction, OccurredAt: last.OccurredAt,
 			Party:   valuePicker{PickedID: last.Party.PickedID, PickedText: last.Party.PickedText},
 			Mode:    valuePicker{PickedID: last.Mode.PickedID, PickedText: last.Mode.PickedText},
-			OrderID: last.OrderID, Reference: last.Reference,
+			OrderID: last.OrderID, Settlement: last.Settlement, Reference: last.Reference,
 		})
 		s.renderMoneyForm(w, r, d)
 		return
@@ -304,7 +347,7 @@ func atoiSafe(s string) int {
 func buildMovement(reg *register.Register, f *register.FinanceData, row moneyRow, actorID string, now time.Time) (register.MoneyMovement, string) {
 	direction := register.MoneyDirection(row.Direction)
 	if direction != register.MoneyOut && direction != register.MoneyIn {
-		return register.MoneyMovement{}, "Say whether the money was paid or received."
+		return register.MoneyMovement{}, "Choose whether money was paid or received."
 	}
 	amount, err := register.ParseRupees(row.Amount)
 	if err != nil {
@@ -325,7 +368,7 @@ func buildMovement(reg *register.Register, f *register.FinanceData, row moneyRow
 	}
 	modeID, err := resolveValue(f, register.FinanceMode, row.Mode.PickedID, row.Mode.PickedText, actorID, now)
 	if err != nil {
-		return register.MoneyMovement{}, "Say how the money was paid."
+		return register.MoneyMovement{}, "Say how the money was paid or received."
 	}
 
 	m := register.MoneyMovement{
@@ -333,6 +376,13 @@ func buildMovement(reg *register.Register, f *register.FinanceData, row moneyRow
 		PartyID: partyID, PurposeID: purposeID, ModeID: modeID,
 		Reference: row.Reference, Remarks: row.Remarks,
 		RecordedAt: now, RecordedByID: actorID,
+	}
+	if row.Settlement != "" {
+		kind, id, ok := strings.Cut(row.Settlement, ":")
+		if !ok || !financeSettlementExists(f, kind, id) {
+			return register.MoneyMovement{}, "Pick the related stock return or sale from the list."
+		}
+		m.Settlements = []register.FinanceSettlementRef{{Kind: kind, ID: id}}
 	}
 
 	if row.OrderID != "" {
@@ -415,6 +465,9 @@ func (s *Server) draftFromMovement(r *http.Request, id string) (moneyDraft, bool
 			OrderID:    m.OrderID, LineIDs: append([]string{}, m.OrderLineIDs...),
 			Reference: m.Reference, Remarks: m.Remarks,
 		}
+		if len(m.Settlements) != 0 {
+			row.Settlement = m.Settlements[0].Kind + ":" + m.Settlements[0].ID
+		}
 		row.Party.PickedID = m.PartyID
 		row.Purpose.PickedID = m.PurposeID
 		row.Mode.PickedID = m.ModeID
@@ -482,6 +535,7 @@ func (s *Server) financeMoneyEdit(w http.ResponseWriter, r *http.Request) {
 		after.Direction, after.AmountPaise, after.OccurredAt = built.Direction, built.AmountPaise, built.OccurredAt
 		after.PartyID, after.PurposeID, after.ModeID = built.PartyID, built.PurposeID, built.ModeID
 		after.OrderID, after.OrderLineIDs, after.Products = built.OrderID, built.OrderLineIDs, built.Products
+		after.Settlements = built.Settlements
 		after.Reference, after.Remarks = built.Reference, built.Remarks
 
 		changes := movementChanges(f, before, after, sess.accountID, now)
@@ -539,6 +593,7 @@ func movementChanges(f *register.FinanceData, before, after register.MoneyMoveme
 		register.FinanceValueText(f, before.PartyID), register.FinanceValueText(f, after.PartyID))
 	add("order", "Related order", orderRefText(f, before), orderRefText(f, after))
 	add("products", "Related products", productRefText(before.Products), productRefText(after.Products))
+	add("settlements", "Related stock return or sale", settlementRefText(f, before.Settlements), settlementRefText(f, after.Settlements))
 	add("purpose", "Purpose",
 		register.FinanceValueText(f, before.PurposeID), register.FinanceValueText(f, after.PurposeID))
 	add("mode", "Payment mode",
@@ -546,6 +601,43 @@ func movementChanges(f *register.FinanceData, before, after register.MoneyMoveme
 	add("reference", "Reference", blankOr(before.Reference), blankOr(after.Reference))
 	add("remarks", "Remarks", blankOr(before.Remarks), blankOr(after.Remarks))
 	return out
+}
+
+func financeSettlementExists(f *register.FinanceData, kind, id string) bool {
+	if kind == "supplier_return" {
+		for _, x := range f.SupplierReturns {
+			if x.ID == id {
+				return true
+			}
+		}
+	}
+	if kind == "sale" {
+		for _, x := range f.Sales {
+			if x.ID == id {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func settlementRefText(f *register.FinanceData, refs []register.FinanceSettlementRef) string {
+	if len(refs) == 0 {
+		return "Blank"
+	}
+	choices := settlementChoices(f, "")
+	var out []string
+	for _, ref := range refs {
+		value := ref.Kind + ":" + ref.ID
+		label := ref.ID
+		for _, c := range choices {
+			if c.Value == value {
+				label = c.Label
+			}
+		}
+		out = append(out, label)
+	}
+	return strings.Join(out, "; ")
 }
 
 func orderRefText(f *register.FinanceData, m register.MoneyMovement) string {
@@ -589,9 +681,27 @@ func (s *Server) financeMoneyVoid(w http.ResponseWriter, r *http.Request) {
 	reason := register.CleanName(r.FormValue("reason"))
 	sess := financeSessionOf(r)
 	now := s.now()
+	if r.FormValue("confirm") != "yes" {
+		if _, ok := registerMovement(s, sess, id); !ok {
+			s.financeNotFound(w, r)
+			return
+		}
+		s.renderFinanceConfirm(w, r, financeConfirmData{
+			Heading: "Void this transaction?",
+			Warning: "Use this only if this entry was a mistake. It will stop counting in totals, but it will stay in the journal and financial activity. If money really moved, record money in the opposite direction instead.",
+			Action:  "/finance/movements/" + id + "/void", Button: "Yes, void this transaction",
+			AskReason: true, ReasonLabel: "Why are you voiding this transaction?", Reason: reason,
+		})
+		return
+	}
 
 	if reason == "" {
-		s.renderJournal(w, r, "Say why you are voiding this transaction.")
+		s.renderFinanceConfirm(w, r, financeConfirmData{
+			Heading: "Void this transaction?",
+			Warning: "Use this only if this entry was a mistake. It will stop counting in totals, but it will stay in the journal and financial activity. If money really moved, record money in the opposite direction instead.",
+			Action:  "/finance/movements/" + id + "/void", Button: "Yes, void this transaction",
+			AskReason: true, ReasonLabel: "Why are you voiding this transaction?", Error: "Say why you are voiding this transaction.",
+		})
 		return
 	}
 	refusal := ""
@@ -629,4 +739,11 @@ func (s *Server) financeMoneyVoid(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Redirect(w, r, "/finance/journal?voided="+id, http.StatusSeeOther)
 	}
+}
+
+func registerMovement(s *Server, sess *financeSession, id string) (register.MoneyMovement, bool) {
+	var m register.MoneyMovement
+	var ok bool
+	_ = s.st.ReadFinance(sess.vaultKey, func(f *register.FinanceData) { m, ok = register.MovementByID(f, id) })
+	return m, ok
 }

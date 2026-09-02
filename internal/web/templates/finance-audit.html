@@ -8,7 +8,7 @@
     <div>{{.Summary}}</div>
     {{if .Before}}<div class="note">Was: {{.Before}}</div>{{end}}
     {{if .After}}<div class="note">Now: {{.After}}</div>{{end}}
-    <div class="note">{{.ByName}} · {{.ByMobile}} · {{longstamp .At}}</div>
+    <div class="note">{{.ByName}} · {{if .ByMobile}}{{.ByMobile}}{{else}}mobile not recorded{{end}} · {{longstamp .At}}</div>
   </li>
   {{end}}
 </ul>

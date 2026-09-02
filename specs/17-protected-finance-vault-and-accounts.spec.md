@@ -190,6 +190,18 @@ atomic save, show the recovery key once with heading `Save this recovery key` an
 their password.` The user must tick `I saved the recovery key` and POST before entering
 `/finance`; no route ever displays that key again.
 
+Setup, activation, recovery and password change refuse a shorter new password with
+`Password must be at least 8 characters.` before checking any setup code, recovery key
+or current password. A refusal preserves only non-secret name/mobile fields; every
+password, setup-code and recovery-key input is blank in the response.
+
+Authentication forms are structured, not an undifferentiated run of controls. Each
+uses one visible bordered section with a heading immediately before its fields: `Set up
+authorized access`, `Log in to authorized access`, `Activate your account`, `Recover
+authorized access`, or `Change your password`. Labels stay visible above controls;
+explanatory text is outside inputs; the primary action is last. Setup-code entry is
+labelled `One-time setup code`, never bare `Code` or `Password`.
+
 Immediately after `InitializeFinance`, the web layer creates the first ordinary finance
 session from the returned vault key and FAC-0001, marks that in-memory session
 `recoveryPending`, and renders the key directly from the return value. The key is not put
@@ -204,14 +216,41 @@ the same confirmation gate, and invalidates the abandoned key. An active admin m
 use this route deliberately; replacement requires their current password and
 invalidates the previous recovery key atomically.
 
-An admin adds `Name`, `Mobile number`, and role choices `Financial user` / `Financial
-administrator`. The server generates a 20-character uppercase unpadded base32 setup
+Every recovery-key replacement, forced or deliberate, is two-step. First show `Replace the recovery key?`
+and `The current recovery key will stop working. You must save and confirm the new key
+before you can return to the financial ledger.`, with `Continue to replace key`. The
+confirmation repeats that warning and uses `Yes, replace recovery key`. For a deliberate
+replacement it also asks for `Current password`; the forced lost-confirmation path
+relies on the authenticated recovery-pending admin session. Only the second
+CSRF-protected POST with `confirm=yes` replaces it.
+
+An admin section headed `Authorize another person` adds `Name`, `Mobile number`, and
+role choices `Financial user` / `Financial administrator`, with button `Create one-time
+setup code`. The server generates a 20-character uppercase unpadded base32 setup
 code (100 random bits), wraps the vault key in a `setup` slot expiring exactly 24 hours
 after creation, and shows the code once. `/finance/activate` requires matching mobile
 and unexpired code, then replaces that slot with a password slot and marks the account
 active in one save. A reset invalidates every password/setup slot for that account and
 creates one new 24-hour setup slot. Admins cannot learn a password. Disabling removes
 all its slots and sessions; the last active administrator cannot be disabled or demoted.
+
+The one-time-code page heading is `Give this setup code to <Name>` and says exactly:
+`This code works once and expires in 24 hours. Give it only to <Name>. They must open
+Authorized login, choose Activate my account, and create their own password.` The code
+is visually separated and never repeated after navigation.
+
+Account actions are `Edit details`, `Reset password access`, and `Disable authorized
+access`. Reset and disable are two-step. First POST writes nothing and renders:
+
+- `Reset password access for <Name>?` / `Their current password and every earlier setup
+  code will stop working. You will receive a new one-time setup code to give them.` /
+  `Yes, reset password access`;
+- `Disable authorized access for <Name>?` / `They will be logged out and will not be
+  able to open the financial ledger. Their earlier ledger entries and audit history will
+  stay.` / `Yes, disable authorized access`.
+
+Only a second CSRF-protected POST with `confirm=yes` mutates. Target/status and the
+last-active-administrator guard are rechecked on the second POST.
 
 Recovery accepts only an active administrator's mobile. It unwraps via `Recovery`,
 verifies that account inside the authenticated payload, replaces that administrator's
@@ -349,6 +388,21 @@ one-time consumption each refuse without changing account/data.
 `TestAdminResetAndOfflineRecovery` — admin reset cannot reveal the old password; recovery
 key resets an active admin and preserves every ledger byte after decrypt.
 
+`TestAccountDestructiveActionsRequireImpactConfirmation` — reset/disable first POST
+shows the exact target, consequence and action above with byte-identical storage; only
+`confirm=yes` writes and save-time guards still apply.
+
+`TestSetupCodePageExplainsOneTimeTwentyFourHourUse` — exact heading, one-time/24-hour
+instruction, activation path and own-password wording; the code occurs on one response.
+
+`TestRecoveryKeyReplacementWarnsAndConfirmsTwice` — first step writes nothing; second
+repeats the exact warning, requires current password/CSRF/`confirm=yes`, invalidates the
+old key and enters the existing save-key gate.
+
+`TestAuthorizationFormsAreReadableStructuredSections` — setup/login/activate/recover/
+password pages have exact headings, visible labels in field order, one final primary
+action and no pre-auth finance vocabulary.
+
 `TestAccountCorrectionAndOwnPasswordChangeAreAtomic` — admin corrects Rohan's name,
 mobile and role with exact before/after audit; login moves to the new mobile; Rohan
 changes his own password, old password/sessions fail, submitting session remains, and no
@@ -387,7 +441,7 @@ financial navigation, amount, party, purpose, mode or account mobile appears.
 ```text
 cd /home/asim/Projects/inventory-management
 go test ./internal/store/ ./internal/register/ -run 'TestSchemaTwo|TestFinance' -race -count=1 -v
-go test ./internal/web/ -run 'TestFirstAccount|TestAdmin|TestExpired|TestCannotDisable|TestFinanceAuthorization|TestFinanceSession|TestFinanceCSRF|TestPublicPages' -race -count=1 -v
+go test ./internal/web/ -run 'TestFirstAccount|TestAdmin|TestAccountDestructive|TestSetupCode|TestRecoveryKey|TestAuthorizationForms|TestExpired|TestCannotDisable|TestFinanceAuthorization|TestFinanceSession|TestFinanceCSRF|TestPublicPages' -race -count=1 -v
 go test ./... -race -count=1
 go vet ./...
 rg -n 'crypto/(aes|cipher|pbkdf2|rand|sha256|subtle)' internal

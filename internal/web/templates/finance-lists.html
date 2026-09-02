@@ -1,6 +1,5 @@
 <h1>Shared lists</h1>
-<p>These are the suggestions everybody sees while recording money. Correct a
-spelling and every record that used it says the new wording.</p>
+<p>These suggestions appear for every authorized person while they record financial details. Rename a spelling and every current record that used it shows the new wording; Financial activity keeps the earlier wording.</p>
 {{if .Error}}<div class="banner bad">{{.Error}}</div>{{end}}
 {{if .Notice}}<div class="banner ok">{{.Notice}}</div>{{end}}
 
@@ -14,7 +13,7 @@ spelling and every record that used it says the new wording.</p>
     <form method="post" action="/finance/lists/{{.ID}}/rename">
       <input type="hidden" name="csrf" value="{{$.CSRF}}">
       <input class="inp" type="text" name="value" value="{{.Value}}" autocomplete="off">
-      <button class="btn ghost" type="submit">Correct the wording</button>
+      <button class="btn ghost" type="submit">Rename</button>
     </form>
     {{if .Targets}}
     <form method="post" action="/finance/lists/{{.ID}}/merge">
@@ -22,7 +21,7 @@ spelling and every record that used it says the new wording.</p>
       <select class="inp" name="target">
         {{range .Targets}}<option value="{{.ID}}">{{.Value}}</option>{{end}}
       </select>
-      <button class="btn ghost" type="submit">This is the same as the one I picked</button>
+      <button class="btn ghost" type="submit">Combine duplicates</button>
     </form>
     {{end}}
     {{if .Used}}
@@ -30,7 +29,7 @@ spelling and every record that used it says the new wording.</p>
     {{else}}
     <form method="post" action="/finance/lists/{{.ID}}/delete">
       <input type="hidden" name="csrf" value="{{$.CSRF}}">
-      <button class="btn ghost" type="submit">Remove this typo</button>
+      <button class="btn ghost" type="submit">Delete unused value</button>
     </form>
     {{end}}
   </li>

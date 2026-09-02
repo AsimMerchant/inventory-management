@@ -1,6 +1,7 @@
 package web
 
 import (
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -13,6 +14,37 @@ import (
 // orderNow is a moment inside WalkthroughT0's live shift, so the ordinary desk
 // screens are reachable in the same test as the protected ones.
 var orderNow = register.MustTime("2026-09-03T11:00:00+05:30")
+
+func TestAuthenticatedFinanceProductPickerWorksBeforeInventoryShift(t *testing.T) {
+	e := newTestServer(t, nil, orderNow)
+	admin, _, _ := financeAdmin(t, e)
+	if status, body := admin.get(t, "/api/products?mode=all&q=Tent"); status != http.StatusOK || body != "[]\n" {
+		t.Fatalf("authenticated pre-shift product picker = %d: %s", status, body)
+	}
+	public := financeClient(t)
+	resp, _ := financeRequest(t, public, http.MethodGet, e.URL+"/api/products?mode=all&q=Tent", nil)
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/shift" {
+		t.Fatalf("public pre-shift product picker = %d to %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+}
+
+func TestBrowserShapedOrderKeepsIndependentBasisPerLine(t *testing.T) {
+	e := newTestServer(t, register.WalkthroughT0(), orderNow)
+	admin, key, _ := financeAdmin(t, e)
+	form := orderForm("Sharma Events", "PRD-0001", "100", "")
+	form["productId"] = []string{"PRD-0001", "PRD-0002"}
+	form["productName"] = []string{"Chairs", "Round tables"}
+	form["quantity"] = []string{"100", "50"}
+	form.Set("basis-0", "rent")
+	form.Set("basis-1", "purchase")
+	if status, body := admin.post(t, "/finance/orders/new", form); status != http.StatusSeeOther {
+		t.Fatalf("browser-shaped mixed order = %d: %s", status, body)
+	}
+	f := mustFinance(t, e, key)
+	if len(f.Orders) != 1 || len(f.Orders[0].Lines) != 2 || f.Orders[0].Lines[0].Basis != register.Basis("rent") || f.Orders[0].Lines[1].Basis != register.Basis("purchase") {
+		t.Fatalf("mixed bases = %+v", f.Orders)
+	}
+}
 
 // onHand is every product's stock, which an order must never change.
 func onHand(e *env) map[string]int {
@@ -612,7 +644,7 @@ func TestCancelPaidUndeliveredOrderKeepsHistory(t *testing.T) {
 
 	// A cancellation must say why.
 	if status, body := admin.post(t, "/finance/orders/"+id+"/cancel", nil); status != 200 ||
-		!strings.Contains(body, "Say why this order is cancelled.") {
+		!strings.Contains(body, "Cancel this order?") {
 		t.Fatalf("a blank reason gave %d", status)
 	}
 	if orderByID(t, e, key, id).Status != "open" {
@@ -620,7 +652,7 @@ func TestCancelPaidUndeliveredOrderKeepsHistory(t *testing.T) {
 	}
 
 	if status, body := admin.post(t, "/finance/orders/"+id+"/cancel",
-		url.Values{"reason": {"Supplier could not deliver"}}); status != 303 {
+		url.Values{"reason": {"Supplier could not deliver"}, "confirm": {"yes"}}); status != 303 {
 		t.Fatalf("cancel = %d: %s", status, body)
 	}
 
@@ -666,7 +698,7 @@ func TestCancelPaidUndeliveredOrderKeepsHistory(t *testing.T) {
 	}
 
 	// Cancelling twice is refused rather than recorded twice.
-	if status, _ := admin.post(t, "/finance/orders/"+id+"/cancel", url.Values{"reason": {"again"}}); status != 200 {
+	if status, _ := admin.post(t, "/finance/orders/"+id+"/cancel", url.Values{"reason": {"again"}, "confirm": {"yes"}}); status != 200 {
 		t.Error("a second cancellation was accepted")
 	}
 }

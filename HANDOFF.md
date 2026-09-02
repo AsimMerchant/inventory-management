@@ -27,6 +27,24 @@ times. The reviewed contracts are specs 17–21: protected vault/accounts, order
 reusable values, money/audit/printable journal, supplier returns and sales, and the
 integrated browser acceptance gate.
 
+### Deferred acquisition-basis follow-up — not in specs 17–21
+
+The user later clarified that acquisition basis should not become one fixed `Borrowed`
+enum. A future, separately specified feature should keep built-in suggestions for Rent
+and Bought while allowing a user to type a new acquisition-basis value once and select
+it from suggestions everywhere thereafter. Reusable basis values will need the same
+administrator typo maintenance as other shared financial values: rename, merge, and
+safe deletion when unused. No current implementation or spec contract changes for this
+follow-up.
+
+The user then settled the important semantic boundary: acquisition basis and final
+disposition are separate. Inventory staff only receive stock and ensure issued goods
+return to the inventory pool. After the event, an authorized user explicitly records
+what finally happened—returned, sold, transferred, discarded, donated, or a future
+custom outcome—and records related money separately. No return/sale/keep behavior may
+ever be inferred from a custom acquisition-basis name such as `Borrowed`, `Lent free`,
+or `Sponsored`.
+
 ### Build progress against specs 17–21
 
 `.agent-handoff/` is gitignored, so it does not survive a fresh clone. **This section is
@@ -49,7 +67,7 @@ the resume artifact.** Keep it current after every committed slice.
 | 20 | 3. Supplier returns, sales, settlement and obligation screens | `47a1758` | **Done.** |
 | 20 | 4. Settlement edit/void, inward guards, product cascade | `47a1758` | **Done.** All 13 spec-20 web tests plus 6 register tests pass. |
 | 21 | 1. Protected navigation, route and header matrix | `9dcda6e` | **Done.** All 6 required tests pass. |
-| 21 | 2. Plain-language review and the paired spec/test amendments | — | Not started |
+| 21 | 2. Plain-language review, two-step confirmations, paired spec/test amendments | `PENDINGP` | **Done.** 13 new contract tests; all 74 required tests across 17–21 exist and pass. |
 | 21 | 3. Browser acceptance run, release gate, docs | — | Not started |
 
 **Spec 21 makes two things blocking that spec 18 did not.** Its acceptance criterion 5

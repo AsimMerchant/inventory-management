@@ -7,8 +7,8 @@
   <fieldset class="line">
     <div class="field">
       <span class="lab">Money paid or received</span>
-      <label><input type="radio" name="direction" value="out"{{if eq .Direction "out"}} checked{{end}}> Money paid</label>
-      <label><input type="radio" name="direction" value="in"{{if eq .Direction "in"}} checked{{end}}> Money received</label>
+      <label><input type="radio" name="direction-{{.Index}}" value="out"{{if eq .Direction "out"}} checked{{end}}> Money paid</label>
+      <label><input type="radio" name="direction-{{.Index}}" value="in"{{if eq .Direction "in"}} checked{{end}}> Money received</label>
     </div>
     <div class="field">
       <span class="lab">Amount (₹)</span>
@@ -44,6 +44,13 @@
       </select>
     </div>
     {{end}}
+    <div class="field">
+      <span class="lab">Related stock return or sale</span>
+      <select class="inp" name="settlement">
+        <option value=""{{if not .Settlements}} disabled{{end}}>{{if .Settlements}}No related return or sale{{else}}No returns or sales recorded yet{{end}}</option>
+        {{range .Settlements}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
+      </select>
+    </div>
     <div class="field">
       <span class="lab">Reference</span>
       <input class="inp" type="text" name="reference" value="{{.Reference}}" autocomplete="off">

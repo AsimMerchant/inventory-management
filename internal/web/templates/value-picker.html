@@ -9,11 +9,11 @@
   <input type="hidden" name="{{.IDField}}" value="{{.PickedID}}" data-values-id>
   <div class="sug" hidden data-values-list></div>
   <noscript>
-    <select class="inp" name="{{.IDField}}">
+    <select class="inp" name="{{.IDField}}Choice">
       <option value="">Pick from the list</option>
       {{range .Values}}<option value="{{.ID}}"{{if eq .ID $.PickedID}} selected{{end}}>{{.Value}}</option>{{end}}
     </select>
     <span class="lab">Or add a new one</span>
-    <input class="inp" type="text" name="{{.TextField}}" autocomplete="off">
+    <input class="inp" type="text" name="{{.TextField}}New" autocomplete="off">
   </noscript>
 </div>

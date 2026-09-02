@@ -101,6 +101,10 @@ correction that would overflow any affected total is refused with
 - optional `Reference` and `Remarks`;
 - buttons `Add another amount` and `Save transaction`.
 
+If direction is blank or not exactly `out`/`in`, refuse that row with `Choose whether
+money was paid or received.` before validating its amount. Preserve every non-secret
+row value and write nothing.
+
 One submitted row creates one `MoneyMovement`. Several rows submitted together are
 validated completely and appended atomically, preserving form order for IDs. This is
 how one ₹14,000 settlement may be entered as four rows—₹5,000 deposit, ₹5,000 rent,
@@ -167,6 +171,15 @@ from all totals but remains in journal/audit marked `Voided — <reason>`. It ca
 edited or voided again. To reverse a real payment/refund, record the opposite-direction
 movement; void is only for an entry that should never have been recorded.
 
+The void page says `Void this transaction?` and `Use this only if this entry was a
+mistake. It will stop counting in totals, but it will stay in the journal and financial
+activity. If money really moved, record money in the opposite direction instead.` The
+button is `Yes, void this transaction`. The first step writes nothing; only a
+CSRF-protected POST with `confirm=yes` and a nonblank reason mutates after rechecking
+the movement is live.
+The journal's first-step control is `Review voiding this transaction` and contains no
+reason field; the reason is requested only after the consequence warning.
+
 Example required behavior: order 100 Chairs, record ₹10,000.00 Money paid, goods never
 arrive, mark order cancelled, then record ₹10,000.00 Money received with purpose
 `Refund`. Both rows remain and net paid is ₹0.00. Deleting the original payment is not
@@ -193,12 +206,20 @@ GET filter parameters:
 | `from=YYYY-MM-DD&to=YYYY-MM-DD` | inclusive local calendar range |
 | `fromTime=YYYY-MM-DDTHH:MM&toTime=YYYY-MM-DDTHH:MM` | inclusive exact local date/time range |
 
-No parameters means every transaction. A complete exact-time range takes precedence,
-then `day`, then the date range. Exact time requires both `fromTime` and `toTime`, each
+No parameters means every transaction. Precedence is mechanical: if either exact-time
+parameter is present, exact-time mode is selected and both must be valid; `day`, `from`
+and `to` are ignored. Otherwise, if `day` is present, day mode is selected and date
+range parameters are ignored; an invalid day is an error, not a fallback. Otherwise,
+if either `from` or `to` is present, date-range mode is selected and both must be valid.
+Exact time requires both `fromTime` and `toTime`, each
 parsed in the server's local location, and includes movements where
 `OccurredAt == start` or `OccurredAt == end`. A date range requires both ends and
 `from <= to`; either range with only one end, parse failure, or end before start
-re-renders 200 with `Choose a valid date or date range.` and no filtering/write.
+re-renders 200 with `Choose both an exact start and exact end time.` for a partial
+exact-time range, or `Choose a valid date or date range.` for invalid/reversed values
+and partial date ranges; no fallback and no write occurs. An invalid selected mode
+shows no transaction rows and zero totals until the filter is corrected; it must never
+expose the unfiltered journal as a fallback.
 Boundaries compare local `OccurredAt`, not `RecordedAt`, so a backdated payment prints
 on the business day entered. Filter controls read `One day`, `From`, `To`, `Exact
 start`, `Exact end`, `Show`, and `Every date`.
@@ -207,13 +228,17 @@ start`, `Exact end`, `Show`, and `Every date`.
 validating the identical parameters. Its rows are chronological ascending by
 `OccurredAt`, then ID, even though the screen list is newest first. The
 `Print this journal` link preserves the active filter query and points to this route;
-its print-page button calls `window.print()`. All filtered content works without
+its standalone HTML contains no application navigation or row actions, while its
+`Print` button calls `window.print()`. All filtered content works without
 JavaScript.
 
 `app.css` adds `@media print`: hide chrome/navigation/actions/filter controls; retain
 heading, active date/range, generated timestamp, rows, corrections and void marks;
 use black text on white and do not truncate values. Print output must contain
-`Transaction journal`, selected date/range and `Printed <longstamp>`.
+`Transaction journal`, selected date/range and `Printed <longstamp>`. Each printed row
+shows `Recorded by <name> · <mobile> · <longstamp>`. Each correction and void shows its
+own actor name/mobile/time; a void also shows its reason. Empty mobile renders `mobile
+not recorded`.
 
 `GET /finance/audit` heading `Financial activity` lists all `FinanceAuditEvent` rows,
 including accounts, list maintenance, orders, money, returns and sales. It is visible to
@@ -275,19 +300,33 @@ all old/new values and authenticated actor.
 from totals but keeps journal/audit; real refund uses MoneyIn and leaves MoneyOut live;
 no route/symbol physically deletes movements.
 
+`TestMovementDirectionHasPlainValidation` — blank/unknown direction returns 200 with
+`Choose whether money was paid or received.`, preserves other row values, creates no
+suggestion/movement/audit and precedes amount validation.
+
+`TestMovementVoidWarnsAndRequiresSecondConfirmation` — first step renders the exact
+mistake/totals/history/opposite-direction warning with byte-identical storage; only
+reason+CSRF+`confirm=yes` voids a still-live movement.
+
 `TestJournalChronologicalAndDateFilters` — movements at 31 Aug 23:59, 1 Sep 00:00 and 2
-Sep 18:00 local; exact single-day and inclusive range results/order; day precedence;
-invalid/partial/reversed ranges show exact refusal and byte-identical store.
+Sep 18:00 local; exact single-day and inclusive range results/order; specified
+precedence; invalid/partial/reversed ranges show exact refusal and byte-identical store.
 
 `TestJournalExactTimeRangeIsInclusive` — movements on 1 January 2016 at 22:59, 23:00,
 23:20, 23:39 and 23:40 local; `fromTime=2016-01-01T23:00&toTime=2016-01-01T23:39`
 returns exactly the 23:00/23:20/23:39 rows. Exact range takes precedence over supplied
-day/date parameters; partial, invalid and reversed exact ranges refuse without write.
+day/date parameters; partial exact range says `Choose both an exact start and exact end
+time.`; invalid and reversed exact ranges refuse without write.
+
+`TestJournalFilterPrecedenceDoesNotFallBack` — partial exact plus valid day/date returns
+the partial-exact refusal; invalid day plus valid date range returns the general
+refusal; complete exact ignores all lower modes.
 
 `TestJournalIsProtectedAndPrintableWithoutJavaScript` — public redirect/no leakage;
 authenticated server HTML contains full rows/filter links and print CSS; script-disabled
 submission still filters; `/finance/journal/print` preserves the filter, sorts ascending,
-contains heading/range/printed stamp and has no chrome/actions.
+contains heading/range/printed stamp and has no chrome/actions; rows include recorder
+name/mobile/time and each correction/void includes its own actor name/mobile/time.
 
 `TestFinancialAuditVisibleButImmutable` — user and admin see actor snapshots for account,
 list, order and movement events; no audit mutation route exists and hand-built POST is

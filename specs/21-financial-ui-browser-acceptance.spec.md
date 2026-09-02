@@ -91,6 +91,10 @@ JavaScript only adds typeahead keyboard/mouse behavior, repeatable rows and
 - journal GET filters and print route;
 - account setup, activation, corrections, cancellations and void confirmations.
 
+Every destructive action in specs 17–20 uses its contracted consequence page and a
+second CSRF-protected `confirm=yes` POST. JavaScript may reveal that page inline, but
+may not skip it or make the first press mutate.
+
 With JavaScript disabled, no internal ID is typed from memory: IDs appear only as values
 of visible labelled `<select>` choices or hidden values created by server-rendered
 links/forms. Finance product choice remains select-only; reusable finance values alone
@@ -146,7 +150,7 @@ matrix, exact labels/routes, role-only controls and POST/CSRF logout on every pa
 
 `TestFinancialFormsWorkServerRenderedWithoutJavaScript` — first setup, invite/activate,
 order with two lines/new product, batch split payment, refund, supplier return, sale,
-correction/void, journal/date/time filter and print through form/select/link semantics
+correction/two-step void, journal/date/time filter and print through form/select/link semantics
 only; never requires typing/reading an internal ID.
 
 `TestFinancialRefusalsPreserveNonSecretInputOnly` — each form's first validation error
@@ -160,6 +164,12 @@ single approved `Authorized login` link and stock counts changed by public dispo
 `TestFinanceHeadersAndFormsContainNoExternalResource` — no CDN/network target, inline
 secret, GET mutation, URL amount/party/remarks, autocomplete password, or cacheable
 protected response.
+
+`TestPlainLanguageContractsAndConfirmationSteps` — exact auth section/setup-code labels,
+24-hour instruction, account/list/order/movement/settlement warnings and second-step
+buttons; first step is byte-identical and second has CSRF+`confirm=yes`; obligations
+heading/columns, immutable settlement-product guidance, direction refusal, settlement
+selector, print actors and filter precedence all match specs 17–20.
 
 ## Acceptance criteria
 
@@ -200,6 +210,8 @@ Playwright interface to drive visible/interactive state and inspect network/cons
    and create then correct a small row's party from `Sharm Events` to `Sharma Events` so
    the typo becomes unused. Verify Online and every new
    purpose/party immediately appears as another user's typeahead suggestion.
+   Leave `Related stock return or sale` blank on these unrelated rows and verify its
+   labelled empty/choice control is present.
 7. Record three backdated protected movements on 1 January 2016 at 23:00, 23:20 and
    23:39, plus controls at 22:59 and 23:40. Filter the one day and exact
    `23:00`–`23:39` range; verify inclusive results. Open `/finance/journal/print`, verify
@@ -210,10 +222,12 @@ Playwright interface to drive visible/interactive state and inspect network/cons
    corrected shared values while Financial activity preserves old/new/admin/time.
 9. Return 40 Tents physically to Sharma. Verify public Stock becomes 60 and supplier
    obligation becomes 60; no automatic money row appears. Separately record ₹5,000.00
-   Money received / Deposit refund linked to that return; Stock remains 60.
+   Money received / Deposit refund by selecting that return under `Related stock return
+   or sale`; Stock remains 60.
 10. Sell 20 purchased Chairs to Patel Decorators. Verify public Stock becomes 30 and no
     automatic proceeds exist. Record ₹4,000.00 then ₹6,000.00 Money received linked to
-    the sale; stock remains 30 and journal has both installments.
+    the sale through the required labelled selector; stock remains 30 and journal has
+    both installments.
 11. Correct one movement amount/purpose and supplier-return remark; void a deliberately
     mistaken sale of 5 Chairs. Verify current totals/stock, original values, void reason,
     immutable Asha/Rohan mobile identities and chronological financial audit.
@@ -240,7 +254,7 @@ assertion count, console/network findings and any diagnostic screenshot paths in
 
 ```text
 cd /home/asim/Projects/inventory-management
-go test ./internal/web/ -run 'TestFinancialRoute|TestEveryFinancial|TestFinancialForms|TestFinancialRefusals|TestOrdinaryInventory|TestFinanceHeaders' -race -count=1 -v
+go test ./internal/web/ -run 'TestFinancialRoute|TestEveryFinancial|TestFinancialForms|TestFinancialRefusals|TestOrdinaryInventory|TestFinanceHeaders|TestPlainLanguageContracts' -race -count=1 -v
 go test ./... -race -count=1
 go vet ./...
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /tmp/register.exe .

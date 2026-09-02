@@ -730,24 +730,41 @@ func (s *Store) RecoverFinanceAdministrator(recovery, mobile, password string, n
 }
 
 func (s *Store) ReplaceFinanceRecovery(vaultKey []byte, accountID, currentPassword string, now time.Time) (string, error) {
+	return s.replaceFinanceRecovery(vaultKey, accountID, currentPassword, false, now)
+}
+
+// ReplaceUnconfirmedFinanceRecovery replaces the key abandoned during first
+// setup. The caller already holds the unlocked vault key from a valid session;
+// this narrow path is available only before the first recovery confirmation.
+func (s *Store) ReplaceUnconfirmedFinanceRecovery(vaultKey []byte, accountID string, now time.Time) (string, error) {
+	return s.replaceFinanceRecovery(vaultKey, accountID, "", true, now)
+}
+
+func (s *Store) replaceFinanceRecovery(vaultKey []byte, accountID, currentPassword string, unconfirmed bool, now time.Time) (string, error) {
 	recoveryKey, err := randomBytes(32)
 	if err != nil {
 		return "", err
 	}
 	err = s.financeTransaction(vaultKey, func(env *register.FinanceEnvelope, data *register.FinanceData) error {
-		a, ok := accountByID(data, accountID)
+		_, ok := accountByID(data, accountID)
 		if !ok || !activeAdmin(data, accountID) {
 			return ErrLoginFailed
 		}
-		var verified bool
-		for _, slot := range env.KeySlots {
-			if slot.AccountID == accountID && slot.Kind == "password" {
-				key, err := unwrapSecret(slot, currentPassword)
-				verified = err == nil && bytesEqual(key, vaultKey)
+		if unconfirmed {
+			if accountID != "FAC-0001" || data.RecoveryConfirmedAt != nil {
+				return ErrLoginFailed
 			}
-		}
-		if !verified {
-			return ErrLoginFailed
+		} else {
+			var verified bool
+			for _, slot := range env.KeySlots {
+				if slot.AccountID == accountID && slot.Kind == "password" {
+					key, err := unwrapSecret(slot, currentPassword)
+					verified = err == nil && bytesEqual(key, vaultKey)
+				}
+			}
+			if !verified {
+				return ErrLoginFailed
+			}
 		}
 		nonce, wrapped, err := seal(recoveryKey, vaultKey, wrapAAD("recovery", "recovery"))
 		if err != nil {
@@ -758,7 +775,6 @@ func (s *Store) ReplaceFinanceRecovery(vaultKey []byte, accountID, currentPasswo
 		e := accountAudit(data, accountID, now, "recovery_key_replaced", "recovery", "Recovery key replaced", "", "")
 		e.EntityType = "recovery"
 		data.Audit = append(data.Audit, e)
-		_ = a
 		return nil
 	})
 	if err != nil {

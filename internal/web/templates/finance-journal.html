@@ -2,6 +2,7 @@
 {{if .Error}}<div class="banner bad">{{.Error}}</div>{{end}}
 {{if .Notice}}<div class="banner ok">{{.Notice}}</div>{{end}}
 <form method="get" action="/finance/journal" class="filters">
+  <p class="note">Use One day, a From and To date, or both Exact start and Exact end. Start and end are included.</p>
   <div class="field"><span class="lab">One day</span><input class="inp" type="date" name="day" value="{{.Day}}"></div>
   <div class="field"><span class="lab">From</span><input class="inp" type="date" name="from" value="{{.From}}"></div>
   <div class="field"><span class="lab">To</span><input class="inp" type="date" name="to" value="{{.To}}"></div>
@@ -26,22 +27,19 @@
     <div>{{.Party}} · {{.Purpose}} · {{.Mode}}</div>
     {{if .Order}}<div>Order: {{.Order}}</div>{{end}}
     {{if .Products}}<div>Products: {{.Products}}</div>{{end}}
+    {{if .Settlement}}<div>Related stock return or sale: {{.Settlement}}</div>{{end}}
     {{if .Reference}}<div>Reference: {{.Reference}}</div>{{end}}
     {{if .Remarks}}<div>Remarks: {{.Remarks}}</div>{{end}}
     <div class="note">Recorded by {{.RecordedBy}} · {{.RecordedMob}} · {{longstamp .RecordedAt}}</div>
-    {{range .Changes}}<div class="note">{{.Label}}: {{.From}} → {{.To}} · {{.ByName}} · {{longstamp .At}}</div>{{end}}
-    {{if .VoidLine}}<div class="note">{{.VoidLine}} · {{.Voided.ByName}} · {{longstamp .Voided.At}}</div>{{end}}
+    {{range .Changes}}<div class="note">{{.Label}}: {{.From}} → {{.To}} · {{.ByName}} · {{if .ByMobile}}{{.ByMobile}}{{else}}mobile not recorded{{end}} · {{longstamp .At}}</div>{{end}}
+    {{if .VoidLine}}<div class="note">{{.VoidLine}} · {{.Voided.ByName}} · {{if .Voided.ByMobile}}{{.Voided.ByMobile}}{{else}}mobile not recorded{{end}} · {{longstamp .Voided.At}}</div>{{end}}
     {{if not .Voided}}
     <p class="actions"><a href="/finance/movements/{{.ID}}/edit">Fix this transaction</a></p>
     <details class="danger">
-      <summary>Void this transaction</summary>
+      <summary>Review voiding this transaction</summary>
       <form method="post" action="/finance/movements/{{.ID}}/void">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
-        <div class="field">
-          <span class="lab">Why are you voiding this transaction?</span>
-          <input class="inp" type="text" name="reason" autocomplete="off">
-        </div>
-        <button class="btn" type="submit">Void this transaction</button>
+        <button class="btn" type="submit">Review voiding this transaction</button>
       </form>
     </details>
     {{end}}

@@ -101,6 +101,21 @@ appends a `FinanceAuditEvent` containing its kind/value.
 Used values are never physically erased. Exact refusal:
 `This value has been used. Rename it or merge it instead.`
 
+List controls say `Rename`, `Combine duplicates`, and `Delete unused value`; never the
+database term `Merge` by itself. Combine and delete are two-step. The first POST writes
+nothing and renders:
+
+- `Combine <source> into <target>?` / `Every financial record that currently shows
+  <source> will show <target>. The activity history will keep both earlier names.` /
+  button `Yes, combine these values`;
+- `Delete unused <kind> “<value>”?` / `It will be removed from future suggestions. This
+  is allowed only because no current financial record uses it.` / button `Yes, delete
+  this unused value`.
+
+Only a second CSRF-protected POST with `confirm=yes` mutates. Both values, same-kind,
+use status and cycle/uniqueness rules are rechecked inside `UpdateFinance`; a changed
+target re-renders fresh impact and writes nothing.
+
 #### Orders
 
 ```go
@@ -172,6 +187,13 @@ historical label and is never rewritten.
 `POST /finance/orders/{id}/cancel` requires `Why is this order cancelled?`; sets status
 `cancelled` and appends audit. It never voids payments, deletes products or changes
 stock. A cancelled order remains visible and can receive a separately recorded refund.
+Cancellation uses a two-step form. Before the reason/action, show `Cancel this order?`
+and `The order will stay in the ledger. Existing payments, receipts and stock entries
+will not change. Record any refund separately.` Button: `Yes, cancel this order`.
+The order detail's first-step control is `Review cancellation` and contains no reason
+field; the reason is requested only after the consequence warning.
+The first POST writes nothing; the second CSRF-protected POST carries `confirm=yes`,
+requires the reason and rechecks that the order is still open before saving.
 Order field corrections use `/finance/orders/{id}/edit`, append one `FinanceChange` per
 changed field in form order and retain line/product snapshots. Product-line removal is
 allowed only if no movement references that line; otherwise exact refusal
@@ -250,6 +272,10 @@ flow for Sharma Events, Freight and Product adjustment.
 payment into Bank transfer; physically delete unused Sharm Events; audit has old/new,
 admin ID/name/mobile/time; used deletion gets the exact refusal and no bytes change.
 
+`TestReusableListCombineAndDeleteRequireImpactConfirmation` — first POST shows the exact
+plain-language target/consequence/action and writes nothing; only `confirm=yes` combines
+or deletes, with all save-time use/kind/target guards and audit intact.
+
 `TestFinancialUserCannotManageReusableValues` — user may create values as part of a
 record and reuse suggestions but every list-management POST returns 403/no write.
 
@@ -277,6 +303,10 @@ ordinary pages contain no order/payment fields or finance party suggestions.
 spec 19: order and original payment remain, no product/inward is deleted, and a later
 incoming refund may link to the cancelled order.
 
+`TestOrderCancellationWarnsBeforeSecondConfirmation` — first POST shows the exact
+keep-history/no-side-effect/refund warning and writes nothing; second POST requires
+reason, CSRF and `confirm=yes`, then audits cancellation without changing money/stock.
+
 `TestOrderCorrectionIsAuditedAndUsedLineCannotDisappear` — correction preserves
 CreatedAt/By and snapshots; removing a movement-linked line gets exact refusal.
 
@@ -300,7 +330,7 @@ vault validates and decrypts after restart.
 ```text
 cd /home/asim/Projects/inventory-management
 go test ./internal/register/ -run 'TestInitialPayment|TestFinanceSuggestion|TestAdminRenames|TestOrder' -race -count=1 -v
-go test ./internal/web/ -run 'TestInitialPayment|TestFinanceSuggestion|TestAdminRenames|TestFinancialUser|TestOrder|TestFinanceOrder|TestFinanceProduct|TestInventoryReceives|TestCancelPaid' -race -count=1 -v
+go test ./internal/web/ -run 'TestInitialPayment|TestFinanceSuggestion|TestAdminRenames|TestReusableList|TestFinancialUser|TestOrder|TestFinanceOrder|TestFinanceProduct|TestInventoryReceives|TestCancelPaid' -race -count=1 -v
 go test ./... -race -count=1
 go vet ./...
 rg -n 'Products = append' internal --glob '*.go' --glob '!**/*_test.go' # only ordinary and finance product-create owning functions

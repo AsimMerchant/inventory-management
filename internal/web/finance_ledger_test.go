@@ -321,6 +321,81 @@ func mustFinance(t *testing.T, e *env, key []byte) *register.FinanceData {
 	return out
 }
 
+func TestMovementDirectionHasPlainValidation(t *testing.T) {
+	e := newTestServer(t, register.WalkthroughT0(), orderNow)
+	admin, key, _ := financeAdmin(t, e)
+	form := moneyForm("out", "not an amount", "Sharma Events", "Deposit", "Cash")
+	form.Set("direction", "")
+	before := mustReadFile(t, e.path)
+	status, body := admin.post(t, "/finance/movements/new", form)
+	if status != 200 || !strings.Contains(body, "Choose whether money was paid or received.") {
+		t.Fatalf("direction refusal = %d: %s", status, body)
+	}
+	for _, kept := range []string{"not an amount", "Sharma Events", "Deposit", "Cash"} {
+		if !strings.Contains(body, kept) {
+			t.Errorf("refusal did not preserve %q", kept)
+		}
+	}
+	if string(before) != string(mustReadFile(t, e.path)) {
+		t.Fatal("direction refusal changed the store")
+	}
+	if got := movements(t, e, key); len(got) != 0 {
+		t.Fatalf("direction refusal stored %d movements", len(got))
+	}
+}
+
+func TestBrowserShapedBatchKeepsIndependentDirections(t *testing.T) {
+	e := newTestServer(t, register.WalkthroughT0(), orderNow)
+	admin, key, _ := financeAdmin(t, e)
+	form := moneyForm("", "100", "Sharma Events", "Advance", "Cash")
+	form["amount"] = []string{"100", "50"}
+	form["occurredAt"] = []string{"2026-09-03T10:00", "2026-09-03T11:00"}
+	form["partyName"] = []string{"Sharma Events", "Sharma Events"}
+	form["purposeName"] = []string{"Advance", "Refund"}
+	form["modeName"] = []string{"Cash", "Cash"}
+	form["orderId"] = []string{"", ""}
+	form.Set("direction-0", "out")
+	form.Set("direction-1", "in")
+	if status, body := admin.post(t, "/finance/movements/new", form); status != http.StatusSeeOther {
+		t.Fatalf("browser-shaped mixed batch = %d: %s", status, body)
+	}
+	got := movements(t, e, key)
+	if len(got) != 2 || got[0].Direction != register.MoneyOut || got[1].Direction != register.MoneyIn {
+		t.Fatalf("mixed directions = %+v", got)
+	}
+}
+
+func TestNoScriptMoneyUsesChosenValuesAndTypedNewPurpose(t *testing.T) {
+	e := newTestServer(t, register.WalkthroughT0(), orderNow)
+	admin, key, _ := financeAdmin(t, e)
+	// Create one existing party/mode through the normal save path first.
+	if status, body := admin.post(t, "/finance/movements/new", moneyForm("out", "1", "Sharma Events", "Advance", "Cash")); status != http.StatusSeeOther {
+		t.Fatalf("seed movement = %d: %s", status, body)
+	}
+	f := mustFinance(t, e, key)
+	var partyID, modeID string
+	for _, v := range f.ReusableValues {
+		if v.Kind == register.FinanceParty && v.Value == "Sharma Events" {
+			partyID = v.ID
+		}
+		if v.Kind == register.FinanceMode && v.Value == "Cash" {
+			modeID = v.ID
+		}
+	}
+	form := moneyForm("", "25", "", "", "")
+	form.Set("direction-0", "in")
+	form.Set("partyIdChoice", partyID)
+	form.Set("purposeNameNew", "No-script custom purpose")
+	form.Set("modeIdChoice", modeID)
+	if status, body := admin.post(t, "/finance/movements/new", form); status != http.StatusSeeOther {
+		t.Fatalf("no-script-shaped movement = %d: %s", status, body)
+	}
+	got := movements(t, e, key)
+	if len(got) != 2 || register.FinanceValueText(mustFinance(t, e, key), got[1].PartyID) != "Sharma Events" || register.FinanceValueText(mustFinance(t, e, key), got[1].PurposeID) != "No-script custom purpose" {
+		t.Fatalf("no-script values = %+v", got)
+	}
+}
+
 func TestStandaloneMovementAndProductAdjustment(t *testing.T) {
 	e := newTestServer(t, register.WalkthroughT0(), orderNow)
 	admin, key, _ := financeAdmin(t, e)
@@ -374,7 +449,7 @@ func TestCancelRefundKeepsBothDirections(t *testing.T) {
 	}
 	// The goods never arrive, so the order is cancelled.
 	if status, _ := admin.post(t, "/finance/orders/"+orderID+"/cancel",
-		url.Values{"reason": {"Supplier could not deliver"}}); status != 303 {
+		url.Values{"reason": {"Supplier could not deliver"}, "confirm": {"yes"}}); status != 303 {
 		t.Fatal("the cancellation was refused")
 	}
 	// The money comes back as its own incoming row. Deleting the payment is
@@ -603,7 +678,7 @@ func TestVoidNeverDeletesAndOppositeMovementIsReversal(t *testing.T) {
 
 	// A void needs a reason.
 	if status, body := admin.post(t, "/finance/movements/"+typo+"/void", nil); status != 200 ||
-		!strings.Contains(body, "Say why you are voiding this transaction.") {
+		!strings.Contains(body, "Void this transaction?") {
 		t.Fatalf("a blank reason gave %d", status)
 	}
 	if movementByID(t, e, key, typo).Voided != nil {
@@ -611,7 +686,7 @@ func TestVoidNeverDeletesAndOppositeMovementIsReversal(t *testing.T) {
 	}
 
 	if status, body := admin.post(t, "/finance/movements/"+typo+"/void",
-		url.Values{"reason": {"Typed an extra zero"}}); status != 303 {
+		url.Values{"reason": {"Typed an extra zero"}, "confirm": {"yes"}}); status != 303 {
 		t.Fatalf("void = %d: %s", status, body)
 	}
 
@@ -629,7 +704,7 @@ func TestVoidNeverDeletesAndOppositeMovementIsReversal(t *testing.T) {
 	}
 
 	// It cannot be voided or edited again.
-	if status, _ := admin.post(t, "/finance/movements/"+typo+"/void", url.Values{"reason": {"again"}}); status != 200 {
+	if status, _ := admin.post(t, "/finance/movements/"+typo+"/void", url.Values{"reason": {"again"}, "confirm": {"yes"}}); status != 200 {
 		t.Error("a second void was accepted")
 	}
 	if status, body := admin.post(t, "/finance/movements/"+typo+"/edit",
@@ -761,15 +836,15 @@ func TestJournalExactTimeRangeIsInclusive(t *testing.T) {
 	}
 
 	before := mustReadFile(t, e.path)
-	for _, path := range []string{
-		"/finance/journal?fromTime=2016-01-01T23%3A00",
-		"/finance/journal?toTime=2016-01-01T23%3A39",
-		"/finance/journal?fromTime=noon&toTime=2016-01-01T23%3A39",
-		"/finance/journal?fromTime=2016-01-01T23%3A39&toTime=2016-01-01T23%3A00",
+	for _, tc := range []struct{ path, refusal string }{
+		{"/finance/journal?fromTime=2016-01-01T23%3A00", "Choose both an exact start and exact end time."},
+		{"/finance/journal?toTime=2016-01-01T23%3A39", "Choose both an exact start and exact end time."},
+		{"/finance/journal?fromTime=noon&toTime=2016-01-01T23%3A39", register.JournalRefusal},
+		{"/finance/journal?fromTime=2016-01-01T23%3A39&toTime=2016-01-01T23%3A00", register.JournalRefusal},
 	} {
-		status, body := admin.get(t, path)
-		if status != 200 || !strings.Contains(body, register.JournalRefusal) {
-			t.Errorf("%s gave %d without the refusal", path, status)
+		status, body := admin.get(t, tc.path)
+		if status != 200 || !strings.Contains(body, tc.refusal) {
+			t.Errorf("%s gave %d without the refusal", tc.path, status)
 		}
 	}
 	if string(mustReadFile(t, e.path)) != string(before) {

@@ -324,6 +324,35 @@ func TestPhysicalSettlementRechecksInsideAtomicUpdate(t *testing.T) {
 	}
 }
 
+func TestMoneyFormHasRequiredSettlementSelector(t *testing.T) {
+	e := newTestServer(t, emptyStock(), orderNow)
+	admin, key, _ := financeAdmin(t, e)
+	tables := productIDNamed(t, e, "Round tables")
+	receive(t, e, tables, 100, "rent", "Sharma Events", "2026-09-03")
+	if status, _ := admin.post(t, "/finance/supplier-returns/new", settleForm("Sharma Events", tables, 40, "2026-09-03T15:00")); status != 303 {
+		t.Fatal("supplier return was refused")
+	}
+	returns, _ := settlements(t, e, key)
+	status, body := admin.get(t, "/finance/movements/new")
+	if status != 200 || !strings.Contains(body, "Related stock return or sale") ||
+		!strings.Contains(body, "Supplier return "+returns[0].ID+" — 40 Round tables — Sharma Events") {
+		t.Fatalf("money form selector = %d: %s", status, body)
+	}
+	form := moneyForm("in", "5000", "Sharma Events", "Deposit refund", "Bank transfer")
+	form.Set("settlement", "supplier_return:"+returns[0].ID)
+	if status, body := admin.post(t, "/finance/movements/new", form); status != 303 {
+		t.Fatalf("linked money = %d: %s", status, body)
+	}
+	got := movements(t, e, key)
+	if len(got) != 1 || len(got[0].Settlements) != 1 || got[0].Settlements[0].ID != returns[0].ID {
+		t.Fatalf("stored settlement refs = %+v", got)
+	}
+	_, journal := admin.get(t, "/finance/journal")
+	if !strings.Contains(journal, "Supplier return "+returns[0].ID) {
+		t.Fatal("journal omitted linked supplier return")
+	}
+}
+
 func TestDepositRefundHasNoStockEffect(t *testing.T) {
 	e := newTestServer(t, emptyStock(), orderNow)
 	admin, key, _ := financeAdmin(t, e)
@@ -349,7 +378,7 @@ func TestDepositRefundHasNoStockEffect(t *testing.T) {
 	// Voiding the return moves stock only, and touches no money.
 	returns, _ := settlements(t, e, key)
 	if status, _ := admin.post(t, "/finance/settlements/supplier_return/"+returns[0].ID+"/void",
-		url.Values{"reason": {"Counted wrong"}}); status != 303 {
+		url.Values{"reason": {"Counted wrong"}, "confirm": {"yes"}}); status != 303 {
 		t.Fatal("the void was refused")
 	}
 	if got := stockOf(t, e, tables); got != 100 {
@@ -401,6 +430,30 @@ func TestSaleProceedsMayArriveInInstallments(t *testing.T) {
 	// Only one sale, however many payments it took.
 	if _, sales := settlements(t, e, key); len(sales) != 1 {
 		t.Errorf("%d sales recorded", len(sales))
+	}
+}
+
+func TestSettlementEditShowsImmutableProductGuidance(t *testing.T) {
+	e := newTestServer(t, emptyStock(), orderNow)
+	admin, key, _ := financeAdmin(t, e)
+	tables := productIDNamed(t, e, "Round tables")
+	chairs := productIDNamed(t, e, "Chairs")
+	receive(t, e, tables, 100, "rent", "Sharma Events", "2026-09-03")
+	admin.post(t, "/finance/supplier-returns/new", settleForm("Sharma Events", tables, 40, "2026-09-03T15:00"))
+	returns, _ := settlements(t, e, key)
+	path := "/finance/settlements/supplier_return/" + returns[0].ID + "/edit"
+	status, body := admin.get(t, path)
+	if status != 200 || !strings.Contains(body, "Wrong product? Void this entry, then record it again with the correct product.") || strings.Contains(body, `name="productId"`) {
+		t.Fatalf("immutable product edit = %d: %s", status, body)
+	}
+	before := mustReadFile(t, e.path)
+	changed := settleForm("Sharma Events", chairs, 40, "2026-09-03T15:00")
+	status, body = admin.post(t, path, changed)
+	if status != 200 || !strings.Contains(body, "The product cannot be changed here. Void this entry and record it again.") {
+		t.Fatalf("changed product refusal = %d: %s", status, body)
+	}
+	if string(before) != string(mustReadFile(t, e.path)) {
+		t.Fatal("changed product refusal wrote the store")
 	}
 }
 
@@ -491,11 +544,11 @@ func TestSettlementVoidRestoresStockButKeepsHistory(t *testing.T) {
 
 	// A void needs a reason.
 	if status, body := admin.post(t, "/finance/settlements/sale/"+id+"/void", nil); status != 200 ||
-		!strings.Contains(body, "Say why you are voiding this record.") {
+		!strings.Contains(body, "Void this stock movement?") {
 		t.Fatalf("a blank reason gave %d", status)
 	}
 	if status, body := admin.post(t, "/finance/settlements/sale/"+id+"/void",
-		url.Values{"reason": {"These were never sold"}}); status != 303 {
+		url.Values{"reason": {"These were never sold"}, "confirm": {"yes"}}); status != 303 {
 		t.Fatalf("void = %d: %s", status, body)
 	}
 
@@ -523,7 +576,7 @@ func TestSettlementVoidRestoresStockButKeepsHistory(t *testing.T) {
 		t.Error("the activity list does not show the void")
 	}
 	// It cannot be voided or corrected again.
-	if status, _ := admin.post(t, "/finance/settlements/sale/"+id+"/void", url.Values{"reason": {"again"}}); status != 200 {
+	if status, _ := admin.post(t, "/finance/settlements/sale/"+id+"/void", url.Values{"reason": {"again"}, "confirm": {"yes"}}); status != 200 {
 		t.Error("a second void was accepted")
 	}
 }
@@ -583,7 +636,7 @@ func TestInwardCorrectionCannotStrandDisposalAllocation(t *testing.T) {
 	// Void the return, and the formerly blocked correction goes through.
 	returns, _ := settlements(t, e, key)
 	if status, _ := admin.post(t, "/finance/settlements/supplier_return/"+returns[0].ID+"/void",
-		url.Values{"reason": {"Never actually went back"}}); status != 303 {
+		url.Values{"reason": {"Never actually went back"}, "confirm": {"yes"}}); status != 303 {
 		t.Fatal("the void was refused")
 	}
 	if status, body := edit(url.Values{"quantity": {"10"}}); status != 303 {

@@ -18,14 +18,10 @@
 <p><a href="/finance/orders/{{.ID}}/edit">Fix this order</a></p>
 {{if not .Cancelled}}
 <details class="danger">
-  <summary>Cancel this order</summary>
+  <summary>Review cancellation</summary>
   <form method="post" action="/finance/orders/{{.ID}}/cancel">
     <input type="hidden" name="csrf" value="{{$.CSRF}}">
-    <div class="field">
-      <span class="lab">Why is this order cancelled?</span>
-      <input class="inp" type="text" name="reason" autocomplete="off">
-    </div>
-    <button class="btn" type="submit">Cancel this order</button>
+    <button class="btn" type="submit">Review cancellation</button>
   </form>
 </details>
 {{end}}

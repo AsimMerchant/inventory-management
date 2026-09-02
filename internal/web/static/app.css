@@ -274,6 +274,12 @@ label.opt input{margin-right:.45rem}
 .sug div{cursor:pointer}
 details.add{margin-top:1.1rem}
 details.add summary{font-size:.85rem;font-weight:600;color:var(--ink-soft);cursor:pointer}
+.auth-section{border:1px solid var(--rule);border-radius:5px;padding:1rem;margin:0}
+.auth-section legend{font-weight:700;padding:0 .35rem}
+.screen{margin:1.5rem auto}
+.screen.narrow{max-width:26rem}
+.screen.wide{max-width:52rem}
+.inline-form{display:inline}
 
 /* The transaction journal on paper. Everything a person needs to read the
    figures stays; everything they cannot press on a printed page goes. */

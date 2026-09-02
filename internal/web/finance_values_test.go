@@ -205,13 +205,29 @@ func TestAdminRenamesMergesAndDeletesReusableTypos(t *testing.T) {
 	// Merge a duplicate wording into the one being kept.
 	online := valueIDByText(t, e, key, register.FinanceMode, "Online payment")
 	bank := valueIDByText(t, e, key, register.FinanceMode, "Bank transfer")
-	if status, body := admin.post(t, "/finance/lists/"+online+"/merge", url.Values{"target": {bank}}); status != 303 {
+	beforeConfirm := mustReadFile(t, e.path)
+	if status, body := admin.post(t, "/finance/lists/"+online+"/merge", url.Values{"target": {bank}}); status != 200 ||
+		!strings.Contains(body, "Combine Online payment into Bank transfer?") || !strings.Contains(body, "Yes, combine these values") {
+		t.Fatalf("merge confirmation=%d %s", status, body)
+	}
+	if string(beforeConfirm) != string(mustReadFile(t, e.path)) {
+		t.Fatal("first merge step changed the register")
+	}
+	if status, body := admin.post(t, "/finance/lists/"+online+"/merge", url.Values{"target": {bank}, "confirmedTarget": {bank}, "confirm": {"yes"}}); status != 303 {
 		t.Fatalf("merge=%d %s", status, body)
 	}
 
 	// Delete a typo nothing points at.
 	sharm := valueIDByText(t, e, key, register.FinanceParty, "Sharm Events")
-	if status, body := admin.post(t, "/finance/lists/"+sharm+"/delete", nil); status != 303 {
+	beforeConfirm = mustReadFile(t, e.path)
+	if status, body := admin.post(t, "/finance/lists/"+sharm+"/delete", nil); status != 200 ||
+		!strings.Contains(body, "Delete unused party “Sharm Events”?") || !strings.Contains(body, "Yes, delete this unused value") {
+		t.Fatalf("delete confirmation=%d %s", status, body)
+	}
+	if string(beforeConfirm) != string(mustReadFile(t, e.path)) {
+		t.Fatal("first delete step changed the register")
+	}
+	if status, body := admin.post(t, "/finance/lists/"+sharm+"/delete", url.Values{"confirm": {"yes"}}); status != 303 {
 		t.Fatalf("delete=%d %s", status, body)
 	}
 
@@ -257,7 +273,7 @@ func TestAdminRenamesMergesAndDeletesReusableTypos(t *testing.T) {
 	// A value something points at is never erased. Bank transfer is now a merge
 	// target, so it is in use even though no order names it.
 	before := mustReadFile(t, e.path)
-	status, body := admin.post(t, "/finance/lists/"+bank+"/delete", nil)
+	status, body := admin.post(t, "/finance/lists/"+bank+"/delete", url.Values{"confirm": {"yes"}})
 	if status != 200 {
 		t.Fatalf("used delete=%d", status)
 	}

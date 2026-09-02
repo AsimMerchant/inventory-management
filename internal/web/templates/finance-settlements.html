@@ -4,7 +4,7 @@
 <p>
   <a href="/finance/supplier-returns/new">Return rented goods</a> ·
   <a href="/finance/sales/new">Record a sale</a> ·
-  <a href="/finance/obligations">What suppliers are still owed</a>
+  <a href="/finance/obligations">Rented goods still to return</a>
 </p>
 {{if not .Rows}}<p>Nothing has gone back or been sold yet.</p>{{end}}
 <ul class="rows">
@@ -22,14 +22,10 @@
     {{if not .Voided}}
     <p class="actions"><a href="/finance/settlements/{{.Kind}}/{{.ID}}/edit">Fix this record</a></p>
     <details class="danger">
-      <summary>Void this record</summary>
+      <summary>Review voiding this stock movement</summary>
       <form method="post" action="/finance/settlements/{{.Kind}}/{{.ID}}/void">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
-        <div class="field">
-          <span class="lab">Why are you voiding this record?</span>
-          <input class="inp" type="text" name="reason" autocomplete="off">
-        </div>
-        <button class="btn" type="submit">Void this record</button>
+        <button class="btn" type="submit">Review voiding this stock movement</button>
       </form>
     </details>
     {{end}}

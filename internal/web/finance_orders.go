@@ -59,6 +59,11 @@ func (s *Server) readOrderDraft(r *http.Request) orderDraft {
 	}
 	d.Party.PickedID = r.FormValue("partyId")
 	d.Party.PickedText = register.CleanName(r.FormValue("partyName"))
+	if typed := register.CleanName(r.FormValue("partyNameNew")); typed != "" {
+		d.Party.PickedID, d.Party.PickedText = "", typed
+	} else if picked := r.FormValue("partyIdChoice"); picked != "" {
+		d.Party.PickedID, d.Party.PickedText = picked, ""
+	}
 
 	ids, names := r.Form["productId"], r.Form["productName"]
 	quantities, bases := r.Form["quantity"], r.Form["basis"]
@@ -76,11 +81,15 @@ func (s *Server) readOrderDraft(r *http.Request) orderDraft {
 		return ""
 	}
 	for i := 0; i < count; i++ {
+		basis := at(bases, i)
+		if indexed, ok := r.Form[rowField("basis", i)]; ok {
+			basis = at(indexed, 0)
+		}
 		d.Lines = append(d.Lines, orderLine{
 			ProductID:   at(ids, i),
 			ProductName: register.CleanName(at(names, i)),
 			Quantity:    strings.TrimSpace(at(quantities, i)),
-			Basis:       at(bases, i),
+			Basis:       basis,
 			LineID:      at(lineIDs, i),
 		})
 	}
@@ -524,8 +533,26 @@ func (s *Server) financeProductNew(w http.ResponseWriter, r *http.Request) {
 func (s *Server) financeOrderCancel(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	reason := register.CleanName(r.FormValue("reason"))
+	if r.FormValue("confirm") != "yes" {
+		if _, ok := s.draftFromOrder(r, id); !ok {
+			s.financeNotFound(w, r)
+			return
+		}
+		s.renderFinanceConfirm(w, r, financeConfirmData{
+			Heading: "Cancel this order?",
+			Warning: "The order will stay in the ledger. Existing payments, receipts and stock entries will not change. Record any refund separately.",
+			Action:  "/finance/orders/" + id + "/cancel", Button: "Yes, cancel this order",
+			AskReason: true, ReasonLabel: "Why is this order cancelled?", Reason: reason,
+		})
+		return
+	}
 	if reason == "" {
-		s.renderOrderDetail(w, r, id, "Say why this order is cancelled.")
+		s.renderFinanceConfirm(w, r, financeConfirmData{
+			Heading: "Cancel this order?",
+			Warning: "The order will stay in the ledger. Existing payments, receipts and stock entries will not change. Record any refund separately.",
+			Action:  "/finance/orders/" + id + "/cancel", Button: "Yes, cancel this order",
+			AskReason: true, ReasonLabel: "Why is this order cancelled?", Error: "Say why this order is cancelled.",
+		})
 		return
 	}
 	sess := financeSessionOf(r)

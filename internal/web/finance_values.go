@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"storeregister/internal/register"
@@ -172,10 +173,49 @@ func (s *Server) financeListAction(w http.ResponseWriter, r *http.Request) {
 	sess := financeSessionOf(r)
 	id := r.PathValue("id")
 	now := s.now()
+	action := r.PathValue("action")
+	if action == "merge" && r.FormValue("confirm") == "yes" && r.FormValue("confirmedTarget") != r.FormValue("target") {
+		r.Form.Set("confirm", "")
+	}
+	if (action == "merge" || action == "delete") && r.FormValue("confirm") != "yes" {
+		var source, target register.FinanceReusableValue
+		var sourceOK, targetOK bool
+		var sourceUsed bool
+		_ = s.st.ReadFinance(sess.vaultKey, func(f *register.FinanceData) {
+			source, sourceOK = register.FinanceValueByID(f, id)
+			sourceUsed = register.FinanceValueIsUsed(f, id) || financeValueIsMergeTarget(f, id)
+			if action == "merge" {
+				target, targetOK = register.FinanceValueByID(f, r.FormValue("target"))
+			}
+		})
+		if !sourceOK || source.MergedIntoID != "" || (action == "merge" && (!targetOK || target.MergedIntoID != "" || target.Kind != source.Kind || target.ID == source.ID)) {
+			s.renderLists(w, r, "Pick two different values from the same list.", "")
+			return
+		}
+		if action == "delete" && sourceUsed {
+			s.renderLists(w, r, register.ErrValueUsed.Error(), "")
+			return
+		}
+		if action == "merge" {
+			s.renderFinanceConfirm(w, r, financeConfirmData{
+				Heading: "Combine " + source.Value + " into " + target.Value + "?",
+				Warning: "Every financial record that currently shows " + source.Value + " will show " + target.Value + ". The activity history will keep both earlier names.",
+				Action:  "/finance/lists/" + id + "/merge", Button: "Yes, combine these values",
+				Target: target.ID, ConfirmedTarget: target.ID,
+			})
+			return
+		}
+		s.renderFinanceConfirm(w, r, financeConfirmData{
+			Heading: "Delete unused " + strings.ToLower(register.ValueKindLabel(source.Kind)) + " “" + source.Value + "”?",
+			Warning: "It will be removed from future suggestions. This is allowed only because no current financial record uses it.",
+			Action:  "/finance/lists/" + id + "/delete", Button: "Yes, delete this unused value",
+		})
+		return
+	}
 
 	var err error
 	var notice string
-	switch r.PathValue("action") {
+	switch action {
 	case "rename":
 		err = s.st.RenameFinanceValue(sess.vaultKey, sess.accountID, id, r.FormValue("value"), now)
 		notice = "Wording corrected."

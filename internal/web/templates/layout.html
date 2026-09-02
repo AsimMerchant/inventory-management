@@ -4,7 +4,7 @@
 <title>{{.Title}}</title>
 <link rel="stylesheet" href="/static/app.css">
 <div class="wrap">
-  <div class="screen" style="max-width:{{if .Narrow}}26rem{{else}}52rem{{end}};margin:1.5rem auto">
+  <div class="screen {{if .Narrow}}narrow{{else}}wide{{end}}">
     <div class="chrome">
       <span class="dot"></span> {{.Title}}
       {{if .OnDuty}}<a class="who" href="/shift">{{.OnDuty}} · on duty</a>{{end}}
@@ -26,7 +26,7 @@
       <a href="/finance/audit">Financial activity</a>
       {{if .FinanceAdmin}}<a href="/finance/accounts">Authorized people</a>
       <a href="/finance/lists">Reusable lists</a>{{end}}
-      <form method="post" action="/finance/logout" style="display:inline"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="btn ghost" type="submit">Logout</button></form>
+      <form class="inline-form" method="post" action="/finance/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="btn ghost" type="submit">Logout</button></form>
     </div>
     {{end}}
     {{if .Tabs}}

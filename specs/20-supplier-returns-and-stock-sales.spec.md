@@ -249,14 +249,31 @@ type FinanceSettlementRef struct {
 }
 ```
 
+The create/edit money form always contains an optional labelled selector `Related stock
+return or sale`, even when there are none (disabled choice `No returns or sales
+recorded yet`). Its choices are visible labels `Supplier return SRN-0001 — <quantity>
+<product> — <party>` and `Sale SAL-0001 — <quantity> <product> — <buyer>`; the user
+never types an ID. Selecting one stores the matching `FinanceSettlementRef`. This
+selector is required UI for recording deposit refunds and sale proceeds; selection is
+not mandatory for unrelated money.
+
 References must identify live or voided historical settlements and may coexist with an
 order/products. The journal displays `Supplier return SRN-0001` or `Sale SAL-0001`; it
 never combines their dates/amounts or implies simultaneous events.
 
+Movement correction may change these references. Insert `settlements` / `Related stock
+return or sale` immediately after `products` / `Related products` in spec 19's ordered
+movement-change fields; From/To uses the same visible choice labels joined by `; `, or
+`Blank`.
+
 #### Correction, void, history
 
 Settlement edit routes allow quantity, occurrence time, party, reference and remarks.
-Product is immutable; void and re-enter for a wrong product. Every edit reallocates from
+Product is immutable and rendered as a read-only labelled value, followed by `Wrong
+product? Void this entry, then record it again with the correct product.` It is never a
+disabled select or hidden editable field. A POST containing a different `productId`
+returns 200 with `The product cannot be changed here. Void this entry and record it
+again.` and no write. Every edit reallocates from
 scratch inside `UpdateFinance`, updates the paired public disposal, appends ordered
 `FinanceChange` rows and audit, and repeats both availability limits excluding its own
 current allocation. A party correction on supplier return must have eligible rented
@@ -268,6 +285,15 @@ Stock is restored. A voided settlement cannot be edited/voided again but stays i
 history. Product cascade is not a financial void and retains the live historical
 settlement plus its original actor/snapshot.
 
+Before voiding either settlement, show `Void this stock movement?` and `Stock will be
+put back into the store totals. This entry will stay in Stock returned or sold and in
+Financial activity.` For a supplier return append `Any linked money received will not
+change.`; for a sale append `Any linked sale proceeds will not change.` Button: `Yes,
+void this stock movement`. First step writes nothing; only reason+CSRF+`confirm=yes`
+mutates after rechecking allocation/pair state.
+The settlement list's first-step control is `Review voiding this stock movement` and
+contains no reason field; the reason is requested only after the consequence warning.
+
 Supplier-return change pairs in form order are `quantity`/`How many`,
 `returnedAt`/`Date and time returned`, `party`/`Supplier`, `reference`/`Reference`,
 `remarks`/`Remarks`; sale pairs are `quantity`/`How many`, `soldAt`/`Date and time sold`,
@@ -278,6 +304,13 @@ use their displayed value, and blank optionals render `Blank`.
 `GET /finance/settlements` lists supplier returns and sales newest physical time first,
 including corrected/void/product-deleted status. `GET /finance/obligations` lists actual
 supplier obligations. Both are protected for every financial user.
+
+`GET /finance/obligations` heading is `Rented goods still to return`. Intro:
+`Based only on goods actually received and supplier returns recorded here.` Columns are
+exactly `Supplier`, `Product`, `Received`, `Returned to supplier`, `Still to return`.
+Rows with `Remaining == 0` remain visible as completed history and render `All
+returned`; unmatched public supplier names remain visible under `Supplier` without an
+action until a protected party is deliberately added.
 
 `InventoryDisposal` never contributes a row to the ordinary `Who did what` log. That
 public log must not infer or render settlement kind, financial actor or void reason from
@@ -332,6 +365,10 @@ OnHand and source allocations are nonnegative and valid after restart.
 `TestDepositRefundHasNoStockEffect` — MoneyIn ₹5,000 Deposit refund linked to SRN-0001
 changes received/net totals only; creating/voiding supplier return changes stock only.
 
+`TestMoneyFormHasRequiredSettlementSelector` — create/edit forms render `Related stock
+return or sale`, labelled return/sale choices without typed IDs, selected refs persist;
+empty state is disabled, and leaving it blank remains valid for unrelated money.
+
 `TestSaleProceedsMayArriveInInstallments` — sale 50 Chairs, then MoneyIn ₹4,000 and
 ₹6,000 linked to SAL-0001 at different times; stock falls once by 50, journal has two
 payments and received total ₹10,000.
@@ -340,8 +377,20 @@ payments and received total ₹10,000.
 supplier/time/remarks; stock restores 20, sources/cap valid, old/new actor snapshots
 persist; forced failure rolls back public and protected halves.
 
+`TestSettlementEditShowsImmutableProductGuidance` — return and sale edit pages render
+the exact product as read-only text plus the wrong-product void/re-enter instruction;
+hand-built product changes receive the exact refusal with no write.
+
 `TestSettlementVoidRestoresStockButKeepsHistory` — void return/sale with reason; paired
 disposal becomes inactive, stock restores, protected row/audit/journal link remain.
+
+`TestSettlementVoidWarnsBeforeSecondConfirmation` — first step shows exact stock,
+history and linked-money consequences with byte-identical storage; only
+reason+CSRF+`confirm=yes` voids after save-time recheck.
+
+`TestSupplierObligationsUsePlainHeadingAndColumns` — exact heading, intro and five
+columns; zero rows say `All returned`, unmatched suppliers remain visible, and no order
+or money changes these figures.
 
 `TestInwardCorrectionCannotStrandDisposalAllocation` — reduce/delete an inward below a
 live allocated amount, or change its basis/supplier, gets exact refusal and no write;
@@ -375,7 +424,7 @@ refund/deposit movement changes nothing.
 ```text
 cd /home/asim/Projects/inventory-management
 go test ./internal/register/ -run 'TestOnHandSubtracts|TestSupplierReturn|TestSaleLimited|TestPhysicalSettlement|TestDepositRefund|TestSettlement|TestInwardCorrection|TestProductCascade|TestInventoryDisposal|TestSupplierObligation' -race -count=1 -v
-go test ./internal/web/ -run 'TestSupplierReturn|TestSale|TestDepositRefund|TestSettlement|TestInwardCorrection|TestProductCascade' -race -count=1 -v
+go test ./internal/web/ -run 'TestSupplierReturn|TestSupplierObligations|TestSale|TestDepositRefund|TestMoneyFormHasRequiredSettlement|TestSettlement|TestInwardCorrection|TestProductCascade' -race -count=1 -v
 go test ./... -race -count=1
 go vet ./...
 rg -n 'OnHand|AllocateSupplierReturn|AllocateStockSale|UpdateFinance' internal/web/finance_settlements.go

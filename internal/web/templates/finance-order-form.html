@@ -16,8 +16,8 @@
     </div>
     <div class="field">
       <span class="lab">Rent or purchase</span>
-      <label><input type="radio" name="basis" value="rent"{{if eq .Basis "rent"}} checked{{end}}> Rented</label>
-      <label><input type="radio" name="basis" value="purchase"{{if eq .Basis "purchase"}} checked{{end}}> Bought</label>
+      <label><input type="radio" name="basis-{{.Index}}" value="rent"{{if eq .Basis "rent"}} checked{{end}}> Rented</label>
+      <label><input type="radio" name="basis-{{.Index}}" value="purchase"{{if eq .Basis "purchase"}} checked{{end}}> Bought</label>
     </div>
     {{if .Locked}}<p class="note">This product is already used by a ledger entry.</p>{{end}}
     <button class="btn ghost" type="submit" formaction="/finance/product/new" name="line" value="{{.Index}}">Add the typed name as a brand-new product</button>

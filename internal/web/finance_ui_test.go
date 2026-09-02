@@ -41,6 +41,27 @@ func financeGET(t *testing.T, c *testClient, path string) (*http.Response, strin
 	return resp, string(body[:n])
 }
 
+// logoutIsAPostForm reports whether the page carries a form that posts to the
+// logout route and carries the session token. It reads the form's attributes
+// rather than a fixed string so a class or reordering cannot fake a failure.
+func logoutIsAPostForm(body string) bool {
+	for _, chunk := range strings.Split(body, "<form")[1:] {
+		form, _, ok := strings.Cut(chunk, "</form>")
+		if !ok {
+			continue
+		}
+		open, _, _ := strings.Cut(form, ">")
+		if !strings.Contains(open, `action="/finance/logout"`) {
+			continue
+		}
+		if !strings.Contains(strings.ToLower(open), `method="post"`) {
+			return false
+		}
+		return strings.Contains(form, `name="csrf"`)
+	}
+	return false
+}
+
 func TestFinancialRouteTableAndSecurityHeaders(t *testing.T) {
 	e := newTestServer(t, register.WalkthroughT0(), orderNow)
 	admin, _, _ := financeAdmin(t, e)
@@ -139,7 +160,9 @@ func TestEveryFinancialScreenHasProtectedNavigationAndLogout(t *testing.T) {
 				}
 			}
 			// Logout is a POST form with the session token, never a link.
-			if !strings.Contains(body, `<form method="post" action="/finance/logout"`) {
+			// Match the properties, not one byte sequence: attribute order and
+			// classes are presentation and may change.
+			if !logoutIsAPostForm(body) {
 				t.Errorf("%s: %s has no logout form", who, path)
 			}
 			if strings.Contains(body, `<a href="/finance/logout"`) {
@@ -215,7 +238,7 @@ func TestFinancialFormsWorkServerRenderedWithoutJavaScript(t *testing.T) {
 		t.Error("a supplier return needed script")
 	}
 	if status, _ := admin.post(t, "/finance/orders/"+orderID+"/cancel",
-		url.Values{"reason": {"Not needed"}}); status != 303 {
+		url.Values{"reason": {"Not needed"}, "confirm": {"yes"}}); status != 303 {
 		t.Error("a cancellation needed script")
 	}
 	// The date filter and the print view are plain GETs.
