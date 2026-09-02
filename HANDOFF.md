@@ -43,7 +43,7 @@ the resume artifact.** Keep it current after every committed slice.
 | 19 | 2. Recording money, single and batch | `f70d75d` | **Done.** 7 required tests pass. |
 | 19 | 3. Corrections and voids | `d6551ea` | **Done.** |
 | 19 | 4. Dashboard, journal, print view, financial activity | `d6551ea` | **Done.** All 13 required tests pass. |
-| 20 | 0. `Register.Disposals` and the new `OnHand` — **alone, as a regression canary** | — | Not started |
+| 20 | 0. `Register.Disposals` and the new `OnHand` — **alone, as a regression canary** | dcc56b8 | **Done.** Whole suite green with an empty slice. |
 | 20 | 1. Pairing validation across the public and protected halves | — | Not started |
 | 20 | 2. Allocation and supplier obligations | — | Not started |
 | 20 | 3. Supplier returns, sales, settlement and obligation screens | — | Not started |
@@ -88,6 +88,13 @@ real. Do not judge the feature by opening it before then.
   thing.
 - `FinanceOrderLine.ID` is unique across the whole vault, not within one order, so
   `NextID("OLN")` scans every line of every order.
+- **Adding a field to `Register` breaks three things at once**, and the canary commit is
+  how you find out cheaply: the golden `internal/store/testdata/walkthrough-t0.json` has
+  to be regenerated, `register.WalkthroughT0()` must set the new slice to empty or a
+  register in memory stops comparing equal to the same register read back off disk, and
+  `TestEmptyRegisterEncodesEmptyArrays` catches a nil slice encoding as `null` in a file
+  that is meant to be human-readable. Regenerate the golden file by running a throwaway
+  `main` inside the module (an external one cannot import `internal/`).
 - **`Store.Read` and `Store.ReadFinance` both take the same non-reentrant mutex.**
   Nesting them deadlocks the request with no error and no test failure — the run just
   hangs. Any screen needing the inventory record and the vault together must use

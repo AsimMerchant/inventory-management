@@ -43,6 +43,10 @@ func (r *Register) idsFor(prefix string) []string {
 		for _, re := range r.Returns {
 			ids = append(ids, re.ID)
 		}
+	case "DSP":
+		for _, d := range r.Disposals {
+			ids = append(ids, d.ID)
+		}
 	}
 	return ids
 }

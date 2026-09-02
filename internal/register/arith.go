@@ -84,9 +84,31 @@ func OutWithPeople(r *Register, productID string) int {
 	return issued - Returned(r, productID)
 }
 
+// LiveDisposals are the stock removals still in force.
+func LiveDisposals(r *Register) []InventoryDisposal {
+	out := []InventoryDisposal{}
+	for _, d := range r.Disposals {
+		if d.InactiveAt == nil {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// Disposed is how many of a product have left the store for good.
+func Disposed(r *Register, productID string) int {
+	total := 0
+	for _, d := range LiveDisposals(r) {
+		if d.ProductID == productID {
+			total += d.Quantity
+		}
+	}
+	return total
+}
+
 // OnHand is how many of a product are in the store.
 func OnHand(r *Register, productID string) int {
-	return CameIn(r, productID) - OutWithPeople(r, productID)
+	return CameIn(r, productID) - OutWithPeople(r, productID) - Disposed(r, productID)
 }
 
 // StockRow is one line of the stock table.

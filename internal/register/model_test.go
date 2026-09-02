@@ -99,12 +99,13 @@ func TestEmptyRegisterEncodesEmptyArrays(t *testing.T) {
 		Inwards:       []Inward{},
 		Issues:        []Issue{},
 		Returns:       []Return{},
+		Disposals:     []InventoryDisposal{},
 	}
 	b, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`"products": []`, `"staff": []`, `"inwards": []`, `"issues": []`, `"returns": []`} {
+	for _, want := range []string{`"products": []`, `"staff": []`, `"inwards": []`, `"issues": []`, `"returns": []`, `"disposals": []`} {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("encoded empty register missing %s\n%s", want, b)
 		}

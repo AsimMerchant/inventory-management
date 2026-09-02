@@ -255,6 +255,10 @@ func normalise(reg *register.Register) {
 	if reg.Returns == nil {
 		reg.Returns = []register.Return{}
 	}
+	// A schema-3 file written before disposals existed has no key for them.
+	if reg.Disposals == nil {
+		reg.Disposals = []register.InventoryDisposal{}
+	}
 }
 
 // deepCopy copies every slice into a fresh backing array, so an in-place edit of
@@ -288,6 +292,14 @@ func deepCopy(r *register.Register) *register.Register {
 		c.Returns[i].Allocations = append([]register.Allocation(nil), c.Returns[i].Allocations...)
 		c.Returns[i].Changes = copyChanges(c.Returns[i].Changes)
 		c.Returns[i].Deleted = copyDeletion(c.Returns[i].Deleted)
+	}
+	c.Disposals = append([]register.InventoryDisposal{}, r.Disposals...)
+	for i := range c.Disposals {
+		c.Disposals[i].Sources = append([]register.DisposalAllocation{}, r.Disposals[i].Sources...)
+		if r.Disposals[i].InactiveAt != nil {
+			t := *r.Disposals[i].InactiveAt
+			c.Disposals[i].InactiveAt = &t
+		}
 	}
 	if r.Finance != nil {
 		e := *r.Finance
