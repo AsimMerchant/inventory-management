@@ -103,6 +103,7 @@ Chromium via Playwright 1.62.1, discovered URL `http://127.0.0.1:8765`.
 | Step 14, file on disk after stopping the server | schema 3; products, inwards and disposals readable; `finance` holds only `vaultVersion`, `keySlots`, `recovery`, `nonce`, `ciphertext` |
 | Step 14, restart with nobody logged in | Tents **60**, Chairs **30** — correct after a supplier return, a sale and a void — and no finance menu anywhere |
 | Step 15, JavaScript disabled | **17 checks, 0 failures**: login, an existing-value payment through the selects, a brand-new purpose through `Or add a new one`, exact-time filter, print view and logout |
+| Step 12, cancel a paid undelivered order | **12 checks, 0 failures**: the two-step cancellation warns that payments will not change, the original ₹10,000.00 stays on the journal, the equal refund is its own incoming row, and Chairs stock is unchanged throughout |
 
 **Two names are in the public file, and both are deliberate.** Do not "fix" them:
 `inwards[].supplier` is ordinary inventory data the desk types, and
@@ -111,9 +112,13 @@ requires it when a product is created through the finance route. No money, mobil
 party list, settlement kind or record ID appears in plaintext. Everything else on the
 protected-value list was checked and is absent.
 
-**Still outstanding:** step 12 (cancel a paid, undelivered order and record the equal
-refund) was covered by handler tests but not driven in the browser; the idle-expiry
-boundary is deliberately left to the deterministic clock test as the spec directs.
+**Every step of the scenario has now been driven in a real browser.** The idle-expiry
+boundary is deliberately left to the deterministic clock test, as spec 21 step 13
+itself directs: the browser run must not claim a real-time idle test without waiting
+fifteen minutes.
+
+One more selector fact: the order detail's `Review cancellation` and the settlement
+list's void control both sit inside a `<details class="danger">` that starts closed.
 
 #### Browser acceptance: how to run it
 
