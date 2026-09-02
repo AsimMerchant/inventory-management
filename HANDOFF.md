@@ -39,8 +39,8 @@ the resume artifact.** Keep it current after every committed slice.
 | 18 | 2. Reusable values: typeahead, admin `/finance/lists` | `f162427` | **Done.** 3 required tests pass. |
 | 18 | 3. Orders: create, list, detail, `POST /finance/product/new` | `c484970` | **Done.** 6 required tests pass. |
 | 18 | 4. Order edit and cancel, the six-row `FinanceChange` table, suggestion ordering, docs | `b97023b` | **Done.** All 12 required tests pass. |
-| 19 | 1. Movement model, totals, journal filters, checked int64 money | `see git log` | **Done.** register-level tests pass. |
-| 19 | 2. Recording money, single and batch | — | Not started |
+| 19 | 1. Movement model, totals, journal filters, checked int64 money | `f7a831e` | **Done.** register-level tests pass. |
+| 19 | 2. Recording money, single and batch | `PENDING2` | **Done.** 7 required tests pass. |
 | 19 | 3. Corrections and voids | — | Not started |
 | 19 | 4. Dashboard, journal, print view, financial activity | — | Not started |
 | 20 | 0. `Register.Disposals` and the new `OnHand` — **alone, as a regression canary** | — | Not started |

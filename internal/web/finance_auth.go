@@ -70,6 +70,10 @@ func (s *Server) financeRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /finance/orders/{id}/edit", s.financeOrderEdit)
 	m.HandleFunc("POST /finance/orders/{id}/cancel", s.financeOrderCancel)
 	m.HandleFunc("POST /finance/product/new", s.financeProductNew)
+
+	// 19
+	m.HandleFunc("GET /finance/movements/new", s.financeMoneyNew)
+	m.HandleFunc("POST /finance/movements/new", s.financeMoneyNew)
 }
 
 func financeHeaders(w http.ResponseWriter) {

@@ -1,0 +1,61 @@
+<h1>{{.Heading}}</h1>
+{{if .Error}}<div class="banner bad">{{.Error}}</div>{{end}}
+{{if .Notice}}<div class="banner ok">{{.Notice}}</div>{{end}}
+<form method="post" action="{{.Action}}">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  {{range .Rows}}
+  <fieldset class="line">
+    <div class="field">
+      <span class="lab">Money paid or received</span>
+      <label><input type="radio" name="direction" value="out"{{if eq .Direction "out"}} checked{{end}}> Money paid</label>
+      <label><input type="radio" name="direction" value="in"{{if eq .Direction "in"}} checked{{end}}> Money received</label>
+    </div>
+    <div class="field">
+      <span class="lab">Amount (₹)</span>
+      <input class="inp" type="text" name="amount" value="{{.Amount}}" inputmode="decimal" autocomplete="off">
+    </div>
+    <div class="field">
+      <span class="lab">Date and time</span>
+      <input class="inp" type="datetime-local" name="occurredAt" value="{{.OccurredAt}}">
+    </div>
+    {{template "value-picker.html" .Party}}
+    {{template "value-picker.html" .Purpose}}
+    {{template "value-picker.html" .Mode}}
+    <div class="field">
+      <span class="lab">Related order</span>
+      <select class="inp" name="orderId">
+        <option value="">No order</option>
+        {{range .Orders}}<option value="{{.ID}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
+      </select>
+    </div>
+    {{if .Lines}}
+    <div class="field">
+      <span class="lab">Related products</span>
+      {{$row := .Index}}
+      {{range .Lines}}<label><input type="checkbox" name="lineIds-{{$row}}" value="{{.ID}}"{{if .Selected}} checked{{end}}> {{.Label}}</label>{{end}}
+      <p class="note">Choose none to cover the whole order.</p>
+    </div>
+    {{else}}
+    <div class="field">
+      <span class="lab">Related products</span>
+      {{$row := .Index}}
+      <select class="inp" name="productIds-{{$row}}" multiple size="4">
+        {{range .Products}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+      </select>
+    </div>
+    {{end}}
+    <div class="field">
+      <span class="lab">Reference</span>
+      <input class="inp" type="text" name="reference" value="{{.Reference}}" autocomplete="off">
+    </div>
+    <div class="field">
+      <span class="lab">Remarks</span>
+      <input class="inp" type="text" name="remarks" value="{{.Remarks}}" autocomplete="off">
+    </div>
+    {{if .Removable}}<button class="btn ghost" type="submit" name="removeRow" value="{{.Index}}">Take this amount off</button>{{end}}
+  </fieldset>
+  {{end}}
+  {{if not .Editing}}<button class="btn ghost" type="submit" name="addRow" value="yes">Add another amount</button>{{end}}
+  <button class="btn" type="submit">{{.Submit}}</button>
+</form>
+<script src="/static/value-picker.js"></script>
