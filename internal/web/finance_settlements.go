@@ -93,6 +93,7 @@ func (s *Server) fillSettlement(d *settlementDraft, r *http.Request) {
 			Label: "Product", Mode: mode, Endpoint: "/finance/api/products",
 			PickedID:  d.ProductID,
 			PartyFrom: `[data-values][data-kind="party"] [data-values-text]`,
+			CountInto: "[data-available]",
 		}
 		for _, p := range reg.Products {
 			if p.Deleted != nil {

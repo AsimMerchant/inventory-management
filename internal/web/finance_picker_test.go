@@ -379,3 +379,35 @@ func TestCorrectionCanTakeEveryProductOff(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestAvailabilityBoxIsKeptInStepWithThePicker is the defect the user found on
+// the sale screen: the product was chosen and correct, and "Available to sell"
+// sat there reading 0. The number is drawn by the server for whatever was
+// picked last, so choosing a product in the browser has to update it. The
+// picker carries the number on every row already; the box has to be told which
+// element to write it into.
+func TestAvailabilityBoxIsKeptInStepWithThePicker(t *testing.T) {
+	e := newTestServer(t, emptyStock(), orderNow)
+	admin, _, _ := financeAdmin(t, e)
+	barricades := newProduct(t, e, "Barricades")
+	receive(t, e, barricades, 427, "purchase", "Gupta Traders", "2026-09-03")
+
+	for _, path := range []string{"/finance/sales/new", "/finance/supplier-returns/new"} {
+		status, form := admin.get(t, path)
+		if status != 200 {
+			t.Fatalf("%s = %d", path, status)
+		}
+		if !strings.Contains(form, "<output class=\"inp\" data-available>") {
+			t.Errorf("%s: the availability box is not named, so nothing can fill it", path)
+		}
+		if !strings.Contains(form, `data-count-into="[data-available]"`) {
+			t.Errorf("%s: the picker is not told where to put the number", path)
+		}
+	}
+
+	// And the number the picker would write is the real one.
+	rows := suggestionsOf(t, admin, "mode=sale&q=Barr")
+	if len(rows) != 1 || rows[0].OnHand != 427 {
+		t.Fatalf("the sale picker offered %+v, want Barricades with 427", rows)
+	}
+}

@@ -273,8 +273,11 @@ type pickerData struct {
 	// area has no shift, so it asks its own session-gated route instead.
 	Endpoint string
 	// PartyFrom is a CSS selector for the field holding the supplier, when the
-	// list depends on one.
+	// list depends on one. CountInto is a CSS selector for an element showing
+	// how many may be returned or sold, which the picker keeps in step with
+	// whatever was just chosen.
 	PartyFrom string
+	CountInto string
 }
 
 // picker resolves a submitted productId against the list. A productId that

@@ -105,8 +105,38 @@ forms, and that assertion was proved by deleting the tags and watching both test
   server-drawn chip (which uses the `data-multi-off` delegation, not the listener on a
   tag the script just added) and replacing it with another.
 
+**Third pass — the availability box, found by the user on the sale screen**
+
+`Available to sell` read `0` beside a correctly chosen product with 427 available. The
+number is server-rendered from `d.Available`, which is worked out for whatever product
+was submitted, so choosing one in the browser never touched it. The old `<select>` had
+the same staleness; the type-to-find picker made it visible, because now the picker's
+own rows carry the right number while the box beside them says nothing.
+
+- `pickerData.CountInto` names an element (`[data-available]` on both settlement forms);
+  `picker.js` writes the chosen row's `onHand` into it.
+- Its neighbour, fixed at the same time: choosing a product for one supplier and then
+  changing the supplier left both the product and a confident wrong number on screen.
+  The server refuses such a save, so nothing could be corrupted, but the screen lied.
+  Changing the party now clears the product and the count. `value-picker.js` had to
+  announce itself for this — it sets `.value` directly, and firing `input` would trip
+  its own handler and blank the ID it had just set, so it dispatches a bubbling
+  `valuepicked` CustomEvent instead. `picker.js` listens for both.
+- `TestAvailabilityBoxIsKeptInStepWithThePicker` asserts the box is named and the picker
+  is pointed at it on both forms, and that the number the picker would write is real.
+- Browser: sale screen fills 427 and saves; switching between products updates it;
+  changing the supplier on a return clears both, whether the supplier is typed or
+  pressed from its list; `/inward/new` still picks products and still offers
+  `+ Add "Chai" as a brand-new product`, so the shared `value-picker.js` change did not
+  disturb the ordinary desk.
+
+**Mobile numbers, asked and answered:** `register.MobileKey` keeps only digits, so
+`98861 40023`, `9886140023`, `98861-40023` and `988 6140 023` are the same account.
+`+91 98861 40023` is not — the digits become `919886140023`. Verified by four real
+logins against a running binary.
+
 **Still to do before merge:** the wider "what else breaks at forty products rather than
-three" sweep the user asked about has not been run across every screen — only the two
+three" sweep the user asked about has not been run across every screen — only the
 controls named above.
 
 ### Deferred acquisition-basis follow-up — not in specs 17–21

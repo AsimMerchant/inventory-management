@@ -97,6 +97,10 @@
       if (i < 0 || i > rows.length - 1) return;
       text.value = rows[i].value;
       id.value = rows[i].id;
+      // Setting .value fires nothing, and an "input" event would trip this
+      // box's own handler and blank the ID again. Screens that depend on this
+      // value listen for this instead.
+      text.dispatchEvent(new CustomEvent('valuepicked', { bubbles: true }));
       hide();
     }
 

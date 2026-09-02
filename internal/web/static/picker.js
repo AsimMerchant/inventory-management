@@ -14,6 +14,27 @@
     // Extra context some lists need, such as which supplier the goods would
     // go back to. Read fresh on every keystroke: the person may change it.
     var partySel = box.getAttribute('data-party-from');
+    var countSel = box.getAttribute('data-count-into');
+    // A product chosen for one supplier means nothing under another, and the
+    // number beside it would be plainly wrong. Changing the supplier takes both
+    // back to empty rather than leaving a confident wrong answer on screen.
+    if (partySel) {
+      var party = document.querySelector(partySel);
+      if (party) {
+        var forget = function () {
+          if (!id.value && !text.value) return;
+          text.value = '';
+          id.value = '';
+          if (countSel) {
+            var out = document.querySelector(countSel);
+            if (out) out.textContent = '0';
+          }
+          hide();
+        };
+        party.addEventListener('input', forget);
+        party.addEventListener('valuepicked', forget);
+      }
+    }
     var newLabel = box.getAttribute('data-newlabel') || '';
     var rows = [];
     var here = -1;
@@ -100,6 +121,13 @@
       if (i < 0 || i > rows.length - 1) return;
       text.value = rows[i].name;
       id.value = rows[i].id;
+      // Some screens show the number beside the picker. The server drew it for
+      // whatever was picked last, so it has to be told when that changes, or it
+      // sits there reading 0 next to a product with plenty available.
+      if (countSel) {
+        var out = document.querySelector(countSel);
+        if (out) out.textContent = rows[i].onHand;
+      }
       hide();
     }
 
