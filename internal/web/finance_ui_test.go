@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -37,9 +38,14 @@ func financeGET(t *testing.T, c *testClient, path string) (*http.Response, strin
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	body := make([]byte, 1<<20)
-	n, _ := resp.Body.Read(body)
-	return resp, string(body[:n])
+	// io.ReadAll, not one Read into a buffer: a single Read is not guaranteed
+	// to fill it, so a large page could be silently truncated and quietly turn
+	// a presence assertion into one that can never fail.
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp, string(body)
 }
 
 // logoutIsAPostForm reports whether the page carries a form that posts to the
@@ -114,6 +120,13 @@ func TestFinancialRouteTableAndSecurityHeaders(t *testing.T) {
 		}
 		if !strings.Contains(body, "That financial record was not found.") {
 			t.Errorf("GET %s did not use the protected not-found wording", path)
+		}
+		// It is a protected page like any other, so it names who is looking.
+		if strings.Contains(body, `<span class="who"> ·  · </span>`) {
+			t.Errorf("GET %s shows an empty identity line", path)
+		}
+		if !strings.Contains(body, "Asha Mehta") {
+			t.Errorf("GET %s does not name the authenticated person", path)
 		}
 	}
 

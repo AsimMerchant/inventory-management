@@ -330,9 +330,12 @@ func auditWording(kind string) string {
 // found, and shows no neighbouring decrypted data.
 func (s *Server) financeNotFound(w http.ResponseWriter, r *http.Request) {
 	sess := financeSessionOf(r)
-	p := page{Title: "Not found", Tabs: false, Finance: true, CSRF: ""}
+	p := page{Title: "Not found", Tabs: false, Finance: true}
 	if sess != nil {
-		p.FinanceAdmin, p.CSRF = s.sessionIsAdmin(sess), sess.csrf
+		// The identity has to be filled in like any other protected page, or
+		// the chrome renders an empty " · · " where the person's name belongs.
+		p.FinanceWho, p.FinanceMobile, p.FinanceRole, p.FinanceAdmin = s.whoAmI(sess)
+		p.CSRF = sess.csrf
 	}
 	s.render(w, http.StatusNotFound, p, "finance-notfound.html", nil)
 }
