@@ -38,7 +38,7 @@ the resume artifact.** Keep it current after every committed slice.
 | 18 | 1. Order/value model, IDs, validation, rupee parser | `0b9cbb9` | **Done.** register-level tests pass. |
 | 18 | 2. Reusable values: typeahead, admin `/finance/lists` | `f162427` | **Done.** 3 required tests pass. |
 | 18 | 3. Orders: create, list, detail, `POST /finance/product/new` | `c484970` | **Done.** 6 required tests pass. |
-| 18 | 4. Order edit and cancel, the six-row `FinanceChange` table, suggestion ordering, docs | `4398d02` | **Done.** All 12 required tests pass. |
+| 18 | 4. Order edit and cancel, the six-row `FinanceChange` table, suggestion ordering, docs | `b97023b` | **Done.** All 12 required tests pass. |
 | 19–21 | Movements, supplier returns and sales, browser acceptance | — | Not started |
 
 Spec 17 arrived from the previous session mid-refactor and did not compile: the request
