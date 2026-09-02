@@ -68,7 +68,7 @@ the resume artifact.** Keep it current after every committed slice.
 | 20 | 4. Settlement edit/void, inward guards, product cascade | `47a1758` | **Done.** All 13 spec-20 web tests plus 6 register tests pass. |
 | 21 | 1. Protected navigation, route and header matrix | `9dcda6e` | **Done.** All 6 required tests pass. |
 | 21 | 2. Plain-language review, two-step confirmations, paired spec/test amendments | `643b159` | **Done.** 13 new contract tests; all 74 required tests across 17–21 exist and pass. |
-| 21 | 3. Browser acceptance run, release gate, docs | `PENDINGG` | **Done.** Scenario passed on a real binary; independent `release_gate` reports **READY**. |
+| 21 | 3. Browser acceptance run, release gate, docs | `6570dce` | **Done.** Scenario passed on a real binary; independent `release_gate` reports **READY**. |
 
 **Spec 21 makes two things blocking that spec 18 did not.** Its acceptance criterion 5
 requires an independent `plain_language_reviewer` with no blocking finding *and* an
