@@ -205,10 +205,49 @@ so there is nothing sellable matching "ch"), and "the date filter changed nothin
 the script clicking the last submit button on the page — a void form — instead of the
 filter form. Nothing was voided; the two-step guard held.
 
-**Still to do before merge:** nothing known. The sweep script is at
-`/tmp/claude-1000/sweep.js` and is worth rewriting into the repo as a real acceptance
-pass; it is the only check that looks at the layer where every defect in this branch
-lived.
+**Sixth pass — the user overrode the supplier rule outright**
+
+The fourth pass had the diagnosis wrong. Filtering the return list by supplier was not a
+usability wrinkle to soften; the rule underneath it was wrong. The user, in their own
+words: goods are handed to a transporter or to whoever is doing the rounds, and *that*
+person returns them to the vendor. The register was refusing something the store does
+every day.
+
+**Spec 20's "parent orchestration decision" is superseded and marked so in the spec.**
+The party on a supplier return records who took the goods and limits nothing.
+
+- `supplierReturnAvailable` ignores its `partyID` argument: the cap is the smaller of
+  what is physically here and what came in on rent for that product, whoever sent it.
+- `allocateSupplierReturn` spreads across the oldest rented receipts for the product,
+  `nil` aliases, same as the sale path already did for purchases.
+- New `register.SupplierSentRented` answers "how much of this did that party send on
+  rent" through renames and merges. It caps nothing; it exists only to narrow a list.
+- The picker offers everything that may leave the store. `pickerData.OnlyPartyLabel`
+  renders a tick, *Show only this supplier's goods*, which adds `onlyParty=yes` to the
+  request. The API applies the party filter only when that flag is present.
+- Refusal reworded: `Only 60 Round tables can be sent back.`
+
+Tests changed with the rule, not around it: `TestSupplierReturnAllocatesOldestEligible
+Inwards` now expects allocation across suppliers and its alias assertions moved to
+`SupplierSentRented`; `TestSupplierReturnRefusesMoreThanTheTwoCaps` now asserts that a
+party who sent nothing *may* take goods back; `TestSettlementProductIsTypedNotScrolled`
+asserts the list is identical before and after a supplier is named, and that the tick
+shortens it.
+
+Browser: Patel chosen, typing `c` gives 8 rows; ticking the box gives 3; unticking gives
+8 back. Chairs saved against Patel, who never sent a chair — `SRN-0007`.
+
+**Do not re-narrow this without asking.** Two passes were spent moving between filtered
+and unfiltered because the underlying rule was never questioned. It has been now, by the
+person who owns the decision.
+
+**Still to do before merge:** nothing known. Full gate green after the change
+(`-race` all packages, vet, PE32+), and the 14-screen sweep re-run clean. The sweep
+script is at `/tmp/claude-1000/sweep.js` and is worth rewriting into the repo as a real
+acceptance pass; it is the only check that looks at the layer where every defect in this
+branch lived. Its two standing hits are faults in the script, not the app: `mode=sale&
+q=ch` correctly returns nothing in this seed, and the journal-filter check clicks the
+wrong button (the filter works — 17 entries unfiltered, 1 for `day=2026-08-30`).
 
 ### Deferred acquisition-basis follow-up — not in specs 17–21
 
