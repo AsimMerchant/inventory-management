@@ -169,9 +169,46 @@ the browser, between fields, or in a missing script tag — none in a handler. T
 suite posts complete correct forms and cannot see any of it. Treat a green suite here as
 evidence about handlers only, and drive the screen.
 
-**Still to do before merge:** the wider "what else breaks at forty products rather than
-three" sweep the user asked about has not been run across every screen — only the
-controls named above.
+**Fifth pass — the ask-first button, and the sweep**
+
+The user spotted that `Show what can go back to this supplier` no longer had a job: the
+list stopped depending on the supplier, so there was nothing to ask for. Removed, along
+with the `refresh` branch in `settlementNew`. The `<noscript>` fallback now follows the
+same rule as the picker — everything physically in the store, labelled `on hand` until a
+supplier is named.
+
+That removal exposed a defect **introduced in this branch** that only a browser with
+JavaScript off can see. `picker.html` submits a hidden `productId` *and* a `<noscript>`
+select of the same name, so with no script both arrive and the empty hidden one is
+first. `readSettlementDraft` used `r.FormValue`, which takes the first, so every
+scriptless save was refused with "Pick the product from the list." while a product was
+plainly chosen. `formProductID` exists for exactly this and the settlement draft was not
+using it. Fixed, and covered by `TestSettlementReadsTheProductWithNoScript`, which posts
+`productId` twice the way a scriptless browser does.
+
+**The sweep, across all 14 protected screens at 40-product scale:**
+
+- Every screen returns 200, with no unrendered template output.
+- Every `data-picker`, `data-values` and `data-multi` box on every screen has its script
+  loaded — the check that would have caught the missing `picker.js` in one second.
+- Every product picker returns rows when typed into; every party/purpose/mode list does
+  too.
+- The money form's order dropdown lists the seeded orders and choosing one offers its
+  four products.
+- The journal's date filters work: 17 entries unfiltered, 1 for `day=2026-08-30`, 3 for
+  `from=to=2026-09-01`, 1 for a one-hour `fromTime`/`toTime` window.
+- No JavaScript errors anywhere in the pass.
+
+The sweep raised two hits, **both faults in the sweep script itself, not the app**:
+`mode=sale&q=ch` returning nothing is correct (in this seed Charcoal sacks is a rental,
+so there is nothing sellable matching "ch"), and "the date filter changed nothing" was
+the script clicking the last submit button on the page — a void form — instead of the
+filter form. Nothing was voided; the two-step guard held.
+
+**Still to do before merge:** nothing known. The sweep script is at
+`/tmp/claude-1000/sweep.js` and is worth rewriting into the repo as a real acceptance
+pass; it is the only check that looks at the layer where every defect in this branch
+lived.
 
 ### Deferred acquisition-basis follow-up — not in specs 17–21
 

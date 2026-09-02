@@ -37,8 +37,11 @@ type settlementDraft struct {
 func (s *Server) readSettlementDraft(r *http.Request, kind string) settlementDraft {
 	_ = r.ParseForm()
 	d := settlementDraft{
-		Kind:      kind,
-		ProductID: r.FormValue("productId"),
+		Kind: kind,
+		// formProductID, not FormValue: the picker submits a hidden field and
+		// its <noscript> fallback submits a select of the same name, so with no
+		// script both arrive and the empty one is first.
+		ProductID: formProductID(r),
 		Quantity:  strings.TrimSpace(r.FormValue("quantity")),
 		At:        strings.TrimSpace(r.FormValue("at")),
 		Reference: register.CleanName(r.FormValue("reference")),
@@ -104,23 +107,31 @@ func (s *Server) fillSettlement(d *settlementDraft, r *http.Request) {
 			if p.Deleted != nil {
 				continue
 			}
-			available := 0
+			available, word := 0, "available"
 			switch {
 			case d.Kind == "sale":
 				available = register.PurchasedAvailableToSellExcluding(reg, f, p.ID, d.ID)
+				if available <= 0 && p.ID != d.ProductID {
+					continue
+				}
 			case partyID != "":
 				available = register.SupplierReturnAvailableExcluding(reg, f, partyID, p.ID, d.ID)
 			case d.Party.PickedText != "":
 				// Typed but not on the protected list yet: the goods may still
 				// be here under that name on the inwards.
 				available = register.SupplierReturnAvailableByName(reg, f, d.Party.PickedText, p.ID)
+			default:
+				// No supplier named. The list is what is in the store, the same
+				// as the picker shows, so the two fields can be filled in
+				// either order.
+				available, word = register.OnHand(reg, p.ID), "on hand"
 			}
-			if available <= 0 && p.ID != d.ProductID {
+			if d.Kind != "sale" && register.OnHand(reg, p.ID) <= 0 && p.ID != d.ProductID {
 				continue
 			}
 			row := suggestion{
 				ID: p.ID, Name: p.Name, OnHand: available,
-				Label: p.Name + " — " + strconv.Itoa(available) + " available",
+				Label: p.Name + " — " + strconv.Itoa(available) + " " + word,
 			}
 			// These same rows are the picker's no-script fallback.
 			d.Picker.Products = append(d.Picker.Products, row)
@@ -188,13 +199,6 @@ func (s *Server) settlementNew(w http.ResponseWriter, r *http.Request, kind stri
 	d := s.readSettlementDraft(r, kind)
 	sess := financeSessionOf(r)
 	now := s.now()
-
-	// Asking which products can go back to this supplier is not saving
-	// anything: redraw the form with the list filled in.
-	if r.FormValue("refresh") != "" {
-		s.renderSettlement(w, r, d)
-		return
-	}
 
 	quantity, at, productName, refusal := s.settlementFields(r, &d)
 	if refusal != "" {

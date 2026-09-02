@@ -459,3 +459,42 @@ func TestSaleProductSurvivesChoosingTheBuyer(t *testing.T) {
 		t.Errorf("naming a buyer changed the sale list: %v", names(rows))
 	}
 }
+
+// TestSettlementReadsTheProductWithNoScript covers a defect only a browser with
+// JavaScript switched off can see. The picker submits a hidden productId and
+// its <noscript> fallback submits a <select> of the same name, so with no
+// script both arrive and the empty hidden one is first. r.FormValue takes the
+// first, so the screen refused every save with "Pick the product from the
+// list." while a product was plainly chosen on it. formProductID exists for
+// exactly this and the settlement draft was not using it.
+func TestSettlementReadsTheProductWithNoScript(t *testing.T) {
+	e := newTestServer(t, emptyStock(), orderNow)
+	admin, _, _ := financeAdmin(t, e)
+	tables := productIDNamed(t, e, "Round tables")
+	receive(t, e, tables, 100, "rent", "Sharma Events", "2026-09-03")
+
+	// Exactly what a scriptless browser sends: the empty hidden field, then the
+	// fallback select's real answer.
+	status, body := admin.post(t, "/finance/supplier-returns/new", url.Values{
+		"partyName": {"Sharma Events"},
+		"productId": {"", tables},
+		"quantity":  {"40"}, "at": {"2026-09-06T10:00"},
+	})
+	if status != 303 {
+		t.Fatalf("the return = %d: %s", status, body)
+	}
+	if got := stockOf(t, e, tables); got != 60 {
+		t.Errorf("stock is %d, want 60", got)
+	}
+
+	// And a genuinely empty answer is still refused, rather than the fix
+	// silently accepting anything.
+	status, body = admin.post(t, "/finance/supplier-returns/new", url.Values{
+		"partyName": {"Sharma Events"},
+		"productId": {"", ""},
+		"quantity":  {"10"}, "at": {"2026-09-06T10:00"},
+	})
+	if status != 200 || !strings.Contains(body, "Pick the product from the list.") {
+		t.Errorf("naming no product = %d, and did not refuse: %s", status, body)
+	}
+}

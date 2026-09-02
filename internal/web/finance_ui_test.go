@@ -528,10 +528,14 @@ func TestFinanceProductPickerWorksWithNoInventoryShift(t *testing.T) {
 
 // TestSupplierReturnListsProductsAfterChoosingSupplier covers a defect the
 // handler suite missed because its tests post the supplier and the product in
-// one request. On the real screen the product list is rendered from the server
-// and depends on which supplier the goods came from, so choosing a supplier in
-// the browser cannot fill it in. Without a server-rendered step to ask for that
-// list, the screen could never be completed at all.
+// one request. On the real screen the product list has to be reachable before
+// anything is posted, or the screen can never be completed at all.
+//
+// It first needed a button to ask the server what could go back to a supplier,
+// because the list was filtered by supplier. That filtering forced people to
+// fill the form in one order and threw their work away when they used the
+// other, so the list is now everything physically in the store and the supplier
+// only changes the number. The button went with it: there is nothing to ask.
 func TestSupplierReturnListsProductsAfterChoosingSupplier(t *testing.T) {
 	e := newTestServer(t, emptyStock(), orderNow)
 	admin, key, _ := financeAdmin(t, e)
@@ -539,36 +543,29 @@ func TestSupplierReturnListsProductsAfterChoosingSupplier(t *testing.T) {
 	receive(t, e, tables, 100, "rent", "Sharma Events", "2026-09-03")
 	_ = key
 
-	// Opening the form with no supplier chosen offers no product yet.
+	// Opening the form with no supplier chosen already offers the product, so
+	// the two fields can be filled in either order.
+	before := mustReadFile(t, e.path)
 	status, body := admin.get(t, "/finance/supplier-returns/new")
 	if status != 200 {
 		t.Fatalf("the form = %d", status)
 	}
-	if !strings.Contains(body, "Show what can go back to this supplier") {
-		t.Fatal("the form offers no way to ask what can go back")
-	}
-
-	// Asking for the list names the supplier and writes nothing.
-	before := mustReadFile(t, e.path)
-	status, body = admin.post(t, "/finance/supplier-returns/new", url.Values{
-		"partyName": {"Sharma Events"}, "refresh": {"yes"},
-	})
-	if status != 200 {
-		t.Fatalf("asking for the list = %d", status)
+	if strings.Contains(body, "Show what can go back to this supplier") {
+		t.Error("the form still makes people ask for a list before they can choose")
 	}
 	if !strings.Contains(body, "Round tables") {
-		t.Errorf("the list does not offer Round tables: %s", body)
+		t.Errorf("the form offers no product before a supplier is named: %s", body)
 	}
 	if !strings.Contains(body, `value="`+tables+`"`) {
 		t.Error("the product cannot be picked from the list")
 	}
 	if string(mustReadFile(t, e.path)) != string(before) {
-		t.Error("asking what can go back wrote to the register")
+		t.Error("opening the form wrote to the register")
 	}
-	// And it did not create the supplier as a side effect of asking.
+	// And nothing was created as a side effect of drawing the page.
 	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
 		if len(register.LiveFinanceValues(f, register.FinanceParty)) != 0 {
-			t.Error("asking what can go back created a party")
+			t.Error("drawing the form created a party")
 		}
 	}); err != nil {
 		t.Fatal(err)
