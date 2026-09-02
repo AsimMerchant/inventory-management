@@ -68,6 +68,20 @@ goods unreturnable. The user hit it himself — cooking vessels ticked `PURCHASE
 appear on *Return rented goods*. A third option does not fix a wrong tick on its own, so
 whether a recorded basis can be corrected afterwards is still worth putting to him.
 
+**Goods of a typed kind appear on both settlement screens.** Answered by the user on
+3 September 2026. Rent stays exclusive to *Return rented goods* and Purchase exclusive to
+*Record a sale*, but every typed kind — donated, sponsored, borrowed — is offered on
+both. A borrowed thing may well go back; a donated thing may well be sold; the program
+has no business deciding which and should offer the person both doors.
+
+So the lists become Rent plus every typed kind for a return, and Purchase plus every
+typed kind for a sale. Both draw on the same physical stock, so fifty donated chairs sold
+are fifty that can no longer be sent back — which is already how the on-hand cap behaves
+and is right, because the goods left the store either way.
+
+Worth raising with him when this is built, not now: *Return rented goods* stops being an
+accurate name for a screen that also sends back borrowed and donated things.
+
 **Money is still real when the goods are free.** His words: goods may be donated while
 the labour for delivery is still payable. The kind describes how the goods arrived; it
 says nothing about whether money moved. The screen must allow a money entry against
@@ -76,9 +90,6 @@ quantity with no agreed amount at all.
 
 **Open, and explicitly his call, not to be assumed:**
 
-- Can a product of a typed kind such as `donated` be sent back or sold? Today only Rent
-  reaches *Return rented goods* and only Purchase reaches *Record a sale*. Donated goods
-  are plausibly neither, but that is a product decision.
 - Can a delivery's basis be corrected after it is recorded? A third radio stops the
   desk being forced into a wrong answer, but does nothing for the wrong ones already in
   a file.
