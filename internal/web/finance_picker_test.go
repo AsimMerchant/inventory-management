@@ -115,22 +115,32 @@ func TestSettlementProductIsTypedNotScrolled(t *testing.T) {
 		if !strings.Contains(strings.ToLower(r.Name), "ch") {
 			t.Errorf("%q does not match ch", r.Name)
 		}
-		if r.Name == "Chandeliers" {
-			t.Error("a product from another supplier is offered")
-		}
 		if !strings.Contains(r.Label, strconv.Itoa(r.OnHand)+" available") {
 			t.Errorf("the row for %q does not say how many may go back: %q", r.Name, r.Label)
 		}
+		// The supplier narrows the number, not the list. Another supplier's
+		// goods are still shown, honestly, as nothing available.
+		if r.Name == "Chandeliers" && r.OnHand != 0 {
+			t.Errorf("Chandeliers came from somebody else but offers %d", r.OnHand)
+		}
 	}
-	// Names starting with the query come first: Chairs before Cooking vessels.
+	// Names starting with the query come first: Chafing dishes before the rest.
 	got := names(rows)
 	if got[0] != "Chafing dishes" {
 		t.Errorf("the closest match is not first: %v", got)
 	}
 
-	// Naming no supplier offers nothing, rather than offering everything.
-	if rows := suggestionsOf(t, admin, "mode=return&q=ch"); len(rows) != 0 {
-		t.Errorf("products were offered before a supplier was chosen: %v", names(rows))
+	// Before a supplier is named, the list is what is physically in the store,
+	// so the two fields can be filled in either order. Filtering the products by
+	// supplier forced one order and threw away work when people used the other.
+	early := suggestionsOf(t, admin, "mode=return&q=ch")
+	if len(early) == 0 {
+		t.Error("no product could be chosen before naming a supplier")
+	}
+	for _, r := range early {
+		if !strings.Contains(r.Label, strconv.Itoa(r.OnHand)+" on hand") {
+			t.Errorf("with no supplier named, %q reads %q, want an on-hand count", r.Name, r.Label)
+		}
 	}
 
 	// And the screen still saves.
@@ -409,5 +419,43 @@ func TestAvailabilityBoxIsKeptInStepWithThePicker(t *testing.T) {
 	rows := suggestionsOf(t, admin, "mode=sale&q=Barr")
 	if len(rows) != 1 || rows[0].OnHand != 427 {
 		t.Fatalf("the sale picker offered %+v, want Barricades with 427", rows)
+	}
+}
+
+// TestSaleProductSurvivesChoosingTheBuyer is the user's report: filling the
+// product first and the party second wiped the product out. What may be sold
+// does not depend on who is buying — only a supplier return does — so the sale
+// screen must not tie the two fields together at all.
+func TestSaleProductSurvivesChoosingTheBuyer(t *testing.T) {
+	e := newTestServer(t, emptyStock(), orderNow)
+	admin, _, _ := financeAdmin(t, e)
+
+	_, sale := admin.get(t, "/finance/sales/new")
+	if strings.Contains(sale, "data-party-from=") {
+		t.Error("the sale screen ties the product to the buyer, so naming the buyer clears it")
+	}
+	if strings.Contains(sale, "data-wait=") {
+		t.Error("the sale screen tells people to name a party first, which is not true")
+	}
+
+	// The return screen is the opposite: the list genuinely depends on the
+	// supplier, so it says which field to fill in first rather than finding
+	// nothing and looking broken.
+	_, ret := admin.get(t, "/finance/supplier-returns/new")
+	if !strings.Contains(ret, "data-party-from=") {
+		t.Error("the return screen does not know which supplier the list depends on")
+	}
+	if strings.Contains(ret, "data-wait=") {
+		t.Error("the return screen still tells people which field to fill first")
+	}
+
+	// And the server agrees: a sale ignores the party, a return does not.
+	bought := newProduct(t, e, "Steel thalis")
+	receive(t, e, bought, 500, "purchase", "Patel Caterers Supply", "2026-09-03")
+	if rows := suggestionsOf(t, admin, "mode=sale&q=Steel"); len(rows) != 1 {
+		t.Errorf("the sale list with no buyer named offered %v, want Steel thalis", names(rows))
+	}
+	if rows := suggestionsOf(t, admin, "mode=sale&party=Anybody+At+All&q=Steel"); len(rows) != 1 {
+		t.Errorf("naming a buyer changed the sale list: %v", names(rows))
 	}
 }

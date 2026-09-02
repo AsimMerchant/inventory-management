@@ -15,24 +15,20 @@
     // go back to. Read fresh on every keystroke: the person may change it.
     var partySel = box.getAttribute('data-party-from');
     var countSel = box.getAttribute('data-count-into');
-    // A product chosen for one supplier means nothing under another, and the
-    // number beside it would be plainly wrong. Changing the supplier takes both
-    // back to empty rather than leaving a confident wrong answer on screen.
+    // What may go back depends on the supplier, so changing the supplier can
+    // change the number beside a product that is already chosen. Ask the server
+    // again rather than assuming: most of the time the product is still fine
+    // and only the number moves. Clearing somebody's work is for the case where
+    // the goods genuinely did not come from this supplier.
     if (partySel) {
       var party = document.querySelector(partySel);
       if (party) {
-        var forget = function () {
-          if (!id.value && !text.value) return;
-          text.value = '';
-          id.value = '';
-          if (countSel) {
-            var out = document.querySelector(countSel);
-            if (out) out.textContent = '0';
-          }
-          hide();
-        };
-        party.addEventListener('input', forget);
-        party.addEventListener('valuepicked', forget);
+        // Not on every keystroke: half-typed supplier names match nothing, and
+        // rechecking against one would throw the product away while the person
+        // is still typing. Only a finished answer counts — pressed from the
+        // list, or the field left alone.
+        party.addEventListener('valuepicked', recheck);
+        party.addEventListener('change', recheck);
       }
     }
     var newLabel = box.getAttribute('data-newlabel') || '';
@@ -71,6 +67,33 @@
       req.send();
     }
 
+    // recheck re-asks with the supplier that is on screen now, because how many
+    // may go back depends on who they came from. It only ever moves the number.
+    // The product the person chose is theirs, and stays.
+    function recheck() {
+      if (!id.value || partyMissing()) return;
+      var chosen = id.value;
+      var req = new XMLHttpRequest();
+      var el = document.querySelector(partySel);
+      var extra = el && el.value ? '&party=' + encodeURIComponent(el.value) : '';
+      req.open('GET', endpoint + '?mode=' + mode + '&q=' + encodeURIComponent(text.value) + extra);
+      req.onload = function () {
+        if (req.status !== 200) return;
+        var found = JSON.parse(req.responseText);
+        for (var i = 0; i < found.length; i++) {
+          if (found[i].id === chosen) { setCount(found[i].onHand); return; }
+        }
+        setCount(0);
+      };
+      req.send();
+    }
+
+    function setCount(n) {
+      if (!countSel) return;
+      var out = document.querySelector(countSel);
+      if (out) out.textContent = n;
+    }
+
     function draw(found, q) {
       rows = found;
       here = found.length ? 0 : -1;
@@ -79,6 +102,12 @@
       if (newLabel && q.trim() !== '') list.appendChild(newRow(q.trim()));
       list.hidden = !list.firstChild;
       paint();
+    }
+
+    function partyMissing() {
+      if (!partySel) return false;
+      var el = document.querySelector(partySel);
+      return !el || !el.value.trim();
     }
 
     function row(found, i) {
@@ -124,10 +153,7 @@
       // Some screens show the number beside the picker. The server drew it for
       // whatever was picked last, so it has to be told when that changes, or it
       // sits there reading 0 next to a product with plenty available.
-      if (countSel) {
-        var out = document.querySelector(countSel);
-        if (out) out.textContent = rows[i].onHand;
-      }
+      setCount(rows[i].onHand);
       hide();
     }
 

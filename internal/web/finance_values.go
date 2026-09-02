@@ -97,9 +97,15 @@ func (s *Server) financeAPIProducts(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-// settlementSuggestions lists what may still go back to one supplier, or what
-// may still be sold, matched the same way the product picker matches anywhere
-// else: names starting with the query first, then the rest, capped at eight.
+// settlementSuggestions lists what may still be sent back or sold, matched the
+// same way the product picker matches anywhere else: names starting with the
+// query first, then the rest, capped at eight.
+//
+// The supplier narrows the number, never the list. Filtering the products by
+// supplier forced people to fill the form in one particular order and threw
+// their work away when they did not, which is a worse problem than showing a
+// product whose number happens to be zero. A sale ignores the party entirely:
+// who is buying has no bearing on what may be sold.
 func settlementSuggestions(reg *register.Register, f *register.FinanceData, mode, party, query string) []suggestion {
 	partyID := ""
 	if v, ok := register.ResolveFinanceValue(f, party); ok {
@@ -110,24 +116,47 @@ func settlementSuggestions(reg *register.Register, f *register.FinanceData, mode
 		if p.Deleted != nil {
 			continue
 		}
-		available := 0
+		if mode == "sale" {
+			available := register.PurchasedAvailableToSell(reg, f, p.ID)
+			if available <= 0 {
+				continue
+			}
+			rows = append(rows, suggestion{
+				ID: p.ID, Name: p.Name, OnHand: available,
+				Label: p.Name + " — " + strconv.Itoa(available) + " available",
+			})
+			continue
+		}
+
+		// A return. Nothing that is not physically here can go anywhere, so
+		// that is the only thing that removes a product from the list.
+		if register.OnHand(reg, p.ID) <= 0 {
+			continue
+		}
 		switch {
-		case mode == "sale":
-			available = register.PurchasedAvailableToSell(reg, f, p.ID)
 		case partyID != "":
-			available = register.SupplierReturnAvailable(reg, f, partyID, p.ID)
+			available := register.SupplierReturnAvailable(reg, f, partyID, p.ID)
+			rows = append(rows, suggestion{
+				ID: p.ID, Name: p.Name, OnHand: available,
+				Label: p.Name + " — " + strconv.Itoa(available) + " available",
+			})
 		case party != "":
 			// The supplier may be on the inwards but not on the protected list
 			// yet, which is normal: the desk types it, finance has not used it.
-			available = register.SupplierReturnAvailableByName(reg, f, party, p.ID)
+			available := register.SupplierReturnAvailableByName(reg, f, party, p.ID)
+			rows = append(rows, suggestion{
+				ID: p.ID, Name: p.Name, OnHand: available,
+				Label: p.Name + " — " + strconv.Itoa(available) + " available",
+			})
+		default:
+			// No supplier named yet. Say what is in the store, and let naming
+			// the supplier fill in how many of those may go back to them.
+			onHand := register.OnHand(reg, p.ID)
+			rows = append(rows, suggestion{
+				ID: p.ID, Name: p.Name, OnHand: onHand,
+				Label: p.Name + " — " + strconv.Itoa(onHand) + " on hand",
+			})
 		}
-		if available <= 0 {
-			continue
-		}
-		rows = append(rows, suggestion{
-			ID: p.ID, Name: p.Name, OnHand: available,
-			Label: p.Name + " — " + strconv.Itoa(available) + " available",
-		})
 	}
 	rows = matchByName(rows, query)
 	if len(rows) > maxSuggestions {

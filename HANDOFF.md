@@ -135,6 +135,40 @@ own rows carry the right number while the box beside them says nothing.
 `+91 98861 40023` is not — the digits become `919886140023`. Verified by four real
 logins against a running binary.
 
+**Fourth pass — the supplier stops filtering the product list**
+
+The user filled the sale form product-first and watched the product vanish when they
+named the buyer. Two faults behind one symptom:
+
+1. *Mine.* I wired `PartyFrom` on the sale form out of habit. A sale's product list does
+   not depend on who is buying — `settlementSuggestions` ignores the party for
+   `mode=sale` — so the clearing was pure damage. The sale form no longer sets it.
+2. *The design.* Filtering the return list by supplier forced one filling order and
+   discarded work when anybody used the other. The spec calls this a "parent
+   orchestration decision", not a user decision. The user was asked and said they were
+   too confused to choose, so the call was made for them and stated plainly.
+
+**The rule now: the supplier narrows the number, never the list.** A return offers every
+product physically in the store. With no supplier named the row reads `— 155 on hand`;
+naming one turns it into `— 150 available`, including `— 0 available` for goods that
+supplier never sent. Nothing is ever removed from the form, and `Store.RecordSettlement`
+still refuses at save: `Only 0 Chafing dishes can be returned to this supplier.`
+
+Removed with it: `pickerData.WaitFor`, the `data-wait` attribute, the hint row and its
+`.sug .wait` CSS, and the clearing branch of `recheck` — which now only ever moves the
+number. `value-picker.js` still dispatches `valuepicked`, because the number genuinely
+does depend on the supplier and has to follow it.
+
+Browser, both orders and the refusal: product-then-supplier saved `SRN-0003`;
+supplier-then-product still narrows to `Chafing dishes — 150 available`; a supplier who
+never sent the goods keeps the product on screen, shows `0`, and refuses on save.
+
+**Note for whoever picks this up.** Six defects surfaced in this branch's life, three
+already in released `v1.2.1` and three introduced while fixing those. Every one lived in
+the browser, between fields, or in a missing script tag — none in a handler. The Go
+suite posts complete correct forms and cannot see any of it. Treat a green suite here as
+evidence about handlers only, and drive the screen.
+
 **Still to do before merge:** the wider "what else breaks at forty products rather than
 three" sweep the user asked about has not been run across every screen — only the
 controls named above.

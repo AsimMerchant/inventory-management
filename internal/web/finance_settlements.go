@@ -92,8 +92,13 @@ func (s *Server) fillSettlement(d *settlementDraft, r *http.Request) {
 		d.Picker = pickerData{
 			Label: "Product", Mode: mode, Endpoint: "/finance/api/products",
 			PickedID:  d.ProductID,
-			PartyFrom: `[data-values][data-kind="party"] [data-values-text]`,
 			CountInto: "[data-available]",
+		}
+		// What may go back depends on which supplier sent it. What may be sold
+		// does not depend on who is buying, so the sale screen must not tie the
+		// two together: it would throw away a product the buyer never affected.
+		if d.Kind != "sale" {
+			d.Picker.PartyFrom = `[data-values][data-kind="party"] [data-values-text]`
 		}
 		for _, p := range reg.Products {
 			if p.Deleted != nil {
