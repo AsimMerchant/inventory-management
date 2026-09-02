@@ -1,0 +1,32 @@
+<h1>Order</h1>
+{{if .Error}}<div class="banner bad">{{.Error}}</div>{{end}}
+{{if .Notice}}<div class="banner ok">{{.Notice}}</div>{{end}}
+{{with .Order}}
+<p><strong>{{.Party}}</strong>{{if .Cancelled}} · Cancelled{{end}}</p>
+<ul class="lines">
+  {{range .Lines}}<li>{{.Quantity}} {{.Product}} — {{.Basis}}{{if .NowCalled}} <span class="note">{{.NowCalled}}</span>{{end}}</li>{{end}}
+</ul>
+{{if .Total}}<p>{{.TotalLabel}} {{.Total}}</p>{{end}}
+{{if .Remarks}}<p>Remarks: {{.Remarks}}</p>{{end}}
+<p class="note">Ordered {{longstamp .OrderedAt}} · recorded by {{.CreatedBy}} on {{longstamp .CreatedAt}}</p>
+{{if .Changes}}
+<h2>What changed</h2>
+<ul class="changes">
+  {{range .Changes}}<li>{{.Label}}: {{.From}} → {{.To}} · {{.ByName}} · {{longstamp .At}}</li>{{end}}
+</ul>
+{{end}}
+<p><a href="/finance/orders/{{.ID}}/edit">Fix this order</a></p>
+{{if not .Cancelled}}
+<details class="danger">
+  <summary>Cancel this order</summary>
+  <form method="post" action="/finance/orders/{{.ID}}/cancel">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <div class="field">
+      <span class="lab">Why is this order cancelled?</span>
+      <input class="inp" type="text" name="reason" autocomplete="off">
+    </div>
+    <button class="btn" type="submit">Cancel this order</button>
+  </form>
+</details>
+{{end}}
+{{end}}

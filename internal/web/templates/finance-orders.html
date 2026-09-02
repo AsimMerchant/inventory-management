@@ -1,0 +1,16 @@
+<h1>Orders</h1>
+<p><a href="/finance/orders/new">Record an order</a></p>
+{{if not .Orders}}<p>No orders recorded yet.</p>{{end}}
+<ul class="orders">
+  {{range .Orders}}
+  <li>
+    <a href="/finance/orders/{{.ID}}">
+      <strong>{{.Party}}</strong>
+      {{if .Cancelled}}<span class="note">Cancelled</span>{{end}}
+      <div>{{range .Lines}}<span>{{.Quantity}} {{.Product}} — {{.Basis}}</span> {{end}}</div>
+      {{if .Total}}<div>{{.TotalLabel}} {{.Total}}</div>{{end}}
+      <div class="note">{{longstamp .OrderedAt}}</div>
+    </a>
+  </li>
+  {{end}}
+</ul>

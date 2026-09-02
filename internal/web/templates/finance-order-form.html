@@ -1,0 +1,45 @@
+<h1>{{.Heading}}</h1>
+{{if .Error}}<div class="banner bad">{{.Error}}</div>{{end}}
+{{if .Notice}}<div class="banner ok">{{.Notice}}</div>{{end}}
+<form method="post" action="{{.Action}}">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  {{template "value-picker.html" .Party}}
+
+  <h2>Products ordered</h2>
+  {{range .Lines}}
+  <fieldset class="line">
+    {{template "picker.html" .Picker}}
+    <div class="field">
+      <span class="lab">Expected quantity</span>
+      <input class="inp" type="number" name="quantity" min="1" value="{{.Quantity}}" inputmode="numeric">
+    </div>
+    <div class="field">
+      <span class="lab">Rent or purchase</span>
+      <label><input type="radio" name="basis" value="rent"{{if eq .Basis "rent"}} checked{{end}}> Rented</label>
+      <label><input type="radio" name="basis" value="purchase"{{if eq .Basis "purchase"}} checked{{end}}> Bought</label>
+    </div>
+    {{if .Locked}}<p class="note">This product is already used by a ledger entry.</p>{{end}}
+    <button class="btn ghost" type="submit" formaction="/finance/product/new" name="line" value="{{.Index}}">Add the typed name as a brand-new product</button>
+    {{if and .Removable (not .Locked)}}<button class="btn ghost" type="submit" name="removeLine" value="{{.Index}}">Take this product off the order</button>{{end}}
+  </fieldset>
+  {{end}}
+  <button class="btn ghost" type="submit" name="addLine" value="yes">Add another product</button>
+
+  <div class="field">
+    <span class="lab">Order date and time</span>
+    <input class="inp" type="datetime-local" name="orderedAt" value="{{.OrderedAt}}">
+  </div>
+  <div class="field">
+    <span class="lab">Agreed total</span>
+    <input class="inp" type="text" name="agreedTotal" value="{{.Agreed}}" inputmode="decimal" autocomplete="off">
+    <label><input type="radio" name="agreedKind" value="estimated"{{if eq .AgreedKind "estimated"}} checked{{end}}> Estimate</label>
+    <label><input type="radio" name="agreedKind" value="exact"{{if eq .AgreedKind "exact"}} checked{{end}}> Exact</label>
+  </div>
+  <div class="field">
+    <span class="lab">Remarks</span>
+    <input class="inp" type="text" name="remarks" value="{{.Remarks}}" autocomplete="off">
+  </div>
+  <button class="btn" type="submit">{{.Submit}}</button>
+</form>
+<script src="/static/picker.js"></script>
+<script src="/static/value-picker.js"></script>

@@ -62,6 +62,11 @@ func (s *Server) financeRoutes(m *http.ServeMux) {
 	m.HandleFunc("GET /finance/api/values", s.financeAPIValues)
 	m.HandleFunc("GET /finance/lists", s.financeLists)
 	m.HandleFunc("POST /finance/lists/{id}/{action}", s.financeListAction)
+	m.HandleFunc("GET /finance/orders", s.financeOrders)
+	m.HandleFunc("GET /finance/orders/new", s.financeOrderNew)
+	m.HandleFunc("POST /finance/orders/new", s.financeOrderNew)
+	m.HandleFunc("GET /finance/orders/{id}", s.financeOrderDetail)
+	m.HandleFunc("POST /finance/product/new", s.financeProductNew)
 }
 
 func financeHeaders(w http.ResponseWriter) {
