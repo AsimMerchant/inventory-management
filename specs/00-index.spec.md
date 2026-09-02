@@ -30,6 +30,11 @@ Each spec depends only on the ones above it.
 | 14 | `14-global-controls-and-log-product-picker.spec.md` | Dashboard/change-person controls everywhere; working select-only product autocomplete on the log | one focused day |
 | 15 | `15-product-rename-and-cascading-delete.spec.md` | Rename products; atomically tombstone a product and every related entry while retaining audit history | one focused day |
 | 16 | `16-issue-challan-and-return-search.spec.md` | Optional reusable issue challans; correction/log audit and partial challan search for returns | one focused day |
+| 17 | `17-protected-finance-vault-and-accounts.spec.md` | Schema-3 encrypted vault, individual accounts, admin setup/recovery, sessions and authorization | more than one focused day |
+| 18 | `18-financial-orders-and-reusable-values.spec.md` | Multi-product orders and mandatory reusable party/purpose/mode suggestions | one focused day |
+| 19 | `19-money-movements-audit-and-journal.spec.md` | Exact incoming/outgoing money, audited corrections/voids, filtered printable journal | more than one focused day |
+| 20 | `20-supplier-returns-and-stock-sales.spec.md` | Physical supplier returns/sales, pooled-stock limits and public neutral stock projection | more than one focused day |
+| 21 | `21-financial-ui-browser-acceptance.spec.md` | Protected UI integration, no-script path and real-browser/restart release acceptance | one focused day |
 
 Spec 01 must be built first: it contains the fixture that every other spec's test cases
 are written against. A test that says "at T1, 890 chairs are on hand" is meaningless
@@ -50,7 +55,12 @@ storeregister/
                                12-activity-log, 13-multi-person-issue,
                                14-global-controls-and-log-product-picker,
                                15-product-rename-and-cascading-delete,
-                               16-issue-challan-and-return-search
+                               16-issue-challan-and-return-search,
+                               17-protected-finance-vault-and-accounts,
+                               18-financial-orders-and-reusable-values,
+                               19-money-movements-audit-and-journal,
+                               20-supplier-returns-and-stock-sales,
+                               21-financial-ui-browser-acceptance
 ```
 
 **The chrome bar has five tabs**, in this order: `Stock`, `Out with people`,
@@ -77,15 +87,16 @@ number the whole register exists to produce, and nobody notices until the count 
 already wrong. Where the two rules disagree, speed at the desk wins for people and
 correctness wins for products.
 
-**Nobody logs in.** There is no password, no PIN, no authentication and no permission
-anywhere in the program. Tapping a name on the shift screen puts that name on the
-entries made afterwards; that is attribution, not security. Any spec, screen or field
-implying otherwise is a defect — see `05-shift-and-people.spec.md`, whose acceptance
-criteria grep the whole tree for the word.
+**Ordinary inventory staff do not log in.** Through v1.1.1 there was no authentication
+anywhere. Specs 17–21 intentionally supersede that whole-program prohibition only for
+the protected financial area: inventory still uses the on-duty name without a password,
+while individual financial accounts use mobile/password and server-enforced roles.
 
-**The store's job ends when the stock is back in the store.** Getting rented goods back
-to the people who own them is somebody else's work, done outside this software. Nothing
-in here tracks a debt, a settlement or a rupee.
+**Inventory work and financial work stay separate.** Specs 01–16 intentionally ended
+when stock came back to the store. The user's 2 September 2026 decision supersedes that
+release boundary: authorized people now record orders, money, supplier returns and sales
+under specs 17–21. Ordinary staff still see none of those financial records and continue
+using the same three desk events.
 
 ## Conventions binding on every spec
 
@@ -123,8 +134,9 @@ Every spec assumes these and none of them may be traded away:
 - Over-issue and over-return are refused.
 - A short return cannot be saved without a disposition and a remark.
 - Short items stay outstanding against the person. Nothing is ever written off.
-- There is no settlement, no payment, no money and no supplier debt anywhere in the
-  program.
+- Ordinary inventory routes contain no settlement, payment, amount or protected supplier
+  data. Specs 17–21 permit them only in the encrypted, authenticated financial area; a
+  neutral public disposal projection changes stock without exposing why or to whom.
 - A wrong entry can be corrected or deleted, never silently: every correction keeps what
   it used to say, who changed it and when, and a deleted record stays in the file as a
   tombstone that counts towards nothing.
@@ -141,9 +153,11 @@ Every spec assumes these and none of them may be traded away:
   nothing is physically erased and the activity log remains complete.
 - An issue challan is optional free text, may be reused across products and recipient
   groups, and is never an internal ID or an allocation key.
-- `v1.1.1` writes schema 2. It reads schema 1 without writing during open, migrates in
-  memory, and writes schema 2 on the next successful atomic save. This prevents older
-  executables from silently discarding product tombstones or issue challans.
+- `v1.1.1` writes schema 2. The financial feature writes schema 3, reads schema 1/2
+  without writing during open, migrates in memory, and writes schema 3 on the next
+  successful atomic save. Before deployment, back up the JSON and remove every older
+  executable: a schema-2 binary can otherwise fall back to a schema-2 backup and later
+  overwrite schema-3 fields.
 
 ## `v1.1.1` release group
 
@@ -152,6 +166,15 @@ Spec 13's multi-recipient feature was already released in `v1.0.1`; these specs 
 it but do not rebuild or reinterpret its one-quantity semantics. The combined release
 is not ready until every spec's unit/race/vet/Windows checks and spec 16's real-browser
 acceptance scenario pass, followed by an independent `release_gate` result of `READY`.
+
+## Financial ledger release group
+
+Specs 17–21 ship together on `feature/financial-ledger`; no version number has been
+chosen. The group is incomplete until encryption/auth/order/money/settlement tests, the
+normal and no-script Browser-skill scenario, restart/raw-file inspection, plain-language
+review and independent `release_gate` all pass. This group explicitly supersedes the
+old whole-tree authentication/money/supplier-return prohibitions; it does not weaken
+their no-leak equivalents for ordinary routes.
 
 ## Whole-build verification
 
@@ -162,15 +185,28 @@ go vet ./...
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /tmp/register.exe .
 go list -deps ./... | grep -v '^storeregister' | grep -v '^vendor/' | grep -v '^crypto/internal' | grep '\.'   # must print nothing
 grep -rn --include='*.go' --exclude='*_test.go' '0\.0\.0\.0' .   # must print nothing
-grep -rniE --include='*.go' --include='*.html' --exclude='*_test.go' 'still owed|given back|settle' main.go internal/   # nothing
-grep -rniE --include='*.go' --include='*.html' --include='*.js' --exclude='*_test.go' 'password|login|authenticate' main.go internal/   # nothing
+rg -n 'https?://' internal/web/templates internal/web/static   # must print nothing
+rg -n 'profit|loss|cash balance|accounts payable|\bdebit\b|\bcredit\b' internal/web --glob '*.go' --glob '*.html' --exclude '*_test.go'   # must print nothing
+rg -n 'FinanceData|MoneyMovement|FinanceAccount|"amountPaise"|"purposeId"|"modeId"' store-register.json 2>/dev/null   # must print nothing against a generated data file
 ```
 
 ## Open questions
 
-The spec-writer raised 26. The orchestrator settled 23; the user settled the remaining
-three. Nothing is outstanding — everything below is a **normative decision**, listed so
-no spec and no implementer re-opens it.
+For specs 01–16, the spec-writer raised 26, the orchestrator settled 23 and the user
+settled the remaining three. Those historical items below are **normative decisions**,
+listed so no implementer re-opens them. Specs 17–21 add the explicitly gathered
+financial-release items in the next table; none blocks implementation under the stated
+default/limitation.
+
+| Financial spec | Open item / current rule |
+|---|---|
+| 17 | Fifteen-minute idle expiry and eight-character password minimum are engineering defaults because no exact values were chosen. |
+| 17 | Encryption protects casual file inspection/app access, not a compromised Windows administrator account or malware. |
+| 19 | INR only; no currency conversion was requested. |
+| 20 | Pooled stock cannot prove physical supplier/basis identity; authorized users choose the action and both attribution/global caps are enforced. |
+| 20 | A blank/unmatched ordinary inward supplier cannot fund a supplier return until that inward is corrected. Protected suggestions do not leak to solve it. |
+| 21 | The release version number is not chosen. |
+| 21 | Real Windows launch/path/Edge-print behavior remains a final Windows 11 check after Linux browser acceptance and Windows cross-build. |
 
 ### Settled by the user
 

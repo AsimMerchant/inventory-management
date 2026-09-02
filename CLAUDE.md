@@ -83,6 +83,16 @@ screen would make someone remember something, that is a design bug, not a wordin
 
 ## State as of 1 September 2026
 
+### Work begun 2 September 2026
+
+The user commissioned a protected financial ledger on branch
+`feature/financial-ledger`. This deliberately supersedes the historical prohibitions
+on authentication, money and supplier-return workflows inside the new authorized
+area; the ordinary inventory screens retain their existing no-login workflow and
+must expose no financial data. Reviewed specifications 17–21 govern the new work. See the
+active-work section of `HANDOFF.md` and `.agent-handoff/latest.md` for the current
+requirements and verification state.
+
 Specs 01–12 shipped as `v1.0.0`. Spec 13, one issue naming multiple joint recipients,
 shipped as `v1.0.1` and went to the stakeholders. Their feedback became specs 14, 15 and
 16, released together as **`v1.1.1`**: `Dashboard` and `Change person` on every screen

@@ -97,12 +97,14 @@ type LoadResult struct {
 
 `Open` tries in order:
 
-1. Read `store-register.json`. If it reads and `json.Unmarshal` succeeds and
-   `SchemaVersion == 1`, that is the register. `Source = Main`.
+1. Read `store-register.json`. If it reads, `json.Unmarshal` succeeds and the schema is
+   supported, that is the register. Specs 15 and 17 supersede the original
+   version-1-only rule: versions 1 and 2 migrate in memory to 3 without an open-time
+   write; version 3 loads unchanged. `Source = Main`.
 2. Otherwise read `store-register.json.bak` under the same rules. On success,
    `Source = Backup` and `Warning` is set (wording in Open, below).
 3. Otherwise, if **neither file exists**, return an empty register seeded per
-   `05-shift-and-people.spec.md` with `SchemaVersion: 1` and empty slices.
+   `05-shift-and-people.spec.md` with `SchemaVersion: 3` and empty public slices.
    `Source = Fresh`.
 4. Otherwise — a file exists but neither it nor the backup can be parsed — return an
    error. The program must not start, must not overwrite anything, and must print the
@@ -161,11 +163,12 @@ The stray `.tmp` must not be read and must not cause an error.
 `Open` returns a non-nil error; both files are still on disk byte-for-byte unchanged
 afterwards.
 
-`TestFreshDirectoryStartsEmpty` — empty temp dir. `Source == Fresh`, `SchemaVersion == 1`,
+`TestFreshDirectoryStartsEmpty` — empty temp dir. `Source == Fresh`, `SchemaVersion == 3`,
 `len(Products) == 0`, and no file is written until the first `Update`.
 
-`TestWrongSchemaVersionRefused` — main file with `"schemaVersion": 2` and a valid `.bak`
-at version 1 falls back to the backup with a warning; with no `.bak`, `Open` errors.
+`TestWrongSchemaVersionRefused` — main file with `"schemaVersion": 4` and a valid `.bak`
+at version 3 falls back to the backup with a warning; with no `.bak`, `Open` errors.
+Schema 1 and 2 are separately proved readable/migrated by specs 15/17 and are not wrong.
 
 `TestUpdateErrorWritesNothing` — save T0; call `Update` with a function that appends
 `ISS-0008` (10 chairs to Ravi Menon) and then returns

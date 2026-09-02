@@ -12,7 +12,9 @@ Read these sources in order:
 2. `CLAUDE.md` for product decisions and working agreements. Its final historical
    status paragraph is stale; Git and `HANDOFF.md` describe the current build.
 3. `design/store-register.html` for approved screens and wording.
-4. `specs/00-index.spec.md`, followed by the numbered spec for the task.
+4. `specs/00-index.spec.md`, followed by the numbered spec for the task. Financial
+   work starts at spec 17 and intentionally supersedes the earlier whole-program
+   prohibitions only where those specs say so.
 5. `.agent-handoff/latest.md` when continuing an interrupted agent session, but
    verify every claim against the working tree because the packet may be stale.
 
@@ -26,14 +28,18 @@ conflict.
 - `CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /tmp/register.exe .`
   must succeed.
 - Bind only to `127.0.0.1`, never `0.0.0.0` or an unspecified interface.
-- Keep all state in the human-readable file beside the executable.
+- Keep all state in the file beside the executable. Inventory data stays
+  human-readable; financial data is an authenticated encrypted envelope under specs
+  17–21 and must never appear there as plaintext.
 - Preserve the atomic save sequence and `.bak` recovery. Treat data loss as the
   worst possible failure.
 - `internal/web` must not implement stock arithmetic. `internal/register` and
   `internal/store` must not import `net/http`.
 - Product names are selected, never free-typed. People may be duplicated.
 - Refuse over-issue and over-return. Corrections must never leave impossible stock.
-- No authentication, money, settlement, or supplier-return workflow.
+- Ordinary inventory work has no authentication and exposes no money. Authentication,
+  money, settlement and supplier returns exist only inside the protected financial
+  area defined by specs 17–21.
 - Never require the person at the desk to remember a quantity or identifier.
 
 ## Working discipline
@@ -78,4 +84,3 @@ in the same worktree concurrently. After implementation, use
 the build is claimed complete, and do not replace its independent checks with the
 implementer's report. The primary agent owns integration and reviews every agent's
 result before reporting to the user.
-

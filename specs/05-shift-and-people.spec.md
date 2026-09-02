@@ -179,9 +179,11 @@ even when the request body supplies `personInchargeName=Somebody Else`.
 ## Acceptance criteria
 
 1. `go test ./internal/web/ -run TestShift -count=1` and `-run 'TestStart|TestAdd|TestFresh|TestEveryFlow|TestOnDuty|TestNoPassword'` pass.
-2. **Nobody logs in.** `grep -rniE 'password|passcode|\bpin\b|login|log in|sign in|authenticate|permission|role' --include=*.go --include=*.html --include=*.js . `
-   returns nothing across the whole tree. The shift screen puts a name on entries; that
-   is the entirety of the security model.
+2. **Nobody logs in for inventory work.** Specs 17–21 supersede the old whole-tree
+   no-login grep for the protected financial area only. The rendered `/shift` page has no
+   password/PIN field, `internal/web/shift.go` has no finance session/role guard, and a
+   person can start a desk shift without a financial account. `Authorized login` in the
+   shared chrome is the sole permitted login wording on this public page.
 3. `grep -rn --include=*.go --exclude=*_test.go 'Suresh Kumar' internal/web/ main.go`
    returns nothing — the walkthrough's names exist only in
    `internal/register/fixture.go` and in test files, never in shipped handler or
@@ -196,6 +198,7 @@ even when the request body supplies `personInchargeName=Somebody Else`.
 cd /home/asim/Projects/inventory-management
 go test ./internal/web/ -count=1 -v
 grep -rn --include=*.go --exclude=*_test.go 'Suresh Kumar' internal/web/ main.go   # nothing
+rg -n 'type="password"|name="password"|financeSession|FinanceRole' internal/web/templates/shift.html internal/web/shift.go   # must print nothing
 ```
 
 ## Open

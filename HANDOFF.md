@@ -1,5 +1,35 @@
 # Handoff
 
+## Active work — financial ledger (started 2 September 2026)
+
+Work is in progress on branch `feature/financial-ledger`, based on released `v1.1.1`
+commit `f619ab7`. No Go implementation existed at the initial checkpoint. The clean
+baseline was independently reproduced on this branch with `go test ./... -race
+-count=1`, `go vet ./...`, and the cgo-disabled Windows amd64 build; all passed.
+
+The user has explicitly superseded the old "no authentication, money or supplier
+return" product decisions for a protected financial area only. Ordinary inventory
+work remains unauthenticated and must reveal no financial content. A neutral
+`Authorized login` leads to individual mobile-number/password accounts; the first
+account is administrator, administrators authorize later accounts, and financial
+menus appear only after server-enforced login. Financial records require encryption,
+audited corrections/voids, recovery, and atomic persistence.
+
+Agreed ledger scope includes multi-product rent/purchase orders; optional estimated
+or exact agreed totals; independently timed outgoing payments and incoming refunds or
+sale proceeds; reusable typeahead values for supplier/payee, purpose and payment mode;
+admin rename/merge and safe typo deletion; partial physical receipt through the
+unchanged inward flow; deposit refunds; physical rented-goods returns to suppliers;
+sales of purchased stock; and a protected printable transaction journal filtered by
+day, inclusive date range, or exact local date/time range. Money movements and
+physical settlement movements are separate because they may occur at different
+times. The reviewed contracts are specs 17–21: protected vault/accounts, orders and
+reusable values, money/audit/printable journal, supplier returns and sales, and the
+integrated browser acceptance gate. No Go implementation existed when this
+specification checkpoint was completed.
+
+Continuation details are also kept in `.agent-handoff/latest.md` after each milestone.
+
 You are picking up a build in progress. This file tells you what exists, what is left,
 how to check the work is sound, and which mistakes are easy to make here.
 
