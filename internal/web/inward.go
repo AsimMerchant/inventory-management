@@ -66,7 +66,7 @@ func (s *Server) inwardNew(w http.ResponseWriter, r *http.Request) {
 	if added := q.Get("added"); added != "" {
 		b = &banner{"ok", added + " added to the product list."}
 	}
-	s.renderInward(w, r, data, b)
+	s.renderInward(w, data, b)
 }
 
 // inwardForm builds the page from a picked product and a typed quantity.
@@ -118,8 +118,8 @@ func suppliersUsed(reg *register.Register) []string {
 	return names
 }
 
-func (s *Server) renderInward(w http.ResponseWriter, r *http.Request, data inwardData, b *banner) {
-	p := s.page("Stuff came in", r)
+func (s *Server) renderInward(w http.ResponseWriter, data inwardData, b *banner) {
+	p := s.page("Stuff came in")
 	p.Tabs = false
 	p.add(b)
 	s.render(w, http.StatusOK, p, "inward.html", data)
@@ -143,7 +143,7 @@ func (s *Server) inwardSave(w http.ResponseWriter, r *http.Request) {
 	data.ChallanNo = challanNo
 
 	refuse := func(text string) {
-		s.renderInward(w, r, data, &banner{"bad", text})
+		s.renderInward(w, data, &banner{"bad", text})
 	}
 
 	// A name typed into the box but never picked off the list arrives here as an

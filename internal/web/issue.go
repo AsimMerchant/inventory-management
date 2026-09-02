@@ -49,17 +49,17 @@ func (s *Server) issueNew(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		_ = r.ParseForm()
 		if r.FormValue("addPerson") != "" || r.FormValue("removePerson") != "" {
-			s.render(w, http.StatusOK, s.issuePage(r), "issue.html", s.issueForm(r))
+			s.render(w, http.StatusOK, s.issuePage(), "issue.html", s.issueForm(r))
 			return
 		}
 		s.issueSave(w, r)
 		return
 	}
-	s.render(w, http.StatusOK, s.issuePage(r), "issue.html", s.issueForm(r))
+	s.render(w, http.StatusOK, s.issuePage(), "issue.html", s.issueForm(r))
 }
 
-func (s *Server) issuePage(r *http.Request) page {
-	p := s.page("Someone is taking", r)
+func (s *Server) issuePage() page {
+	p := s.page("Someone is taking")
 	p.Tabs = false
 	return p
 }
@@ -230,7 +230,7 @@ func (s *Server) issueSave(w http.ResponseWriter, r *http.Request) {
 	data := s.issueForm(r)
 
 	refuse := func(text string) {
-		p := s.issuePage(r)
+		p := s.issuePage()
 		p.add(&banner{"bad", text})
 		s.render(w, http.StatusOK, p, "issue.html", data)
 	}

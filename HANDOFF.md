@@ -148,6 +148,18 @@ Selector facts learned the hard way, all of which cost a run each:
 
 #### Traps this build has already hit
 
+- **The finance session cookie is `Path=/`, so it rides every ordinary request too.**
+  The shared page helper saw it and rendered the protected navigation *and a live
+  session CSRF token* onto `/stock`, `/log` and the rest — pages served with no
+  `no-store`, no content policy and no frame protection, because the header regime is
+  gated on the `/finance` prefix. It also produced a stray `<span class="who"> · · </span>`
+  because the identity fields were never filled in on that path. Ordinary pages now
+  carry no protected chrome at all, which is what spec 21 says public chrome is.
+  **Any test asserting what an ordinary page does *not* show must use an authenticated
+  client**: the two that named this contract used an anonymous one, so the branch never
+  fired and they passed throughout. The independent release gate found it, not the
+  suite.
+
 - **A screen can be impossible to use while every handler test passes.** The supplier
   return form renders its product list from the server, and that list depends on which
   supplier the goods came from. Choosing a supplier in the browser cannot refill it, so

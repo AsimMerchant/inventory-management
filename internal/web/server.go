@@ -134,23 +134,23 @@ func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	s.render(w, http.StatusNotFound, s.page("Store Register", r), "notfound.html", nil)
+	s.render(w, http.StatusNotFound, s.page("Store Register"), "notfound.html", nil)
 }
 
 // page is the shell as every handler starts with it: title, on-duty name, tabs on.
-func (s *Server) page(title string, request ...*http.Request) page {
+func (s *Server) page(title string) page {
 	p := page{Title: title, Tabs: true}
 	s.st.Read(func(reg *register.Register) {
 		if who, ok := s.onDuty(reg); ok {
 			p.OnDuty = who.Name
 		}
 	})
-	if len(request) != 0 {
-		if sess, _ := s.authenticatedFinanceSession(request[0]); sess != nil {
-			p.Finance = true
-			p.FinanceAdmin = s.sessionIsAdmin(sess)
-			p.CSRF = sess.csrf
-		}
-	}
+	// Ordinary pages never carry the protected group, even to somebody who is
+	// logged in to the financial area. Spec 21 fixes the public chrome as the
+	// inventory controls plus Authorized login and nothing else, and these
+	// responses are outside the finance header regime: putting a live session
+	// token on a page served without no-store or a content policy would leave
+	// it somewhere it is not protected. The financial pages build their own
+	// shell in financePage.
 	return p
 }

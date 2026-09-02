@@ -117,18 +117,38 @@ func TestFinancialRouteTableAndSecurityHeaders(t *testing.T) {
 		}
 	}
 
-	// No ordinary response gains protected navigation.
-	for _, path := range []string{"/stock", "/out", "/inwards", "/suppliers", "/log", "/shift"} {
-		_, body := e.get(path)
-		for _, item := range financeNav {
-			if item.Label == "Financial ledger" || item.Label == "Orders" {
-				if strings.Contains(body, `href="`+item.Path+`"`) {
-					t.Errorf("%s links to the protected %s", path, item.Path)
+	// No ordinary response gains protected navigation — and this has to be
+	// checked while logged in. The session cookie has Path=/, so it rides
+	// every ordinary request too; an anonymous client cannot see the leak.
+	ordinary := []string{"/stock", "/out", "/inwards", "/suppliers", "/log", "/shift"}
+	for _, path := range ordinary {
+		for who, get := range map[string]func() string{
+			"a stranger":                 func() string { _, body := e.get(path); return body },
+			"a logged-in financial user": func() string { _, body := admin.get(t, path); return body },
+		} {
+			body := get()
+			for _, item := range financeNav {
+				if strings.Contains(body, `href="`+item.Path+`"`) && item.Path != "/finance/login" {
+					t.Errorf("%s shows %s the protected %s link", path, who, item.Path)
 				}
 			}
-		}
-		if !strings.Contains(body, "Authorized login") {
-			t.Errorf("%s has no Authorized login link", path)
+			// A live session token must never reach a page served outside the
+			// finance header regime, where it is neither uncacheable nor
+			// protected by a content policy.
+			if strings.Contains(body, `name="csrf"`) {
+				t.Errorf("%s hands %s a session token", path, who)
+			}
+			if strings.Contains(body, "Logout") {
+				t.Errorf("%s shows %s the protected logout control", path, who)
+			}
+			if !strings.Contains(body, "Authorized login") {
+				t.Errorf("%s does not offer %s the Authorized login link", path, who)
+			}
+			// The stray identity line that appeared when the protected chrome
+			// half-rendered on an ordinary page.
+			if strings.Contains(body, `<span class="who"> ·  · </span>`) {
+				t.Errorf("%s shows %s an empty identity line", path, who)
+			}
 		}
 	}
 }

@@ -70,15 +70,15 @@ func (s *Server) returnNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := s.returnForm(r)
-	p := s.returnPage(r)
+	p := s.returnPage()
 	if data.Stale {
 		p.add(&banner{"bad", "That holding has changed. Pick it again from the list."})
 	}
 	s.render(w, http.StatusOK, p, "return.html", data)
 }
 
-func (s *Server) returnPage(r *http.Request) page {
-	p := s.page("Someone is returning", r)
+func (s *Server) returnPage() page {
+	p := s.page("Someone is returning")
 	p.Tabs = false
 	return p
 }
@@ -329,7 +329,7 @@ func (s *Server) returnSave(w http.ResponseWriter, r *http.Request) {
 	data := s.returnForm(r)
 
 	refuse := func(text string) {
-		p := s.returnPage(r)
+		p := s.returnPage()
 		p.add(&banner{"bad", text})
 		s.render(w, http.StatusOK, p, "return.html", data)
 	}
