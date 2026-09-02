@@ -3,6 +3,7 @@ package web
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -392,4 +393,240 @@ func movementSummary(f *register.FinanceData, m register.MoneyMovement) string {
 		register.FinanceValueText(f, m.ModeID),
 	}
 	return strings.Join(parts, " · ")
+}
+
+// draftFromMovement fills the correction form with what is stored.
+func (s *Server) draftFromMovement(r *http.Request, id string) (moneyDraft, bool) {
+	sess := financeSessionOf(r)
+	d := moneyDraft{
+		MoveID: id, Editing: true, Heading: "Fix this transaction",
+		Submit: "Save the correction", Action: "/finance/movements/" + id + "/edit",
+	}
+	found := false
+	_ = s.st.ReadFinance(sess.vaultKey, func(f *register.FinanceData) {
+		m, ok := register.MovementByID(f, id)
+		if !ok {
+			return
+		}
+		found = true
+		row := moneyRow{
+			Direction: string(m.Direction), Amount: rupeeInput(m.AmountPaise),
+			OccurredAt: m.OccurredAt.Format("2006-01-02T15:04"),
+			OrderID:    m.OrderID, LineIDs: append([]string{}, m.OrderLineIDs...),
+			Reference: m.Reference, Remarks: m.Remarks,
+		}
+		row.Party.PickedID = m.PartyID
+		row.Purpose.PickedID = m.PurposeID
+		row.Mode.PickedID = m.ModeID
+		for _, p := range m.Products {
+			row.ProductIDs = append(row.ProductIDs, p.ProductID)
+		}
+		d.Rows = []moneyRow{row}
+	})
+	return d, found
+}
+
+// rupeeInput turns stored paise back into something the amount box accepts.
+func rupeeInput(paise int64) string {
+	return strconv.FormatInt(paise/100, 10) + "." + pad2(paise%100)
+}
+
+// financeMoneyEdit corrects one movement. Nothing about who recorded it, or
+// when, is ever rewritten: only what they meant to type.
+func (s *Server) financeMoneyEdit(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	sess := financeSessionOf(r)
+
+	if r.Method != http.MethodPost {
+		d, ok := s.draftFromMovement(r, id)
+		if !ok {
+			s.financeNotFound(w, r)
+			return
+		}
+		s.renderMoneyForm(w, r, d)
+		return
+	}
+
+	d := s.readMoneyDraft(r)
+	d.MoveID, d.Editing, d.Heading = id, true, "Fix this transaction"
+	d.Submit, d.Action = "Save the correction", "/finance/movements/"+id+"/edit"
+	if len(d.Rows) != 1 {
+		d.Rows = d.Rows[:1]
+	}
+
+	now := s.now()
+	refusal := ""
+	err := s.st.UpdateFinance(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) error {
+		at := -1
+		for i := range f.Movements {
+			if f.Movements[i].ID == id {
+				at = i
+			}
+		}
+		if at < 0 {
+			refusal = "That transaction is not on the list."
+			return errMoneyRefused
+		}
+		before := f.Movements[at]
+		if before.Voided != nil {
+			refusal = "This transaction was voided. Record a new one instead."
+			return errMoneyRefused
+		}
+
+		built, text := buildMovement(reg, f, d.Rows[0], sess.accountID, now)
+		if text != "" {
+			refusal = text
+			return errMoneyRefused
+		}
+		after := before
+		after.Direction, after.AmountPaise, after.OccurredAt = built.Direction, built.AmountPaise, built.OccurredAt
+		after.PartyID, after.PurposeID, after.ModeID = built.PartyID, built.PurposeID, built.ModeID
+		after.OrderID, after.OrderLineIDs, after.Products = built.OrderID, built.OrderLineIDs, built.Products
+		after.Reference, after.Remarks = built.Reference, built.Remarks
+
+		changes := movementChanges(f, before, after, sess.accountID, now)
+		if len(changes) == 0 {
+			return nil
+		}
+		after.Changes = append(append([]register.FinanceChange{}, before.Changes...), changes...)
+		f.Movements[at] = after
+		f.Audit = append(f.Audit, financeAuditFor(f, sess.accountID, now, "movement_edited", "movement", id,
+			"Transaction corrected", movementSummary(f, before), movementSummary(f, after)))
+		if _, err := register.TotalMoney(f, nil); err != nil {
+			refusal = register.ErrMoneyOverflow.Error()
+			return errMoneyRefused
+		}
+		return nil
+	})
+
+	switch {
+	case errors.Is(err, errMoneyRefused):
+		d.Error = refusal
+		s.renderMoneyForm(w, r, d)
+	case err != nil:
+		d.Error = saveFailed
+		s.renderMoneyForm(w, r, d)
+	default:
+		http.Redirect(w, r, "/finance/journal?corrected="+id, http.StatusSeeOther)
+	}
+}
+
+// movementChanges records one change per changed field, in the order the spec
+// fixes. Submitting the same values again records nothing and saves nothing.
+func movementChanges(f *register.FinanceData, before, after register.MoneyMovement, actorID string, at time.Time) []register.FinanceChange {
+	var out []register.FinanceChange
+	var name, mobile string
+	for _, a := range f.Accounts {
+		if a.ID == actorID {
+			name, mobile = a.DisplayName, a.Mobile
+		}
+	}
+	add := func(field, label, from, to string) {
+		if from == to {
+			return
+		}
+		out = append(out, register.FinanceChange{
+			At: at, ByAccountID: actorID, ByName: name, ByMobile: mobile,
+			Field: field, Label: label, From: from, To: to,
+		})
+	}
+	add("direction", "Money paid or received",
+		register.DirectionText(before.Direction), register.DirectionText(after.Direction))
+	add("amount", "Amount", register.FormatRupees(before.AmountPaise), register.FormatRupees(after.AmountPaise))
+	add("occurredAt", "Date and time",
+		before.OccurredAt.Format("2 January 2006 · 3:04 pm"), after.OccurredAt.Format("2 January 2006 · 3:04 pm"))
+	add("party", "Supplier or other party",
+		register.FinanceValueText(f, before.PartyID), register.FinanceValueText(f, after.PartyID))
+	add("order", "Related order", orderRefText(f, before), orderRefText(f, after))
+	add("products", "Related products", productRefText(before.Products), productRefText(after.Products))
+	add("purpose", "Purpose",
+		register.FinanceValueText(f, before.PurposeID), register.FinanceValueText(f, after.PurposeID))
+	add("mode", "Payment mode",
+		register.FinanceValueText(f, before.ModeID), register.FinanceValueText(f, after.ModeID))
+	add("reference", "Reference", blankOr(before.Reference), blankOr(after.Reference))
+	add("remarks", "Remarks", blankOr(before.Remarks), blankOr(after.Remarks))
+	return out
+}
+
+func orderRefText(f *register.FinanceData, m register.MoneyMovement) string {
+	if m.OrderID == "" {
+		return "Blank"
+	}
+	o, ok := register.FinanceOrderByID(f, m.OrderID)
+	if !ok {
+		return m.OrderID
+	}
+	if len(m.OrderLineIDs) == 0 {
+		return register.FinanceValueText(f, o.PartyID) + " · Whole order"
+	}
+	return register.FinanceValueText(f, o.PartyID)
+}
+
+// productRefText uses the snapshots, so a correction records what the row said
+// at the time rather than what the catalogue says now.
+func productRefText(refs []register.FinanceProductRef) string {
+	if len(refs) == 0 {
+		return "Blank"
+	}
+	var out []string
+	for _, p := range refs {
+		out = append(out, p.ProductName)
+	}
+	return strings.Join(out, "; ")
+}
+
+func blankOr(s string) string {
+	if s == "" {
+		return "Blank"
+	}
+	return s
+}
+
+// financeMoneyVoid marks an entry that should never have been recorded. It
+// never removes the row: real money that came back is its own incoming row.
+func (s *Server) financeMoneyVoid(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	reason := register.CleanName(r.FormValue("reason"))
+	sess := financeSessionOf(r)
+	now := s.now()
+
+	if reason == "" {
+		s.renderJournal(w, r, "Say why you are voiding this transaction.")
+		return
+	}
+	refusal := ""
+	err := s.st.UpdateFinance(sess.vaultKey, func(_ *register.Register, f *register.FinanceData) error {
+		for i := range f.Movements {
+			if f.Movements[i].ID != id {
+				continue
+			}
+			if f.Movements[i].Voided != nil {
+				refusal = "This transaction is already voided."
+				return errMoneyRefused
+			}
+			var name, mobile string
+			for _, a := range f.Accounts {
+				if a.ID == sess.accountID {
+					name, mobile = a.DisplayName, a.Mobile
+				}
+			}
+			f.Movements[i].Voided = &register.FinanceVoid{
+				At: now, ByAccountID: sess.accountID, ByName: name, ByMobile: mobile, Reason: reason,
+			}
+			f.Audit = append(f.Audit, financeAuditFor(f, sess.accountID, now, "movement_voided", "movement", id,
+				reason, movementSummary(f, f.Movements[i]), "Voided"))
+			return nil
+		}
+		refusal = "That transaction is not on the list."
+		return errMoneyRefused
+	})
+
+	switch {
+	case errors.Is(err, errMoneyRefused):
+		s.renderJournal(w, r, refusal)
+	case err != nil:
+		s.renderJournal(w, r, saveFailed)
+	default:
+		http.Redirect(w, r, "/finance/journal?voided="+id, http.StatusSeeOther)
+	}
 }

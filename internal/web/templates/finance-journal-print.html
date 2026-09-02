@@ -1,0 +1,24 @@
+<h1>{{.Heading}}</h1>
+<p>Showing {{.FilterLabel}}</p>
+<p>Printed {{.PrintedAt}}</p>
+<table class="journal">
+  <tr><th>When</th><th>Paid or received</th><th>Amount</th><th>Party</th><th>Purpose</th><th>Mode</th><th>Order and products</th><th>Reference</th><th>Recorded by</th></tr>
+  {{range .Rows}}
+  <tr>
+    <td>{{longstamp .OccurredAt}}</td>
+    <td>{{.Direction}}</td>
+    <td>{{.Amount}}</td>
+    <td>{{.Party}}</td>
+    <td>{{.Purpose}}</td>
+    <td>{{.Mode}}</td>
+    <td>{{.Order}} {{.Products}}</td>
+    <td>{{.Reference}}</td>
+    <td>{{.RecordedBy}}</td>
+  </tr>
+  {{if .Remarks}}<tr><td colspan="9">Remarks: {{.Remarks}}</td></tr>{{end}}
+  {{range .Changes}}<tr><td colspan="9">{{.Label}}: {{.From}} → {{.To}} · {{.ByName}}</td></tr>{{end}}
+  {{if .VoidLine}}<tr><td colspan="9">{{.VoidLine}}</td></tr>{{end}}
+  {{end}}
+</table>
+<p>Money paid {{.Totals.Paid}} · Money received {{.Totals.Received}} · Net paid {{.Totals.Net}}</p>
+<p class="noprint"><button class="btn" type="button" onclick="window.print()">Print</button></p>

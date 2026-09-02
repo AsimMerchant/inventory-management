@@ -46,7 +46,7 @@ func (s *Server) financeRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /finance/activate", s.financeActivate)
 	m.HandleFunc("GET /finance/recover", s.financeRecover)
 	m.HandleFunc("POST /finance/recover", s.financeRecover)
-	m.HandleFunc("GET /finance", s.financeHome)
+	m.HandleFunc("GET /finance", s.financeDashboard)
 	m.HandleFunc("GET /finance/accounts", s.financeAccounts)
 	m.HandleFunc("POST /finance/accounts/new", s.financeAccountNew)
 	m.HandleFunc("POST /finance/accounts/{id}/disable", s.financeAccountDisable)
@@ -74,6 +74,15 @@ func (s *Server) financeRoutes(m *http.ServeMux) {
 	// 19
 	m.HandleFunc("GET /finance/movements/new", s.financeMoneyNew)
 	m.HandleFunc("POST /finance/movements/new", s.financeMoneyNew)
+	m.HandleFunc("GET /finance/movements/{id}/edit", s.financeMoneyEdit)
+	m.HandleFunc("POST /finance/movements/{id}/edit", s.financeMoneyEdit)
+	m.HandleFunc("POST /finance/movements/{id}/void", s.financeMoneyVoid)
+	m.HandleFunc("GET /finance/journal", s.financeJournal)
+	m.HandleFunc("GET /finance/journal/print", s.financeJournalPrint)
+	m.HandleFunc("GET /finance/audit", s.financeAudit)
+	m.HandleFunc("GET /finance/supplier-returns/new", s.financeSupplierReturnNew)
+	m.HandleFunc("GET /finance/sales/new", s.financeSaleNew)
+	m.HandleFunc("GET /finance/settlements", s.financeSettlements)
 }
 
 func financeHeaders(w http.ResponseWriter) {
@@ -442,10 +451,6 @@ func (s *Server) financeLogout(w http.ResponseWriter, r *http.Request) {
 	s.financeMu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: financeCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteStrictMode})
 	http.Redirect(w, r, "/stock", 303)
-}
-func (s *Server) financeHome(w http.ResponseWriter, r *http.Request) {
-	sess := r.Context().Value(financeContextKey{}).(*financeSession)
-	s.financePage(w, r, "Financial ledger", "finance-home.html", struct{ Admin bool }{s.sessionIsAdmin(sess)})
 }
 
 type accountsPageData struct {

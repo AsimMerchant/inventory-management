@@ -1,1 +1,33 @@
-<h1>Financial ledger</h1><p>The protected financial area is ready.</p><p><a href="/finance/orders">Orders</a></p><p><a href="/finance/orders/new">Record an order</a></p><p><a href="/finance/password">Change password</a></p>{{if .Admin}}<p><a href="/finance/lists">Shared lists</a></p><p><a href="/finance/recovery-key/new">Replace recovery key</a></p>{{end}}
+<h1>Financial ledger</h1>
+<p class="note">{{.Who}} · {{.Mobile}} · {{.Role}}</p>
+<p>Orders, money received or paid, and stock returned or sold are recorded separately.</p>
+<div class="tiles">
+  <div class="tile"><span class="lab">Money paid</span><strong>{{.Totals.Paid}}</strong></div>
+  <div class="tile"><span class="lab">Money received</span><strong>{{.Totals.Received}}</strong></div>
+  <div class="tile"><span class="lab">Net paid</span><strong>{{.Totals.Net}}</strong></div>
+</div>
+<p>
+  <a href="/finance/orders/new">Record an order</a> ·
+  <a href="/finance/movements/new">Record money</a> ·
+  <a href="/finance/supplier-returns/new">Return rented goods</a> ·
+  <a href="/finance/sales/new">Record a sale</a>
+</p>
+<h2>Latest transactions</h2>
+{{if not .Recent}}<p>No money recorded yet.</p>{{end}}
+<ul class="rows">
+  {{range .Recent}}
+  <li>
+    <strong>{{.Direction}} {{.Amount}}</strong> · {{.Party}} · {{.Purpose}} · {{.Mode}}
+    <div class="note">{{longstamp .OccurredAt}}</div>
+    {{if .VoidLine}}<div class="note">{{.VoidLine}}</div>{{end}}
+  </li>
+  {{end}}
+</ul>
+<p>
+  <a href="/finance/journal">All transactions</a> ·
+  <a href="/finance/orders">Orders</a> ·
+  <a href="/finance/settlements">Stock returned or sold</a> ·
+  <a href="/finance/audit">Financial activity</a>
+</p>
+<p><a href="/finance/password">Change password</a></p>
+{{if .Admin}}<p><a href="/finance/accounts">Authorized people</a> · <a href="/finance/lists">Reusable lists</a> · <a href="/finance/recovery-key/new">Replace recovery key</a></p>{{end}}

@@ -40,9 +40,9 @@ the resume artifact.** Keep it current after every committed slice.
 | 18 | 3. Orders: create, list, detail, `POST /finance/product/new` | `c484970` | **Done.** 6 required tests pass. |
 | 18 | 4. Order edit and cancel, the six-row `FinanceChange` table, suggestion ordering, docs | `b97023b` | **Done.** All 12 required tests pass. |
 | 19 | 1. Movement model, totals, journal filters, checked int64 money | `f7a831e` | **Done.** register-level tests pass. |
-| 19 | 2. Recording money, single and batch | `PENDING2` | **Done.** 7 required tests pass. |
-| 19 | 3. Corrections and voids | — | Not started |
-| 19 | 4. Dashboard, journal, print view, financial activity | — | Not started |
+| 19 | 2. Recording money, single and batch | `f70d75d` | **Done.** 7 required tests pass. |
+| 19 | 3. Corrections and voids | `PENDING3` | **Done.** |
+| 19 | 4. Dashboard, journal, print view, financial activity | `PENDING3` | **Done.** All 13 required tests pass. |
 | 20 | 0. `Register.Disposals` and the new `OnHand` — **alone, as a regression canary** | — | Not started |
 | 20 | 1. Pairing validation across the public and protected halves | — | Not started |
 | 20 | 2. Allocation and supplier obligations | — | Not started |
@@ -94,7 +94,21 @@ real. Do not judge the feature by opening it before then.
   `Store.ReadBoth`, which hands over both under one lock. This bit the order list and
   detail screens.
 
-#### What spec 19 inherits
+#### What spec 20 inherits
+
+- `register.FinanceLineIsReferenced` still returns `false`. Spec 19 chose not to fill it
+  in because a movement points at an order *line* only through `OrderLineIDs`, and spec
+  18's guard is about a line disappearing under a ledger entry. **Spec 20 or a follow-up
+  must make it report `len(m.OrderLineIDs) > 0 && contains(m.OrderLineIDs, lineID)` over
+  live movements**, and the two partial spec-18 tests then become complete.
+- `register.FinanceValueIsUsed` now covers order party and movement party, purpose and
+  mode. Every settlement field naming a value must be added to it in spec 20.
+- `Store.ReadBoth` is the only safe way to read the inventory record and the vault
+  together.
+- The placeholder handlers in `internal/web/finance_settlements.go` exist so the
+  dashboard has no dead links. Spec 20 replaces all three.
+
+#### What spec 19 inherited
 
 - `register.FinanceLineIsReferenced` returns `false` and must start reporting whether a
   movement points at an order line. `lineRefusal` in `internal/web/finance_orders.go`
