@@ -1,0 +1,263 @@
+package web
+
+import (
+	"encoding/json"
+	"net/url"
+	"strconv"
+	"strings"
+	"testing"
+
+	"storeregister/internal/register"
+)
+
+// newProduct creates a product at the desk, the way the catalogue is really
+// filled, and returns its ID.
+func newProduct(t *testing.T, e *env, name string) string {
+	t.Helper()
+	existing := ""
+	e.st.Read(func(reg *register.Register) {
+		for _, p := range reg.Products {
+			if p.Deleted == nil && p.Name == name {
+				existing = p.ID
+			}
+		}
+	})
+	if existing != "" {
+		return existing
+	}
+	resp, body := e.post("/product/new", url.Values{
+		"name": {name}, "return": {"/inward/new"}, "confirm": {"yes"},
+	})
+	if resp.StatusCode != 303 {
+		t.Fatalf("creating %q = %d: %s", name, resp.StatusCode, body)
+	}
+	return productIDNamed(t, e, name)
+}
+
+// suggestionsOf asks the protected picker route and decodes the answer.
+func suggestionsOf(t *testing.T, admin *testClient, query string) []suggestion {
+	t.Helper()
+	status, body := admin.get(t, "/finance/api/products?"+query)
+	if status != 200 {
+		t.Fatalf("the picker route answered %d for %q", status, query)
+	}
+	var rows []suggestion
+	if err := json.Unmarshal([]byte(body), &rows); err != nil {
+		t.Fatalf("not JSON: %v (%s)", err, body)
+	}
+	return rows
+}
+
+func names(rows []suggestion) []string {
+	out := []string{}
+	for _, r := range rows {
+		out = append(out, r.Name)
+	}
+	return out
+}
+
+// TestSettlementProductIsTypedNotScrolled covers the defect a real event finds
+// and three fixtures never do. The supplier return screen used to render every
+// returnable product as one <select>. With forty products from five suppliers
+// that is a scrolling list nobody reads, and the number that decides how many
+// may go back was not on it. The screen must behave like every other product
+// box in the register: type a few letters, see what matches with its number,
+// press the one you mean.
+func TestSettlementProductIsTypedNotScrolled(t *testing.T) {
+	e := newTestServer(t, emptyStock(), orderNow)
+	admin, _, _ := financeAdmin(t, e)
+
+	// A supplier with more returnable products than the picker will ever show
+	// at once, plus one from somebody else that must never appear.
+	want := []string{
+		"Chairs", "Chair covers", "Charcoal sacks", "Chafing dishes",
+		"Carpet rolls", "Cable reels", "Ceiling fans", "Cooking vessels",
+		"Tents", "Tent poles",
+	}
+	for i, name := range want {
+		receive(t, e, newProduct(t, e, name), 100+i, "rent", "Sharma Tent House", "2026-09-03")
+	}
+	other := newProduct(t, e, "Chandeliers")
+	receive(t, e, other, 50, "rent", "Gupta Traders", "2026-09-03")
+
+	// The form points its picker at the protected route, and tells it where the
+	// supplier is, because what may go back depends on who it came from.
+	status, form := admin.get(t, "/finance/supplier-returns/new")
+	if status != 200 {
+		t.Fatalf("the form = %d", status)
+	}
+	if !strings.Contains(form, `data-endpoint="/finance/api/products"`) {
+		t.Error("the settlement form has no type-to-find product picker")
+	}
+	if !strings.Contains(form, `data-mode="return"`) {
+		t.Error("the picker does not ask for returnable products")
+	}
+	if !strings.Contains(form, "data-party-from=") {
+		t.Error("the picker cannot tell the server which supplier was chosen")
+	}
+	// The markup alone is not the fix. Without its script the box is an inert
+	// text field that finds nothing, which is exactly how this shipped once.
+	if !strings.Contains(form, `src="/static/picker.js"`) {
+		t.Error("the settlement form never loads the picker's script")
+	}
+
+	// Typing "ch" narrows forty products to the handful that match, with the
+	// number on every row.
+	rows := suggestionsOf(t, admin, "mode=return&party=Sharma+Tent+House&q=ch")
+	if len(rows) == 0 {
+		t.Fatal("typing ch found nothing")
+	}
+	if len(rows) > maxSuggestions {
+		t.Errorf("the picker offered %d rows, more than a person reads", len(rows))
+	}
+	for _, r := range rows {
+		if !strings.Contains(strings.ToLower(r.Name), "ch") {
+			t.Errorf("%q does not match ch", r.Name)
+		}
+		if r.Name == "Chandeliers" {
+			t.Error("a product from another supplier is offered")
+		}
+		if !strings.Contains(r.Label, strconv.Itoa(r.OnHand)+" available") {
+			t.Errorf("the row for %q does not say how many may go back: %q", r.Name, r.Label)
+		}
+	}
+	// Names starting with the query come first: Chairs before Cooking vessels.
+	got := names(rows)
+	if got[0] != "Chafing dishes" {
+		t.Errorf("the closest match is not first: %v", got)
+	}
+
+	// Naming no supplier offers nothing, rather than offering everything.
+	if rows := suggestionsOf(t, admin, "mode=return&q=ch"); len(rows) != 0 {
+		t.Errorf("products were offered before a supplier was chosen: %v", names(rows))
+	}
+
+	// And the screen still saves.
+	chairs := productIDNamed(t, e, "Chairs")
+	status, body := admin.post(t, "/finance/supplier-returns/new", url.Values{
+		"partyName": {"Sharma Tent House"}, "productId": {chairs},
+		"quantity": {"40"}, "at": {"2026-09-06T10:00"},
+	})
+	if status != 303 {
+		t.Fatalf("the return = %d: %s", status, body)
+	}
+	if got := stockOf(t, e, chairs); got != 60 {
+		t.Errorf("stock is %d, want 60", got)
+	}
+}
+
+// TestSaleProductPickerOffersOnlyWhatWasBought is the other half: a sale is
+// capped by what was purchased, so the picker must not offer rented goods.
+func TestSaleProductPickerOffersOnlyWhatWasBought(t *testing.T) {
+	e := newTestServer(t, emptyStock(), orderNow)
+	admin, _, _ := financeAdmin(t, e)
+	bought := newProduct(t, e, "Steel thalis")
+	rented := newProduct(t, e, "Stage platforms")
+	receive(t, e, bought, 500, "purchase", "Patel Caterers Supply", "2026-09-03")
+	receive(t, e, rented, 20, "rent", "Sharma Tent House", "2026-09-03")
+
+	rows := suggestionsOf(t, admin, "mode=sale&q=st")
+	if got := names(rows); len(got) != 1 || got[0] != "Steel thalis" {
+		t.Errorf("the sale picker offered %v, want only Steel thalis", got)
+	}
+	if rows[0].Label != "Steel thalis — 500 available" {
+		t.Errorf("the row reads %q", rows[0].Label)
+	}
+}
+
+// TestMoneyProductsAreChosenOneAtATime covers the control the user found by
+// asking how to use it. Related products was a multi-select: choosing more than
+// one meant knowing to hold Ctrl, an ordinary click silently threw away
+// everything already picked, and forty products sat in a four-row window. The
+// replacement is the same promise as every other box: type, press, and see what
+// you chose.
+func TestMoneyProductsAreChosenOneAtATime(t *testing.T) {
+	e := newTestServer(t, emptyStock(), orderNow)
+	admin, key, _ := financeAdmin(t, e)
+	chairs := newProduct(t, e, "Chairs")
+	tents := newProduct(t, e, "Tents")
+	drums := newProduct(t, e, "Water drums (20L)")
+
+	status, form := admin.get(t, "/finance/movements/new")
+	if status != 200 {
+		t.Fatalf("the money form = %d", status)
+	}
+	if !strings.Contains(form, `data-multi data-field="productIds-0"`) {
+		t.Error("the money form has no type-to-find product control")
+	}
+	if !strings.Contains(form, `data-endpoint="/finance/api/products"`) {
+		t.Error("the control does not ask the protected product route")
+	}
+	if !strings.Contains(form, `src="/static/multi-picker.js"`) {
+		t.Error("the money form never loads the control's script")
+	}
+	// The old control must be gone from the page itself. It survives only
+	// inside <noscript>, where a keyboard convention is the only thing left.
+	visible := noscriptStripped(form)
+	if strings.Contains(visible, `name="productIds-0" multiple`) {
+		t.Error("the multi-select the user could not work out is still on screen")
+	}
+
+	// Several products on one entry still save, and all of them come back.
+	status, body := admin.post(t, "/finance/movements/new", url.Values{
+		"direction-0": {"out"}, "amount": {"3000"},
+		"occurredAt": {"2026-09-03T11:00"},
+		"partyName":  {"Bala Transport"}, "purposeName": {"Freight"},
+		"modeName":     {"Cash"},
+		"productIds-0": {chairs, tents, drums},
+	})
+	if status != 303 {
+		t.Fatalf("the money entry = %d: %s", status, body)
+	}
+	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
+		if len(f.Movements) != 1 {
+			t.Fatalf("%d movements stored, want 1", len(f.Movements))
+		}
+		if got := len(f.Movements[0].Products); got != 3 {
+			t.Fatalf("%d products on the entry, want 3", got)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reopening the entry shows all three back as removable choices, not as a
+	// selection hidden inside a scrolling box.
+	_, list := admin.get(t, "/finance/journal")
+	id := ""
+	for _, part := range strings.Split(list, `"`) {
+		if strings.HasPrefix(part, "/finance/movements/") && strings.HasSuffix(part, "/edit") {
+			id = part
+		}
+	}
+	if id == "" {
+		t.Fatal("the journal offers no way to correct the entry")
+	}
+	status, edit := admin.get(t, id)
+	if status != 200 {
+		t.Fatalf("the correction form = %d", status)
+	}
+	for _, name := range []string{"Chairs", "Tents", "Water drums (20L)"} {
+		if !strings.Contains(edit, `<span>`+name+`</span>`) {
+			t.Errorf("%q is not shown as a chosen product on the correction form", name)
+		}
+	}
+	if strings.Count(edit, "chosen-off") < 3 {
+		t.Error("the chosen products cannot be taken off again")
+	}
+}
+
+// noscriptStripped removes every <noscript> block, leaving what a person with
+// script on actually sees.
+func noscriptStripped(page string) string {
+	for {
+		i := strings.Index(page, "<noscript>")
+		if i < 0 {
+			return page
+		}
+		j := strings.Index(page[i:], "</noscript>")
+		if j < 0 {
+			return page[:i]
+		}
+		page = page[:i] + page[i+j+len("</noscript>"):]
+	}
+}

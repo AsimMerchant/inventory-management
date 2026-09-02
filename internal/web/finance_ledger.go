@@ -33,6 +33,7 @@ type moneyRow struct {
 	Orders      []moneyOrderChoice
 	Lines       []moneyLineChoice
 	Products    []suggestion
+	ProductBox  multiPicker
 	Settlements []moneySettlementChoice
 	Removable   bool
 }
@@ -45,6 +46,21 @@ type moneyOrderChoice struct {
 type moneyLineChoice struct {
 	ID, Label string
 	Selected  bool
+}
+
+// multiPicker is the Related products control: several products, chosen one at
+// a time from a list that searches as you type.
+type multiPicker struct {
+	Label    string
+	Field    string
+	Endpoint string
+	Chosen   []productChoice
+	All      []productChoice
+}
+
+type productChoice struct {
+	ID, Name string
+	Picked   bool
 }
 
 type moneySettlementChoice struct {
@@ -197,6 +213,27 @@ func (s *Server) fillMoney(d *moneyDraft, r *http.Request) {
 			}
 			row.Products = d.Products
 			row.Settlements = settlementChoices(f, row.Settlement)
+			// Type to find a product, the same as every other screen. A money
+			// entry may cover several, so the chosen ones stay on screen where
+			// the person can check and remove them.
+			row.ProductBox = multiPicker{
+				Label: "Related products", Endpoint: "/finance/api/products",
+				Field: rowField("productIds", i),
+			}
+			picked := map[string]bool{}
+			for _, id := range row.ProductIDs {
+				picked[id] = true
+			}
+			for _, p := range reg.Products {
+				if p.Deleted != nil {
+					continue
+				}
+				choice := productChoice{ID: p.ID, Name: p.Name, Picked: picked[p.ID]}
+				row.ProductBox.All = append(row.ProductBox.All, choice)
+				if choice.Picked {
+					row.ProductBox.Chosen = append(row.ProductBox.Chosen, choice)
+				}
+			}
 		}
 	})
 }

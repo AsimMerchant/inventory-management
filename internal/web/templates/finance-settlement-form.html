@@ -13,13 +13,7 @@
   {{if .Editing}}
   <div class="field"><span class="lab">Product</span><strong>{{.ProductName}}</strong><p class="note">Wrong product? Void this entry, then record it again with the correct product.</p></div>
   {{else}}
-  <div class="field">
-    <span class="lab">Product</span>
-    <select class="inp" name="productId">
-      <option value="">Pick the product from the list</option>
-      {{range .Products}}<option value="{{.ID}}"{{if eq .ID $.ProductID}} selected{{end}}>{{.Label}}</option>{{end}}
-    </select>
-  </div>
+  {{template "picker.html" .Picker}}
   {{end}}
   <div class="field">
     <span class="lab">{{if eq .Kind "sale"}}Available to sell{{else}}Available to return{{end}}</span>
@@ -45,3 +39,4 @@
 </form>
 <p class="note">Money is recorded separately. A deposit coming back or the money for a sale is its own transaction.</p>
 <script src="/static/value-picker.js"></script>
+<script src="/static/picker.js"></script>

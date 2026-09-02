@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -74,12 +76,87 @@ func (s *Server) financeAPIValues(w http.ResponseWriter, r *http.Request) {
 // the picker silently returns nothing and no product can be chosen at all.
 func (s *Server) financeAPIProducts(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	sess := financeSessionOf(r)
 	out := []suggestion{}
-	s.st.Read(func(reg *register.Register) {
-		out = suggestMode(reg, q.Get("q"), q.Get("mode"))
-	})
+
+	// The settlement screens ask a different question: not "which products
+	// exist" but "which can still go back to this supplier", or "which can
+	// still be sold". Those lists are shorter and the number is the whole
+	// point, so the label carries it.
+	switch q.Get("mode") {
+	case "return", "sale":
+		_ = s.st.ReadBoth(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) {
+			out = settlementSuggestions(reg, f, q.Get("mode"), q.Get("party"), q.Get("except"), q.Get("q"))
+		})
+	default:
+		s.st.Read(func(reg *register.Register) {
+			out = suggestMode(reg, q.Get("q"), q.Get("mode"))
+		})
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(out)
+}
+
+// settlementSuggestions lists what may still go back to one supplier, or what
+// may still be sold, matched the same way the product picker matches anywhere
+// else: names starting with the query first, then the rest, capped at eight.
+func settlementSuggestions(reg *register.Register, f *register.FinanceData, mode, party, except, query string) []suggestion {
+	partyID := ""
+	if v, ok := register.ResolveFinanceValue(f, party); ok {
+		partyID = v.ID
+	}
+	rows := []suggestion{}
+	for _, p := range reg.Products {
+		if p.Deleted != nil {
+			continue
+		}
+		available := 0
+		switch {
+		case mode == "sale":
+			available = register.PurchasedAvailableToSellExcluding(reg, f, p.ID, except)
+		case partyID != "":
+			available = register.SupplierReturnAvailableExcluding(reg, f, partyID, p.ID, except)
+		case party != "":
+			// The supplier may be on the inwards but not on the protected list
+			// yet, which is normal: the desk types it, finance has not used it.
+			available = register.SupplierReturnAvailableByName(reg, f, party, p.ID)
+		}
+		if available <= 0 {
+			continue
+		}
+		rows = append(rows, suggestion{
+			ID: p.ID, Name: p.Name, OnHand: available,
+			Label: p.Name + " — " + strconv.Itoa(available) + " available",
+		})
+	}
+	rows = matchByName(rows, query)
+	if len(rows) > maxSuggestions {
+		rows = rows[:maxSuggestions]
+	}
+	return rows
+}
+
+// matchByName filters and orders an already-built list the way the product
+// picker does: case-insensitive substring, names that start with the query
+// first, alphabetical within each group.
+func matchByName(rows []suggestion, query string) []suggestion {
+	q := strings.ToLower(register.CleanName(query))
+	kept := []suggestion{}
+	for _, r := range rows {
+		if q == "" || strings.Contains(strings.ToLower(r.Name), q) {
+			kept = append(kept, r)
+		}
+	}
+	sort.SliceStable(kept, func(i, j int) bool {
+		li, lj := strings.ToLower(kept[i].Name), strings.ToLower(kept[j].Name)
+		pi := q != "" && strings.HasPrefix(li, q)
+		pj := q != "" && strings.HasPrefix(lj, q)
+		if pi != pj {
+			return pi
+		}
+		return li < lj
+	})
+	return kept
 }
 
 // financeSessionOf reads the session serveFinance already put on the request.

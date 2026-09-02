@@ -31,6 +31,7 @@ type settlementDraft struct {
 	Remarks     string
 	Available   int
 	Products    []suggestion
+	Picker      pickerData
 	Editing     bool
 }
 
@@ -82,6 +83,19 @@ func (s *Server) fillSettlement(d *settlementDraft, r *http.Request) {
 		} else if v, ok := register.FindFinanceValueByText(f, register.FinanceParty, d.Party.PickedText); ok {
 			partyID = v.ID
 		}
+		// Type to find the product, like every other screen. The suggestions
+		// carry how many may still go back or be sold, because that number is
+		// the reason the person is on this screen at all.
+		mode := "return"
+		if d.Kind == "sale" {
+			mode = "sale"
+		}
+		d.Picker = pickerData{
+			Label: "Product", Mode: mode, Endpoint: "/finance/api/products",
+			PickedID:  d.ProductID,
+			PartyFrom: `[data-values][data-kind="party"] [data-values-text]`,
+			Except:    d.ID,
+		}
 		d.Products = []suggestion{}
 		for _, p := range reg.Products {
 			if p.Deleted != nil {
@@ -101,12 +115,16 @@ func (s *Server) fillSettlement(d *settlementDraft, r *http.Request) {
 			if available <= 0 && p.ID != d.ProductID {
 				continue
 			}
-			d.Products = append(d.Products, suggestion{
+			row := suggestion{
 				ID: p.ID, Name: p.Name, OnHand: available,
 				Label: p.Name + " — " + strconv.Itoa(available) + " available",
-			})
+			}
+			d.Products = append(d.Products, row)
+			// The same rows are the picker's no-script fallback.
+			d.Picker.Products = append(d.Picker.Products, row)
 			if p.ID == d.ProductID {
 				d.Available = available
+				d.Picker.PickedName = p.Name
 			}
 		}
 	})

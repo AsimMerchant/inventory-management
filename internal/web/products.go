@@ -272,6 +272,11 @@ type pickerData struct {
 	// desk uses /api/products, which is behind the shift guard. The financial
 	// area has no shift, so it asks its own session-gated route instead.
 	Endpoint string
+	// PartyFrom is a CSS selector for the field holding the supplier, when the
+	// list depends on one. Except names a record being corrected, whose own
+	// stock is set aside while working out what is still available.
+	PartyFrom string
+	Except    string
 }
 
 // picker resolves a submitted productId against the list. A productId that

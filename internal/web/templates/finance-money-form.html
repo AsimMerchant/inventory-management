@@ -36,13 +36,7 @@
       <p class="note">Choose none to cover the whole order.</p>
     </div>
     {{else}}
-    <div class="field">
-      <span class="lab">Related products</span>
-      {{$row := .Index}}
-      <select class="inp" name="productIds-{{$row}}" multiple size="4">
-        {{range .Products}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
-      </select>
-    </div>
+    {{template "multi-picker.html" .ProductBox}}
     {{end}}
     <div class="field">
       <span class="lab">Related stock return or sale</span>
@@ -66,3 +60,4 @@
   <button class="btn" type="submit">{{.Submit}}</button>
 </form>
 <script src="/static/value-picker.js"></script>
+<script src="/static/multi-picker.js"></script>

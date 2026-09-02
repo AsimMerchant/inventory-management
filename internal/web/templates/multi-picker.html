@@ -1,0 +1,17 @@
+{{/* Choosing several products for one money entry. With script off, the plain
+     list underneath is the control; with script on it is hidden and typing
+     finds products one at a time. Either way the product is picked, never
+     typed. */}}
+<div class="field" data-multi data-field="{{.Field}}" data-endpoint="{{.Endpoint}}">
+  <span class="lab">{{.Label}}</span>
+  <div class="chosen" data-multi-chosen>
+    {{range .Chosen}}<span class="chosen-tag"><span>{{.Name}}</span><input type="hidden" name="{{$.Field}}" value="{{.ID}}"><button type="button" class="chosen-off" data-multi-off aria-label="Take {{.Name}} off this entry">&times;</button></span>{{end}}
+  </div>
+  <input class="inp" type="text" data-multi-text autocomplete="off" placeholder="Type to find a product">
+  <div class="sug" hidden data-multi-list></div>
+  <noscript>
+    <select class="inp" name="{{.Field}}" multiple size="6">
+      {{range .All}}<option value="{{.ID}}"{{if .Picked}} selected{{end}}>{{.Name}}</option>{{end}}
+    </select>
+  </noscript>
+</div>

@@ -27,6 +27,66 @@ times. The reviewed contracts are specs 17–21: protected vault/accounts, order
 reusable values, money/audit/printable journal, supplier returns and sales, and the
 integrated browser acceptance gate.
 
+### Post-release fix in flight — branch `fix/product-pickers-at-scale`
+
+Branched from `master` at `v1.2.1` + docs. **Not merged.** It exists because the user
+tried the released build with a realistic catalogue and found two product controls that
+work with three fixtures and fail with forty.
+
+**What was wrong**
+
+1. *Record money → Related products* was a `<select multiple size="4">`. Choosing more
+   than one product required knowing to hold Ctrl; an ordinary click silently threw away
+   everything already chosen; forty products sat in a four-row scrolling window. The
+   user found it by asking how it worked, which is the whole answer. Ctrl+click *did*
+   record against several products correctly — the defect was that nobody could discover
+   it.
+2. *Return rented goods / Record a sale → Product* was a `<select>` of every returnable
+   product, with no way to type and no availability on the row.
+
+Both broke the rule the design rests on: nothing is remembered, everything is picked.
+
+**What replaced them**
+
+- `internal/web/templates/multi-picker.html` + `static/multi-picker.js` — type, press,
+  and the product joins a visible list of removable tags. Hidden inputs keep the field
+  name (`productIds-N`), so the handler is unchanged. `<noscript>` keeps the old
+  multi-select as the fallback.
+- The settlement form now uses the ordinary `picker.html`, pointed at
+  `/finance/api/products` with `data-mode="return"`/`"sale"`, `data-party-from` (the
+  supplier decides what may go back) and `data-except` (an edit must not count itself).
+  `financeAPIProducts` grew `settlementSuggestions`, which labels rows
+  `"Tents — 60 available"`.
+- CSS: `.chosen`, `.chosen-tag`, `.chosen-off` in `app.css`.
+
+**The trap this fix hit, and it is the same one twice**
+
+A picker is markup *plus its script*. `finance-settlement-form.html` got the picker
+markup and no `<script src="/static/picker.js">`. Every Go test passed and the box found
+nothing in a real browser. `finance_picker_test.go` now asserts the script tag on both
+forms, and that assertion was proved by deleting the tags and watching both tests fail.
+
+**Verification done**
+
+- `go test ./... -race` green (`internal/web` 225s), `go vet` clean.
+- `finance_picker_test.go`: three new tests — settlement picker narrows and carries the
+  number, another supplier's goods never appear, no supplier offers nothing rather than
+  everything; the sale picker offers only purchased goods; the money control is not a
+  multi-select outside `<noscript>`, saves several products, and shows them back as
+  removable tags on the correction form.
+- Real browser, real binary, 40 products / 5 suppliers / 4 orders / 8 money entries
+  (`/tmp/claude-1000/seed.sh`, port 8766): typed three products onto one money entry
+  with no modifier key, removed one, put it back, saved — journal read
+  `Products: Tents; Water drums (20L); Chairs`. Supplier return: typed `ch`, got only
+  `Chafing dishes — 165 available` from that supplier, saved as `SRN-0002`.
+- JavaScript off: money form still offers the 32-option fallback; the settlement form's
+  `Show what can go back to this supplier` button still fills the plain select with the
+  availability labels.
+
+**Still to do before merge:** nothing found outstanding, but the wider "what else breaks
+at forty products rather than three" sweep the user asked about has not been run across
+every screen — only the two controls named above.
+
 ### Deferred acquisition-basis follow-up — not in specs 17–21
 
 The user later clarified that acquisition basis should not become one fixed `Borrowed`

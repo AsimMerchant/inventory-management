@@ -4,7 +4,9 @@
      in picker.js, so every sentence the desk reads is in a template. */}}
 <div class="field" data-picker data-mode="{{.Mode}}"
      data-endpoint="{{if .Endpoint}}{{.Endpoint}}{{else}}/api/products{{end}}"
-     data-newlabel="{{if .AllowNew}}as a brand-new product{{end}}">
+     data-newlabel="{{if .AllowNew}}as a brand-new product{{end}}"
+     {{if .PartyFrom}}data-party-from="{{.PartyFrom}}"{{end}}
+     {{if .Except}}data-except="{{.Except}}"{{end}}>
   <span class="lab">{{.Label}}</span>
   <input class="inp" type="text" name="productName" autocomplete="off" value="{{.PickedName}}" data-picker-text>
   <input type="hidden" name="productId" value="{{.PickedID}}" data-picker-id>
