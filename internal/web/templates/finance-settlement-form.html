@@ -3,6 +3,13 @@
 <form method="post" action="{{.Action}}">
   <input type="hidden" name="csrf" value="{{.CSRF}}">
   {{template "value-picker.html" .Party}}
+  {{if and (not .Editing) (eq .Kind "supplier_return")}}
+  {{/* What can go back depends on which supplier it came from, and that list
+       is worked out on the server. Choosing a supplier in the browser cannot
+       refresh it by itself, so this button asks for the list. It saves
+       nothing, and it is a plain submit so it works with no script at all. */}}
+  <button class="btn ghost" type="submit" name="refresh" value="yes">Show what can go back to this supplier</button>
+  {{end}}
   {{if .Editing}}
   <div class="field"><span class="lab">Product</span><strong>{{.ProductName}}</strong><p class="note">Wrong product? Void this entry, then record it again with the correct product.</p></div>
   {{else}}

@@ -68,7 +68,7 @@ the resume artifact.** Keep it current after every committed slice.
 | 20 | 4. Settlement edit/void, inward guards, product cascade | `47a1758` | **Done.** All 13 spec-20 web tests plus 6 register tests pass. |
 | 21 | 1. Protected navigation, route and header matrix | `9dcda6e` | **Done.** All 6 required tests pass. |
 | 21 | 2. Plain-language review, two-step confirmations, paired spec/test amendments | `643b159` | **Done.** 13 new contract tests; all 74 required tests across 17–21 exist and pass. |
-| 21 | 3. Browser acceptance run, release gate, docs | in progress | **Steps 1–8 pass** in headless Chromium against a real native binary: 58 checks, 0 console errors, 0 external requests. Steps 9–15 outstanding. |
+| 21 | 3. Browser acceptance run, release gate, docs | in progress | **Steps 1–10 pass** in headless Chromium against a real native binary: 73 checks, 0 console errors, 0 external requests. Steps 11–15 outstanding. |
 
 **Spec 21 makes two things blocking that spec 18 did not.** Its acceptance criterion 5
 requires an independent `plain_language_reviewer` with no blocking finding *and* an
@@ -120,6 +120,14 @@ Selector facts learned the hard way, all of which cost a run each:
 
 #### Traps this build has already hit
 
+- **A screen can be impossible to use while every handler test passes.** The supplier
+  return form renders its product list from the server, and that list depends on which
+  supplier the goods came from. Choosing a supplier in the browser cannot refill it, so
+  the screen could never be completed. The handler tests missed it because they post the
+  supplier and product together in one request, which no person can do. There is now a
+  plain submit, `Show what can go back to this supplier`, that redraws the form with the
+  list and writes nothing; `TestSupplierReturnListsProductsAfterChoosingSupplier` pins
+  it, including that merely asking creates no party.
 - **The whole handler suite can miss a defect that only a running binary shows.**
   Every web fixture starts from `WalkthroughT0()`, which has a live shift, so nothing
   caught that the finance order form's product picker asked `/api/products` — a route

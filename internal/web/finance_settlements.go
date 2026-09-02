@@ -169,6 +169,13 @@ func (s *Server) settlementNew(w http.ResponseWriter, r *http.Request, kind stri
 	sess := financeSessionOf(r)
 	now := s.now()
 
+	// Asking which products can go back to this supplier is not saving
+	// anything: redraw the form with the list filled in.
+	if r.FormValue("refresh") != "" {
+		s.renderSettlement(w, r, d)
+		return
+	}
+
 	quantity, at, productName, refusal := s.settlementFields(r, &d)
 	if refusal != "" {
 		d.Error = refusal

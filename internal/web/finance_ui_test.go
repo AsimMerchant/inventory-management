@@ -492,3 +492,64 @@ func TestFinanceProductPickerWorksWithNoInventoryShift(t *testing.T) {
 		t.Error("the order form's picker still asks the shift-guarded route")
 	}
 }
+
+// TestSupplierReturnListsProductsAfterChoosingSupplier covers a defect the
+// handler suite missed because its tests post the supplier and the product in
+// one request. On the real screen the product list is rendered from the server
+// and depends on which supplier the goods came from, so choosing a supplier in
+// the browser cannot fill it in. Without a server-rendered step to ask for that
+// list, the screen could never be completed at all.
+func TestSupplierReturnListsProductsAfterChoosingSupplier(t *testing.T) {
+	e := newTestServer(t, emptyStock(), orderNow)
+	admin, key, _ := financeAdmin(t, e)
+	tables := productIDNamed(t, e, "Round tables")
+	receive(t, e, tables, 100, "rent", "Sharma Events", "2026-09-03")
+	_ = key
+
+	// Opening the form with no supplier chosen offers no product yet.
+	status, body := admin.get(t, "/finance/supplier-returns/new")
+	if status != 200 {
+		t.Fatalf("the form = %d", status)
+	}
+	if !strings.Contains(body, "Show what can go back to this supplier") {
+		t.Fatal("the form offers no way to ask what can go back")
+	}
+
+	// Asking for the list names the supplier and writes nothing.
+	before := mustReadFile(t, e.path)
+	status, body = admin.post(t, "/finance/supplier-returns/new", url.Values{
+		"partyName": {"Sharma Events"}, "refresh": {"yes"},
+	})
+	if status != 200 {
+		t.Fatalf("asking for the list = %d", status)
+	}
+	if !strings.Contains(body, "Round tables") {
+		t.Errorf("the list does not offer Round tables: %s", body)
+	}
+	if !strings.Contains(body, `value="`+tables+`"`) {
+		t.Error("the product cannot be picked from the list")
+	}
+	if string(mustReadFile(t, e.path)) != string(before) {
+		t.Error("asking what can go back wrote to the register")
+	}
+	// And it did not create the supplier as a side effect of asking.
+	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
+		if len(register.LiveFinanceValues(f, register.FinanceParty)) != 0 {
+			t.Error("asking what can go back created a party")
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The same request then saves.
+	status, body = admin.post(t, "/finance/supplier-returns/new", url.Values{
+		"partyName": {"Sharma Events"}, "productId": {tables},
+		"quantity": {"40"}, "at": {"2026-09-06T10:00"},
+	})
+	if status != 303 {
+		t.Fatalf("the return = %d: %s", status, body)
+	}
+	if got := stockOf(t, e, tables); got != 60 {
+		t.Errorf("stock is %d, want 60", got)
+	}
+}
