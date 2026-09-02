@@ -62,11 +62,20 @@ rather than leaving it separate.
 The ledger therefore contributes vocabulary, never an answer. The person holding the
 delivery note picks, exactly as they do today.
 
-This is still aimed at the live defect: the desk's Rent / Purchase tick is the only place
-that fact is ever decided, nothing corrects a wrong one, and a wrong one silently makes
-goods unreturnable. The user hit it himself — cooking vessels ticked `PURCHASE` never
-appear on *Return rented goods*. A third option does not fix a wrong tick on its own, so
-whether a recorded basis can be corrected afterwards is still worth putting to him.
+This is still aimed at a live defect: the desk's Rent / Purchase tick is the only place
+that fact is ever decided, and a wrong one silently makes goods unreturnable. The user
+hit it himself — cooking vessels ticked `PURCHASE` never appeared on *Return rented
+goods*.
+
+**A wrong tick is already recoverable, and this was checked rather than assumed.** *Stuff
+came in* → *Fix this* on the delivery carries the Rent / Purchase radios. Driven in a
+browser against `INW-0027`: purchase changed to rent, after which Cooking vessels
+appeared on *Return rented goods* at 249 and vanished from *Record a sale*, and *Who did
+what* recorded `Fixed this entry: 249 cooking vessels from Verma Sound & Light`. When the
+third choice is built it has to reach this screen too, not only the new-inward screen.
+
+Noted in passing: the reason field on that page belongs to the *delete* form, not the fix
+form, so a correction records what changed and who but never why. Deletions do ask.
 
 **Goods of a typed kind appear on both settlement screens.** Answered by the user on
 3 September 2026. Rent stays exclusive to *Return rented goods* and Purchase exclusive to
@@ -90,9 +99,6 @@ quantity with no agreed amount at all.
 
 **Open, and explicitly his call, not to be assumed:**
 
-- Can a delivery's basis be corrected after it is recorded? A third radio stops the
-  desk being forced into a wrong answer, but does nothing for the wrong ones already in
-  a file.
 - Does the shared kinds list need the administrator rename / merge / safe-delete
   maintenance the other reusable values have? The deferred note below says yes; it has
   not been confirmed since the design changed shape.
