@@ -57,6 +57,11 @@ func (s *Server) financeRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /finance/password", s.financePassword)
 	m.HandleFunc("GET /finance/recovery-key/new", s.financeRecoveryNew)
 	m.HandleFunc("POST /finance/recovery-key/new", s.financeRecoveryNew)
+
+	// 18
+	m.HandleFunc("GET /finance/api/values", s.financeAPIValues)
+	m.HandleFunc("GET /finance/lists", s.financeLists)
+	m.HandleFunc("POST /finance/lists/{id}/{action}", s.financeListAction)
 }
 
 func financeHeaders(w http.ResponseWriter) {
@@ -107,6 +112,12 @@ func (s *Server) serveFinance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if strings.HasPrefix(r.URL.Path, "/finance/accounts") && !s.sessionIsAdmin(session) {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+	// Anybody authorized may add a value while recording something. Correcting
+	// the shared lists afterwards is an administrator's job.
+	if strings.HasPrefix(r.URL.Path, "/finance/lists") && !s.sessionIsAdmin(session) {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}

@@ -36,7 +36,7 @@ the resume artifact.** Keep it current after every committed slice.
 |---|---|---|---|
 | 17 | Vault, accounts, sessions | `cdc431c` | **Done.** All 16 required tests pass under `-race`. |
 | 18 | 1. Order/value model, IDs, validation, rupee parser | this commit | **Done.** register-level tests pass. |
-| 18 | 2. Reusable values: in-closure resolve/create, admin `/finance/lists` | — | Not started |
+| 18 | 2. Reusable values: typeahead, admin `/finance/lists` | this commit | **Done.** 3 required tests pass. |
 | 18 | 3. Orders: create, list, detail, `POST /finance/product/new` | — | Not started |
 | 18 | 4. Order edit and cancel, the six-row `FinanceChange` table | — | Not started |
 | 18 | 5. Full verification block, docs | — | Not started |
