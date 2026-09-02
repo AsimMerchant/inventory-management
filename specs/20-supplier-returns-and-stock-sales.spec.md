@@ -15,10 +15,15 @@ on-hand stock correct and preserving protected financial history.
 - Existing stock is pooled per product and inwards are not lots for issue/return. The
   user reaffirmed that inventory staff simply record actual receipts, including partial
   deliveries, without choosing an order.
-- Parent orchestration decision: a supplier return cannot exceed global on-hand or the
-  live rented quantity actually received from that supplier/product less earlier
-  returns; a sale cannot exceed global on-hand or live purchased quantity for that
-  product less earlier sales. Every check repeats inside `Store.UpdateFinance`.
+- **Superseded 3 September 2026 by the user.** The original decision tied a supplier
+  return to the quantity that party itself sent. The user rejected it in use: goods are
+  handed to a transporter, or to whoever is doing the rounds, and that person then
+  returns them to the vendor. The party on a return records who took the goods and
+  limits nothing. A supplier return cannot exceed global on-hand or the live rented
+  quantity of that product still here, whoever sent it; a sale cannot exceed global
+  on-hand or live purchased quantity for that product less earlier sales. Every check
+  repeats inside `Store.UpdateFinance`. The product picker offers everything that may
+  leave the store, with an optional tick that narrows it to one supplier's goods.
 - Financial detail remains encrypted under spec 17, but ordinary stock arithmetic must
   work after restart without a login. A minimal non-financial disposal projection is
   therefore stored in the public register; supplier/buyer/money remain encrypted.
@@ -217,7 +222,7 @@ asks for an inward/order/internal ID.
 
 POST resolves and allocates again inside one `UpdateFinance`. Zero/non-whole number
 refuses `Type how many were returned to the supplier.` Above allowed refuses
-`Only <allowed> <product name> can be returned to this supplier.` Successful save
+`Only <allowed> <product name> can be sent back.` Successful save
 appends protected `SupplierReturn`, public `InventoryDisposal`, and audit atomically;
 redirect 303 says `Supplier return saved.`
 

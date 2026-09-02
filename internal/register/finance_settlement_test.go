@@ -194,16 +194,18 @@ func TestSupplierReturnAllocatesOldestEligibleInwards(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Oldest of Sharma's own rented receipts first: 70 then 20.
+	// Oldest rented receipts first, whoever sent them: INW-0001's 70, then 20
+	// of INW-0004's 40. Goods are handed to whoever is taking them, so a return
+	// is not confined to one supplier's own deliveries.
 	if len(sources) != 2 ||
 		sources[0] != (DisposalAllocation{InwardID: "INW-0001", Quantity: 70}) ||
-		sources[1] != (DisposalAllocation{InwardID: "INW-0002", Quantity: 20}) {
+		sources[1] != (DisposalAllocation{InwardID: "INW-0004", Quantity: 20}) {
 		t.Fatalf("allocated %+v", sources)
 	}
-	// The purchase, the blank supplier and Gupta's rows are untouched.
+	// The purchase is still untouched: only rented stock goes back.
 	for _, a := range sources {
-		if a.InwardID == "INW-0003" || a.InwardID == "INW-0004" || a.InwardID == "INW-0005" {
-			t.Errorf("allocation reached %s", a.InwardID)
+		if a.InwardID == "INW-0003" {
+			t.Errorf("allocation reached the purchase %s", a.InwardID)
 		}
 	}
 
@@ -235,8 +237,19 @@ func TestSupplierReturnAllocatesOldestEligibleInwards(t *testing.T) {
 			f.ReusableValues[i].MergedIntoID = ids["Sharma Events"]
 		}
 	}
-	if got := SupplierReturnAvailable(r, f, old, "PRD-0001"); got != 100 {
-		t.Errorf("through the merged spelling the available amount is %d, want 100", got)
+	// What one party sent still resolves through renames and merges. That
+	// number no longer caps a return — goods go back with whoever is taking
+	// them — but it is what narrows the product list to one supplier's goods
+	// when somebody asks for that.
+	if got := SupplierSentRented(r, f, old, "PRD-0001"); got != 100 {
+		t.Errorf("through the merged spelling Sharma sent %d, want 100", got)
+	}
+	if got := SupplierSentRented(r, f, ids["Gupta Traders"], "PRD-0001"); got != 25 {
+		t.Errorf("Gupta sent %d, want 25", got)
+	}
+	// And a party who sent none of it narrows to nothing.
+	if got := SupplierSentRented(r, f, "Nobody At All", "PRD-0001"); got != 0 {
+		t.Errorf("a party who sent nothing shows %d", got)
 	}
 }
 

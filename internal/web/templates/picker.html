@@ -11,6 +11,12 @@
   <input class="inp" type="text" name="productName" autocomplete="off" value="{{.PickedName}}" data-picker-text>
   <input type="hidden" name="productId" value="{{.PickedID}}" data-picker-id>
   <div class="sug" hidden data-picker-list></div>
+  {{if .OnlyPartyLabel}}
+  {{/* Every product is offered by default, because goods are not always handed
+       back to the supplier who sent them. This narrows the list for somebody
+       who does want only one supplier's goods. */}}
+  <label class="only"><input type="checkbox" data-picker-only> {{.OnlyPartyLabel}}</label>
+  {{end}}
   <noscript>
     <select class="inp" name="productId">
       <option value="">Pick the product from the list</option>

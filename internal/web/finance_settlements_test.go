@@ -199,7 +199,7 @@ func TestSupplierReturnRefusesMoreThanTheTwoCaps(t *testing.T) {
 	// number a person can act on.
 	status, body := admin.post(t, "/finance/supplier-returns/new",
 		settleForm("Sharma Events", tables, 61, "2026-09-03T15:00"))
-	if status != 200 || !strings.Contains(body, "Only 60 Round tables can be returned to this supplier.") {
+	if status != 200 || !strings.Contains(body, "Only 60 Round tables can be sent back.") {
 		t.Fatalf("61 gave %d: %s", status, body)
 	}
 	if returns, _ := settlements(t, e, key); len(returns) != 0 {
@@ -213,15 +213,17 @@ func TestSupplierReturnRefusesMoreThanTheTwoCaps(t *testing.T) {
 	}
 	status, body = admin.post(t, "/finance/supplier-returns/new",
 		settleForm("Gupta Traders", tables, 11, "2026-09-03T15:30"))
-	if status != 200 || !strings.Contains(body, "Only 10 Round tables can be returned to this supplier.") {
+	if status != 200 || !strings.Contains(body, "Only 10 Round tables can be sent back.") {
 		t.Errorf("Gupta's 11 gave %d: %s", status, body)
 	}
 
-	// A supplier who sent nothing may return nothing.
-	status, _ = admin.post(t, "/finance/supplier-returns/new",
+	// A party who sent nothing may still take goods back: they are the courier,
+	// or whoever is doing the rounds. What limits the return is the stock in
+	// the store, not the name on the delivery note.
+	status, body = admin.post(t, "/finance/supplier-returns/new",
 		settleForm("Verma Sound", tables, 1, "2026-09-03T15:30"))
-	if status != 200 {
-		t.Error("a supplier who sent nothing was allowed to take stock back")
+	if status != 303 {
+		t.Errorf("handing goods to somebody other than the supplier = %d: %s", status, body)
 	}
 }
 

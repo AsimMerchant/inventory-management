@@ -15,6 +15,8 @@
     // go back to. Read fresh on every keystroke: the person may change it.
     var partySel = box.getAttribute('data-party-from');
     var countSel = box.getAttribute('data-count-into');
+    var only = box.querySelector('[data-picker-only]');
+    if (only) only.addEventListener('change', function () { load(text.value); });
     // What may go back depends on the supplier, so changing the supplier can
     // change the number beside a product that is already chosen. Ask the server
     // again rather than assuming: most of the time the product is still fine
@@ -58,6 +60,7 @@
         var el = document.querySelector(partySel);
         if (el && el.value) extra += '&party=' + encodeURIComponent(el.value);
       }
+      if (only && only.checked) extra += '&onlyParty=yes';
       req.open('GET', endpoint + '?mode=' + mode + '&q=' + encodeURIComponent(q) + extra);
       req.onload = function () {
         if (req.status !== 200) { hide(); return; }

@@ -86,7 +86,15 @@ func (s *Server) financeAPIProducts(w http.ResponseWriter, r *http.Request) {
 	switch q.Get("mode") {
 	case "return", "sale":
 		_ = s.st.ReadBoth(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) {
-			out = settlementSuggestions(reg, f, q.Get("mode"), q.Get("party"), q.Get("q"))
+			party := ""
+			// The party narrows the list only when the person asked it to. By
+			// default every product that can leave the store is offered,
+			// because goods are not always handed to the supplier who sent
+			// them.
+			if q.Get("onlyParty") != "" {
+				party = q.Get("party")
+			}
+			out = settlementSuggestions(reg, f, q.Get("mode"), party, q.Get("q"))
 		})
 	default:
 		s.st.Read(func(reg *register.Register) {
@@ -101,16 +109,13 @@ func (s *Server) financeAPIProducts(w http.ResponseWriter, r *http.Request) {
 // same way the product picker matches anywhere else: names starting with the
 // query first, then the rest, capped at eight.
 //
-// The supplier narrows the number, never the list. Filtering the products by
-// supplier forced people to fill the form in one particular order and threw
-// their work away when they did not, which is a worse problem than showing a
-// product whose number happens to be zero. A sale ignores the party entirely:
-// who is buying has no bearing on what may be sold.
+// The party has no bearing on either list. Goods are handed to whoever is
+// taking them — a transporter, somebody doing the rounds — and refusing that
+// because the name is not the supplier on the delivery note would be the
+// register inventing a rule the store does not have. What limits a return is
+// what came in on rent and is still here; what limits a sale is what was
+// bought and is still here.
 func settlementSuggestions(reg *register.Register, f *register.FinanceData, mode, party, query string) []suggestion {
-	partyID := ""
-	if v, ok := register.ResolveFinanceValue(f, party); ok {
-		partyID = v.ID
-	}
 	rows := []suggestion{}
 	for _, p := range reg.Products {
 		if p.Deleted != nil {
@@ -128,35 +133,21 @@ func settlementSuggestions(reg *register.Register, f *register.FinanceData, mode
 			continue
 		}
 
-		// A return. Nothing that is not physically here can go anywhere, so
-		// that is the only thing that removes a product from the list.
-		if register.OnHand(reg, p.ID) <= 0 {
+		// A return. Every product that is here can go back, to whoever is
+		// taking it, so by default who that is has no bearing on the list.
+		available := register.SupplierReturnAvailable(reg, f, "", p.ID)
+		if available <= 0 {
 			continue
 		}
-		switch {
-		case partyID != "":
-			available := register.SupplierReturnAvailable(reg, f, partyID, p.ID)
-			rows = append(rows, suggestion{
-				ID: p.ID, Name: p.Name, OnHand: available,
-				Label: p.Name + " — " + strconv.Itoa(available) + " available",
-			})
-		case party != "":
-			// The supplier may be on the inwards but not on the protected list
-			// yet, which is normal: the desk types it, finance has not used it.
-			available := register.SupplierReturnAvailableByName(reg, f, party, p.ID)
-			rows = append(rows, suggestion{
-				ID: p.ID, Name: p.Name, OnHand: available,
-				Label: p.Name + " — " + strconv.Itoa(available) + " available",
-			})
-		default:
-			// No supplier named yet. Say what is in the store, and let naming
-			// the supplier fill in how many of those may go back to them.
-			onHand := register.OnHand(reg, p.ID)
-			rows = append(rows, suggestion{
-				ID: p.ID, Name: p.Name, OnHand: onHand,
-				Label: p.Name + " — " + strconv.Itoa(onHand) + " on hand",
-			})
+		// The screen may ask for one supplier's goods only. That is somebody
+		// narrowing a long list on purpose, never something they must do.
+		if party != "" && register.SupplierSentRented(reg, f, party, p.ID) <= 0 {
+			continue
 		}
+		rows = append(rows, suggestion{
+			ID: p.ID, Name: p.Name, OnHand: available,
+			Label: p.Name + " — " + strconv.Itoa(available) + " available",
+		})
 	}
 	rows = matchByName(rows, query)
 	if len(rows) > maxSuggestions {

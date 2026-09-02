@@ -384,37 +384,51 @@ func minInt(a, b int) int {
 	return b
 }
 
-// SupplierReturnAvailable is the most that may go back to this supplier now.
-// It is the smaller of what is physically in the store and what this supplier
-// actually sent on rent and has not had back.
+// SupplierReturnAvailable is the most rented stock of this product that may
+// leave the store now: the smaller of what is physically here and what came in
+// on rent and has not gone back.
+//
+// It deliberately does not depend on who is receiving it. Goods do not always
+// go straight back to the supplier who sent them — they are handed to a
+// transporter, or to whoever is doing the rounds — and the register has no
+// business refusing that. The party on a return records who took them.
 func SupplierReturnAvailable(r *Register, f *FinanceData, partyID, productID string) int {
 	return supplierReturnAvailable(r, f, partyID, productID, "", "")
 }
 
-func supplierReturnAvailable(r *Register, f *FinanceData, partyID, productID, exceptKind, exceptID string) int {
-	aliases := PartyAliases(f, partyID)
+func supplierReturnAvailable(r *Register, f *FinanceData, _, productID, exceptKind, exceptID string) int {
+	rented := sumAllocations(remaining(r, f, productID, Rent, nil, exceptKind, exceptID))
+	stock := onHandExcluding(r, f, productID, exceptKind, exceptID)
+	return maxZero(minInt(stock, rented))
+}
+
+// SupplierSentRented is how much of this product came in on rent from one
+// party and has not gone back yet, by ID or by the name typed on a screen. It
+// exists so a long product list can be narrowed to one supplier's goods on
+// request. It limits nothing: what may leave the store is SupplierReturnAvailable.
+func SupplierSentRented(r *Register, f *FinanceData, party, productID string) int {
+	aliases := map[string]bool{}
+	if v, ok := ResolveFinanceValue(f, party); ok {
+		aliases = PartyAliases(f, v.ID)
+	} else if v, ok := FindFinanceValueByText(f, FinanceParty, party); ok {
+		aliases = PartyAliases(f, v.ID)
+	} else if key := FoldKey(party); key != "" {
+		aliases = map[string]bool{key: true}
+	}
 	if len(aliases) == 0 {
 		return 0
 	}
-	fromSupplier := sumAllocations(remaining(r, f, productID, Rent, aliases, exceptKind, exceptID))
-	stock := onHandExcluding(r, f, productID, exceptKind, exceptID)
-	return maxZero(minInt(stock, fromSupplier))
+	return maxZero(sumAllocations(remaining(r, f, productID, Rent, aliases, "", "")))
 }
 
-// SupplierReturnAvailableByName is the same limit for a supplier who is not on
-// the protected list yet. Inventory staff type the supplier straight onto the
-// inward, so goods can be sitting here under a name finance has never used;
-// the save creates the party, and this is what the screen must show before it.
+// SupplierReturnAvailableByName is the same number for a party typed on the
+// screen who is not on the protected list yet. It is the same for everybody,
+// so the name only has to be non-empty.
 func SupplierReturnAvailableByName(r *Register, f *FinanceData, name, productID string) int {
-	key := FoldKey(name)
-	if key == "" {
+	if FoldKey(name) == "" {
 		return 0
 	}
-	if v, ok := FindFinanceValueByText(f, FinanceParty, name); ok {
-		return SupplierReturnAvailable(r, f, v.ID, productID)
-	}
-	fromSupplier := sumAllocations(remaining(r, f, productID, Rent, map[string]bool{key: true}, "", ""))
-	return maxZero(minInt(onHandExcluding(r, f, productID, "", ""), fromSupplier))
+	return supplierReturnAvailable(r, f, "", productID, "", "")
 }
 
 // PurchasedAvailableToSell is the most that may be sold now: the smaller of
@@ -439,8 +453,8 @@ func maxZero(n int) int {
 // ErrNotEnoughStock is returned when a settlement asks for more than allowed.
 var ErrNotEnoughStock = errors.New("not enough stock")
 
-// AllocateSupplierReturn spreads a return across this supplier's own rented
-// receipts, oldest first. It is attribution, not lot tracking: the program
+// AllocateSupplierReturn spreads a return across the rented receipts for this
+// product, oldest first, whoever they came from. Stock is pooled: the program
 // cannot know which physical chair is which, and makes no stronger claim.
 func AllocateSupplierReturn(r *Register, f *FinanceData, partyID, productID string, quantity int) ([]DisposalAllocation, error) {
 	return allocateSupplierReturn(r, f, partyID, productID, quantity, "", "")
@@ -453,7 +467,7 @@ func allocateSupplierReturn(r *Register, f *FinanceData, partyID, productID stri
 	if quantity > supplierReturnAvailable(r, f, partyID, productID, exceptKind, exceptID) {
 		return nil, ErrNotEnoughStock
 	}
-	return take(remaining(r, f, productID, Rent, PartyAliases(f, partyID), exceptKind, exceptID), quantity), nil
+	return take(remaining(r, f, productID, Rent, nil, exceptKind, exceptID), quantity), nil
 }
 
 // AllocateStockSale spreads a sale across purchased receipts, oldest first,

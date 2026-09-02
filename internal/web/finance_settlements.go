@@ -76,15 +76,6 @@ func (s *Server) fillSettlement(d *settlementDraft, r *http.Request) {
 		d.Party = pickerFor(f, register.FinanceParty, label,
 			"partyId", "partyName", d.Party.PickedID, d.Party.PickedText, "")
 
-		// A refused settlement creates no party, so the typed name is all
-		// there is to go on. Resolve it by text too, or the refusal would say
-		// "Only 0" about a supplier who has plenty here.
-		partyID := ""
-		if v, ok := register.ResolveFinanceValue(f, d.Party.PickedID); ok {
-			partyID = v.ID
-		} else if v, ok := register.FindFinanceValueByText(f, register.FinanceParty, d.Party.PickedText); ok {
-			partyID = v.ID
-		}
 		// Type to find the product, like every other screen. The suggestions
 		// carry how many may still go back or be sold, because that number is
 		// the reason the person is on this screen at all.
@@ -97,41 +88,26 @@ func (s *Server) fillSettlement(d *settlementDraft, r *http.Request) {
 			PickedID:  d.ProductID,
 			CountInto: "[data-available]",
 		}
-		// What may go back depends on which supplier sent it. What may be sold
-		// does not depend on who is buying, so the sale screen must not tie the
-		// two together: it would throw away a product the buyer never affected.
 		if d.Kind != "sale" {
 			d.Picker.PartyFrom = `[data-values][data-kind="party"] [data-values-text]`
+			d.Picker.OnlyPartyLabel = "Show only this supplier's goods"
 		}
 		for _, p := range reg.Products {
 			if p.Deleted != nil {
 				continue
 			}
-			available, word := 0, "available"
-			switch {
-			case d.Kind == "sale":
+			available := 0
+			if d.Kind == "sale" {
 				available = register.PurchasedAvailableToSellExcluding(reg, f, p.ID, d.ID)
-				if available <= 0 && p.ID != d.ProductID {
-					continue
-				}
-			case partyID != "":
-				available = register.SupplierReturnAvailableExcluding(reg, f, partyID, p.ID, d.ID)
-			case d.Party.PickedText != "":
-				// Typed but not on the protected list yet: the goods may still
-				// be here under that name on the inwards.
-				available = register.SupplierReturnAvailableByName(reg, f, d.Party.PickedText, p.ID)
-			default:
-				// No supplier named. The list is what is in the store, the same
-				// as the picker shows, so the two fields can be filled in
-				// either order.
-				available, word = register.OnHand(reg, p.ID), "on hand"
+			} else {
+				available = register.SupplierReturnAvailableExcluding(reg, f, "", p.ID, d.ID)
 			}
-			if d.Kind != "sale" && register.OnHand(reg, p.ID) <= 0 && p.ID != d.ProductID {
+			if available <= 0 && p.ID != d.ProductID {
 				continue
 			}
 			row := suggestion{
 				ID: p.ID, Name: p.Name, OnHand: available,
-				Label: p.Name + " — " + strconv.Itoa(available) + " " + word,
+				Label: p.Name + " — " + strconv.Itoa(available) + " available",
 			}
 			// These same rows are the picker's no-script fallback.
 			d.Picker.Products = append(d.Picker.Products, row)
@@ -281,7 +257,7 @@ func tooMany(kind string, allowed int, product string) string {
 	if kind == "sale" {
 		return "Only " + strconv.Itoa(allowed) + " " + product + " can be sold."
 	}
-	return "Only " + strconv.Itoa(allowed) + " " + product + " can be returned to this supplier."
+	return "Only " + strconv.Itoa(allowed) + " " + product + " can be sent back."
 }
 
 type settlementView struct {

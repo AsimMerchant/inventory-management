@@ -278,6 +278,9 @@ type pickerData struct {
 	// whatever was just chosen.
 	PartyFrom string
 	CountInto string
+	// OnlyPartyLabel, when set, offers a tick that narrows the list to the
+	// party named in PartyFrom. Empty means no such tick.
+	OnlyPartyLabel string
 }
 
 // picker resolves a submitted productId against the list. A productId that

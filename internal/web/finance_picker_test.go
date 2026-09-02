@@ -118,11 +118,12 @@ func TestSettlementProductIsTypedNotScrolled(t *testing.T) {
 		if !strings.Contains(r.Label, strconv.Itoa(r.OnHand)+" available") {
 			t.Errorf("the row for %q does not say how many may go back: %q", r.Name, r.Label)
 		}
-		// The supplier narrows the number, not the list. Another supplier's
-		// goods are still shown, honestly, as nothing available.
-		if r.Name == "Chandeliers" && r.OnHand != 0 {
-			t.Errorf("Chandeliers came from somebody else but offers %d", r.OnHand)
-		}
+	}
+	// Another supplier's goods are offered too, because a return is not
+	// confined to the supplier who sent them: they are handed to whoever is
+	// taking them back.
+	if !containsName(rows, "Chandeliers") {
+		t.Errorf("goods from another supplier are hidden: %v", names(rows))
 	}
 	// Names starting with the query come first: Chafing dishes before the rest.
 	got := names(rows)
@@ -130,17 +131,25 @@ func TestSettlementProductIsTypedNotScrolled(t *testing.T) {
 		t.Errorf("the closest match is not first: %v", got)
 	}
 
-	// Before a supplier is named, the list is what is physically in the store,
-	// so the two fields can be filled in either order. Filtering the products by
-	// supplier forced one order and threw away work when people used the other.
+	// The list is the same before a supplier is named, so the two fields can be
+	// filled in either order and neither disturbs the other.
 	early := suggestionsOf(t, admin, "mode=return&q=ch")
-	if len(early) == 0 {
-		t.Error("no product could be chosen before naming a supplier")
+	if len(early) != len(rows) {
+		t.Errorf("naming a supplier changed the list: %v then %v", names(early), names(rows))
 	}
-	for _, r := range early {
-		if !strings.Contains(r.Label, strconv.Itoa(r.OnHand)+" on hand") {
-			t.Errorf("with no supplier named, %q reads %q, want an on-hand count", r.Name, r.Label)
-		}
+
+	// Somebody who does want one supplier's goods only can ask for that, and
+	// then the others drop out. It is a tick they choose, never a step forced
+	// on them.
+	narrowed := suggestionsOf(t, admin, "mode=return&onlyParty=yes&party=Sharma+Tent+House&q=ch")
+	if len(narrowed) == 0 {
+		t.Fatal("narrowing to one supplier offered nothing")
+	}
+	if containsName(narrowed, "Chandeliers") {
+		t.Errorf("narrowing to Sharma still offers Gupta's goods: %v", names(narrowed))
+	}
+	if len(narrowed) >= len(rows) {
+		t.Errorf("narrowing did not shorten the list: %v vs %v", names(narrowed), names(rows))
 	}
 
 	// And the screen still saves.
@@ -497,4 +506,13 @@ func TestSettlementReadsTheProductWithNoScript(t *testing.T) {
 	if status != 200 || !strings.Contains(body, "Pick the product from the list.") {
 		t.Errorf("naming no product = %d, and did not refuse: %s", status, body)
 	}
+}
+
+func containsName(rows []suggestion, name string) bool {
+	for _, r := range rows {
+		if r.Name == name {
+			return true
+		}
+	}
+	return false
 }
