@@ -68,7 +68,7 @@ the resume artifact.** Keep it current after every committed slice.
 | 20 | 4. Settlement edit/void, inward guards, product cascade | `47a1758` | **Done.** All 13 spec-20 web tests plus 6 register tests pass. |
 | 21 | 1. Protected navigation, route and header matrix | `9dcda6e` | **Done.** All 6 required tests pass. |
 | 21 | 2. Plain-language review, two-step confirmations, paired spec/test amendments | `643b159` | **Done.** 13 new contract tests; all 74 required tests across 17–21 exist and pass. |
-| 21 | 3. Browser acceptance run, release gate, docs | — | Not started |
+| 21 | 3. Browser acceptance run, release gate, docs | in progress | **Steps 1–5 pass** in headless Chromium against a real native binary: 32 checks, 0 console errors, 0 external requests. Steps 6–15 outstanding. |
 
 **Spec 21 makes two things blocking that spec 18 did not.** Its acceptance criterion 5
 requires an independent `plain_language_reviewer` with no blocking finding *and* an
@@ -91,6 +91,32 @@ that threading was the whole fix; no spec-17 behaviour was changed.
 **The financial screens are placeholder HTML.** They work and are asserted by tests, but
 they are unstyled and have not been through `plain_language_reviewer`. Spec 21 makes them
 real. Do not judge the feature by opening it before then.
+
+#### Browser acceptance: how to run it
+
+The script is scratchpad-only (spec 21 forbids committing one). Rebuild, copy into a
+fresh `mktemp -d`, run it there, and drive `http://127.0.0.1:8765`. Playwright 1.62.1
+lives in the npx cache; set
+`NODE_PATH=/home/asim/.npm/_npx/e41f203b7505f1fb/node_modules`.
+
+Selector facts learned the hard way, all of which cost a run each:
+
+- **The chrome's Logout is the first submit button on every protected page.** Any bare
+  `click('button[type=submit]')` logs you out. Name the form, or click by button text.
+- The order form's **Save order** is *not* the first submit in its form either — the
+  per-line "add this as a new product" button comes first and carries `formaction`.
+  Click `button:has-text("Save order")`.
+- Setup, login and activate forms **post to the current URL and carry no `action`**, so
+  select them by a field only they have.
+- Basis radios are **indexed per row**: `basis-0`, `basis-1`.
+- `<details class="add">` on `/shift` is **already open** on an empty register; clicking
+  the summary closes it. Check `.open` first.
+- Adding a person is not putting them on duty: **select the radio, then press Start
+  shift**, or every ordinary page keeps redirecting to `/shift`.
+- With script on there is **no `<select>` in the DOM at all** for pickers — the
+  `<noscript>` fallback is not parsed. Drive the real picker: type, wait, click the row.
+- A fresh binary has **an empty catalogue**. Spec 21 step 4 assumes Chairs exists; it
+  does not, so create both products through the deliberate finance route.
 
 #### Traps this build has already hit
 
