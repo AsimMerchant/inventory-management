@@ -71,7 +71,85 @@ func ValidateFinance(f *FinanceData) error {
 	if err := validateOrders(f, seenIDs); err != nil {
 		return err
 	}
+	if f.SupplierReturns == nil {
+		return fmt.Errorf("supplier returns must be a list")
+	}
+	if f.Sales == nil {
+		return fmt.Errorf("stock sales must be a list")
+	}
+	if err := validateSettlements(f, seenIDs); err != nil {
+		return err
+	}
 	return validateMovements(f, seenIDs)
+}
+
+// validateSettlements holds what the vault can check on its own. Whether each
+// one pairs with a public stock removal is ValidatePairing's job, because that
+// needs the register too.
+func validateSettlements(f *FinanceData, accountIDs map[string]bool) error {
+	ids := make(map[string]bool)
+	one := func(kind, id, partyID string, product FinanceProductRef,
+		sources []DisposalAllocation, recordedByID string,
+		changes []FinanceChange, voided *FinanceVoid) error {
+
+		if id == "" || ids[id] {
+			return fmt.Errorf("%s id is blank or duplicated", kind)
+		}
+		ids[id] = true
+		v, ok := ResolveFinanceValue(f, partyID)
+		if !ok || v.Kind != FinanceParty {
+			return fmt.Errorf("%s party is unknown", kind)
+		}
+		if product.ProductID == "" || CleanName(product.ProductName) == "" {
+			return fmt.Errorf("%s product is invalid", kind)
+		}
+		if len(sources) == 0 {
+			return fmt.Errorf("%s has no sources", kind)
+		}
+		seen := make(map[string]bool)
+		for _, a := range sources {
+			if a.InwardID == "" || seen[a.InwardID] || a.Quantity < 1 {
+				return fmt.Errorf("%s source is invalid", kind)
+			}
+			seen[a.InwardID] = true
+		}
+		if !accountIDs[recordedByID] {
+			return fmt.Errorf("%s recorder is unknown", kind)
+		}
+		if voided != nil && (!accountIDs[voided.ByAccountID] || CleanName(voided.Reason) == "") {
+			return fmt.Errorf("%s void is incomplete", kind)
+		}
+		return validateFinanceChanges(changes, accountIDs)
+	}
+
+	for _, s := range f.SupplierReturns {
+		if err := one("supplier return", s.ID, s.PartyID, s.Product, s.Sources,
+			s.RecordedByID, s.Changes, s.Voided); err != nil {
+			return err
+		}
+	}
+	for _, s := range f.Sales {
+		if err := one("sale", s.ID, s.BuyerPartyID, s.Product, s.Sources,
+			s.RecordedByID, s.Changes, s.Voided); err != nil {
+			return err
+		}
+	}
+
+	// A movement may point at a settlement, live or voided, but never at one
+	// that does not exist.
+	for _, m := range f.Movements {
+		for _, ref := range m.Settlements {
+			switch ref.Kind {
+			case "supplier_return", "sale":
+			default:
+				return fmt.Errorf("money movement names an unknown kind of settlement")
+			}
+			if !ids[ref.ID] {
+				return fmt.Errorf("money movement names an unknown settlement")
+			}
+		}
+	}
+	return nil
 }
 
 // validateMovements holds the money invariants. Every one of them is something
@@ -282,6 +360,14 @@ func (f *FinanceData) NextID(prefix string) string {
 			for _, l := range o.Lines {
 				ids = append(ids, l.ID)
 			}
+		}
+	case "SRN":
+		for _, x := range f.SupplierReturns {
+			ids = append(ids, x.ID)
+		}
+	case "SAL":
+		for _, x := range f.Sales {
+			ids = append(ids, x.ID)
 		}
 	case "MOV":
 		for _, m := range f.Movements {

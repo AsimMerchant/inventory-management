@@ -149,6 +149,12 @@ func normalizeFinance(f *register.FinanceData) {
 	if f.Movements == nil {
 		f.Movements = []register.MoneyMovement{}
 	}
+	if f.SupplierReturns == nil {
+		f.SupplierReturns = []register.SupplierReturn{}
+	}
+	if f.Sales == nil {
+		f.Sales = []register.StockSale{}
+	}
 }
 
 func decryptFinance(env *register.FinanceEnvelope, vaultKey []byte) (*register.FinanceData, error) {
@@ -326,6 +332,11 @@ func (s *Store) UpdateFinance(vaultKey []byte, fn func(*register.Register, *regi
 	if err := register.ValidateFinance(workData); err != nil {
 		return err
 	}
+	// The one invariant that spans both halves of the file: a live settlement
+	// and an active stock removal are two views of one event.
+	if err := register.ValidatePairing(work, workData); err != nil {
+		return err
+	}
 	if err := encryptFinance(work.Finance, workData, vaultKey); err != nil {
 		return err
 	}
@@ -361,12 +372,31 @@ func deepCopyFinance(f *register.FinanceData) *register.FinanceData {
 	// refused transaction leave half-applied edits in the live decrypted data.
 	c.Movements = append([]register.MoneyMovement{}, f.Movements...)
 	for i := range c.Movements {
+		c.Movements[i].Settlements = append([]register.FinanceSettlementRef{}, f.Movements[i].Settlements...)
 		c.Movements[i].OrderLineIDs = append([]string{}, f.Movements[i].OrderLineIDs...)
 		c.Movements[i].Products = append([]register.FinanceProductRef{}, f.Movements[i].Products...)
 		c.Movements[i].Changes = append([]register.FinanceChange{}, f.Movements[i].Changes...)
 		if f.Movements[i].Voided != nil {
 			v := *f.Movements[i].Voided
 			c.Movements[i].Voided = &v
+		}
+	}
+	c.SupplierReturns = append([]register.SupplierReturn{}, f.SupplierReturns...)
+	for i := range c.SupplierReturns {
+		c.SupplierReturns[i].Sources = append([]register.DisposalAllocation{}, f.SupplierReturns[i].Sources...)
+		c.SupplierReturns[i].Changes = append([]register.FinanceChange{}, f.SupplierReturns[i].Changes...)
+		if f.SupplierReturns[i].Voided != nil {
+			v := *f.SupplierReturns[i].Voided
+			c.SupplierReturns[i].Voided = &v
+		}
+	}
+	c.Sales = append([]register.StockSale{}, f.Sales...)
+	for i := range c.Sales {
+		c.Sales[i].Sources = append([]register.DisposalAllocation{}, f.Sales[i].Sources...)
+		c.Sales[i].Changes = append([]register.FinanceChange{}, f.Sales[i].Changes...)
+		if f.Sales[i].Voided != nil {
+			v := *f.Sales[i].Voided
+			c.Sales[i].Voided = &v
 		}
 	}
 	if f.RecoveryConfirmedAt != nil {
@@ -757,6 +787,9 @@ func (s *Store) publishFinance(work *register.Register, data *register.FinanceDa
 		return fmt.Errorf("inventory validation failed")
 	}
 	if err := register.ValidateFinance(data); err != nil {
+		return err
+	}
+	if err := register.ValidatePairing(work, data); err != nil {
 		return err
 	}
 	if err := encryptFinance(work.Finance, data, vaultKey); err != nil {

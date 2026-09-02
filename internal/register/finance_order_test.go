@@ -13,10 +13,12 @@ func financeSeed() *FinanceData {
 			ID: "FAC-0001", DisplayName: "Asha Patel", Mobile: "9820011111",
 			Role: FinanceAdmin, Status: "active", CreatedAt: at, CreatedByID: "FAC-0001",
 		}},
-		Orders:         []FinanceOrder{},
-		ReusableValues: []FinanceReusableValue{},
-		Movements:      []MoneyMovement{},
-		Audit:          []FinanceAuditEvent{},
+		Orders:          []FinanceOrder{},
+		ReusableValues:  []FinanceReusableValue{},
+		Movements:       []MoneyMovement{},
+		SupplierReturns: []SupplierReturn{},
+		Sales:           []StockSale{},
+		Audit:           []FinanceAuditEvent{},
 	}
 	for _, mode := range InitialPaymentModes {
 		if _, err := AddFinanceValue(f, FinanceMode, mode, "FAC-0001", at); err != nil {

@@ -26,6 +26,8 @@ type FinanceData struct {
 	Orders              []FinanceOrder         `json:"orders"`
 	ReusableValues      []FinanceReusableValue `json:"reusableValues"`
 	Movements           []MoneyMovement        `json:"movements"`
+	SupplierReturns     []SupplierReturn       `json:"supplierReturns"`
+	Sales               []StockSale            `json:"sales"`
 	Audit               []FinanceAuditEvent    `json:"audit"`
 	RecoveryConfirmedAt *time.Time             `json:"recoveryConfirmedAt,omitempty"`
 }

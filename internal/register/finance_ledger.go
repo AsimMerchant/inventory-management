@@ -38,22 +38,23 @@ type FinanceVoid struct {
 // MoneyMovement is one payment out or one receipt in. Its timing is its own:
 // it may come before the goods, long after them, or in instalments.
 type MoneyMovement struct {
-	ID           string              `json:"id"` // MOV-0001
-	Direction    MoneyDirection      `json:"direction"`
-	AmountPaise  int64               `json:"amountPaise"`
-	OccurredAt   time.Time           `json:"occurredAt"`
-	PartyID      string              `json:"partyId"`
-	OrderID      string              `json:"orderId,omitempty"`
-	OrderLineIDs []string            `json:"orderLineIds,omitempty"`
-	Products     []FinanceProductRef `json:"products,omitempty"`
-	PurposeID    string              `json:"purposeId"`
-	ModeID       string              `json:"modeId"`
-	Reference    string              `json:"reference,omitempty"`
-	Remarks      string              `json:"remarks,omitempty"`
-	RecordedAt   time.Time           `json:"recordedAt"`
-	RecordedByID string              `json:"recordedById"`
-	Changes      []FinanceChange     `json:"changes,omitempty"`
-	Voided       *FinanceVoid        `json:"voided,omitempty"`
+	ID           string                 `json:"id"` // MOV-0001
+	Direction    MoneyDirection         `json:"direction"`
+	AmountPaise  int64                  `json:"amountPaise"`
+	OccurredAt   time.Time              `json:"occurredAt"`
+	PartyID      string                 `json:"partyId"`
+	OrderID      string                 `json:"orderId,omitempty"`
+	OrderLineIDs []string               `json:"orderLineIds,omitempty"`
+	Products     []FinanceProductRef    `json:"products,omitempty"`
+	PurposeID    string                 `json:"purposeId"`
+	ModeID       string                 `json:"modeId"`
+	Reference    string                 `json:"reference,omitempty"`
+	Remarks      string                 `json:"remarks,omitempty"`
+	RecordedAt   time.Time              `json:"recordedAt"`
+	RecordedByID string                 `json:"recordedById"`
+	Settlements  []FinanceSettlementRef `json:"settlements,omitempty"`
+	Changes      []FinanceChange        `json:"changes,omitempty"`
+	Voided       *FinanceVoid           `json:"voided,omitempty"`
 }
 
 // Live reports whether this movement counts towards any total.
