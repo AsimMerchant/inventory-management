@@ -68,6 +68,20 @@ func (s *Server) financeAPIValues(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(out)
 }
 
+// financeAPIProducts answers the product picker on the financial screens. The
+// ordinary /api/products sits behind the inventory shift guard, and a
+// financial user recording an order has no shift running: without this route
+// the picker silently returns nothing and no product can be chosen at all.
+func (s *Server) financeAPIProducts(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	out := []suggestion{}
+	s.st.Read(func(reg *register.Register) {
+		out = suggestMode(reg, q.Get("q"), q.Get("mode"))
+	})
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(out)
+}
+
 // financeSessionOf reads the session serveFinance already put on the request.
 // Every /finance route past the public four is reached only through it.
 func financeSessionOf(r *http.Request) *financeSession {

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"strings"
@@ -429,5 +430,65 @@ func TestFinanceHeadersAndFormsContainNoExternalResource(t *testing.T) {
 	}
 	if string(mustReadFile(t, e.path)) != string(before) {
 		t.Error("a GET changed the register file")
+	}
+}
+
+// TestFinanceProductPickerWorksWithNoInventoryShift covers a defect the whole
+// handler suite missed because every fixture has a live shift: the ordinary
+// /api/products sits behind the inventory shift guard, so a financial user
+// recording an order at a time when nobody is on duty at the desk saw an empty
+// picker and could not choose a product at all.
+func TestFinanceProductPickerWorksWithNoInventoryShift(t *testing.T) {
+	reg := register.WalkthroughT0()
+	// Nobody is on duty: exactly the state the finance area must still work in.
+	reg.OnDutyStaffID = ""
+	reg.ShiftStartedAt = nil
+	e := newTestServer(t, reg, orderNow)
+	admin, _, _ := financeAdmin(t, e)
+
+	// The ordinary route still guards itself.
+	resp, _ := e.get("/api/products?mode=all&q=ch")
+	if resp.StatusCode != 303 {
+		t.Errorf("the ordinary product API answered %d with no shift", resp.StatusCode)
+	}
+
+	// The protected one answers, and offers the real catalogue.
+	status, body := admin.get(t, "/finance/api/products?mode=all&q=ch")
+	if status != 200 {
+		t.Fatalf("the protected product API answered %d", status)
+	}
+	var rows []suggestion
+	if err := json.Unmarshal([]byte(body), &rows); err != nil {
+		t.Fatalf("not JSON: %v (%s)", err, body)
+	}
+	if len(rows) == 0 {
+		t.Fatal("the protected product API offered nothing")
+	}
+	found := false
+	for _, r := range rows {
+		if r.Name == "Chairs" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("Chairs is not among the suggestions: %+v", rows)
+	}
+
+	// A stranger cannot reach it.
+	plain := e.client()
+	out, err := plain.Get(e.URL + "/finance/api/products?mode=all&q=ch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer out.Body.Close()
+	if out.StatusCode == 200 {
+		t.Error("the protected product API answered a stranger")
+	}
+
+	// And the order form actually points the picker at it, so the fix is
+	// reachable rather than merely present.
+	_, form := admin.get(t, "/finance/orders/new")
+	if !strings.Contains(form, `data-endpoint="/finance/api/products"`) {
+		t.Error("the order form's picker still asks the shift-guarded route")
 	}
 }

@@ -94,6 +94,15 @@ real. Do not judge the feature by opening it before then.
 
 #### Traps this build has already hit
 
+- **The whole handler suite can miss a defect that only a running binary shows.**
+  Every web fixture starts from `WalkthroughT0()`, which has a live shift, so nothing
+  caught that the finance order form's product picker asked `/api/products` — a route
+  behind the *inventory* shift guard. With nobody on duty at the desk, a financial user
+  saw an empty picker and could not choose a product at all. Fixed by giving the picker
+  a `data-endpoint` and adding the session-gated `/finance/api/products`;
+  `TestFinanceProductPickerWorksWithNoInventoryShift` pins it with the shift cleared.
+  **Run the real binary as well as the suite.**
+
 - `deepCopyFinance` was a shallow copy. `FinanceOrder` carries `Lines`, `Changes` and a
   `*int64`; sharing those backing arrays would let a **refused** transaction leave
   half-applied edits in the live decrypted data. It now deep-copies all three.

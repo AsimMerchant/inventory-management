@@ -3,6 +3,7 @@
      never received is meaningless. The wording of the last row lives here, not
      in picker.js, so every sentence the desk reads is in a template. */}}
 <div class="field" data-picker data-mode="{{.Mode}}"
+     data-endpoint="{{if .Endpoint}}{{.Endpoint}}{{else}}/api/products{{end}}"
      data-newlabel="{{if .AllowNew}}as a brand-new product{{end}}">
   <span class="lab">{{.Label}}</span>
   <input class="inp" type="text" name="productName" autocomplete="off" value="{{.PickedName}}" data-picker-text>

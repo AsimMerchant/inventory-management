@@ -141,6 +141,7 @@ func (s *Server) fill(d *orderDraft, r *http.Request) {
 				}
 			}
 			l.Picker = pickerData{
+				Endpoint:   "/finance/api/products",
 				Label:      "Product",
 				Mode:       "all",
 				PickedID:   l.ProductID,
