@@ -516,3 +516,120 @@ func containsName(rows []suggestion, name string) bool {
 	}
 	return false
 }
+
+// TestNewProductCanBeAddedFromTheFinancialScreens covers a claim the release
+// notes already made and the program did not keep: adding a product that is not
+// on the list yet, from inside the protected area. The desk's /product/new
+// cannot be reused for it — that route needs somebody on duty, and nobody is on
+// duty in the financial area, so it refuses silently.
+func TestNewProductCanBeAddedFromTheFinancialScreens(t *testing.T) {
+	e := newTestServer(t, emptyStock(), orderNow)
+	admin, _, _ := financeAdmin(t, e)
+	// Nobody is at the desk: the state the financial area is really used in.
+	if err := e.st.Update(func(reg *register.Register) error {
+		reg.OnDutyStaffID, reg.ShiftStartedAt = "", nil
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The ordinary route cannot serve the financial area: with nobody on duty
+	// it creates nothing, which is why the protected one exists.
+	_, _ = e.post("/product/new", url.Values{"name": {"Diesel generator hire"}})
+	for _, n := range liveProductNames(t, e) {
+		if n == "Diesel generator hire" {
+			t.Fatal("the desk route created a product with nobody on duty")
+		}
+	}
+
+	status, body := admin.post(t, "/finance/products/new", url.Values{
+		"name": {"Diesel generator hire"},
+	})
+	if status != 200 {
+		t.Fatalf("adding a product = %d: %s", status, body)
+	}
+	var made productAnswer
+	if err := json.Unmarshal([]byte(body), &made); err != nil {
+		t.Fatalf("not JSON: %v (%s)", err, body)
+	}
+	if made.ID == "" || made.Name != "Diesel generator hire" {
+		t.Fatalf("the answer was %+v", made)
+	}
+
+	// It is an ordinary product: the desk sees it, at zero, and can receive it.
+	if got := productIDNamed(t, e, "Diesel generator hire"); got != made.ID {
+		t.Errorf("the product is %s on the register but %s in the answer", got, made.ID)
+	}
+	if got := stockOf(t, e, made.ID); got != 0 {
+		t.Errorf("a brand-new product starts at %d, want 0", got)
+	}
+
+	// The product invariant holds. The same name again is refused outright.
+	_, body = admin.post(t, "/finance/products/new", url.Values{"name": {"diesel generator hire"}})
+	var again productAnswer
+	_ = json.Unmarshal([]byte(body), &again)
+	if again.ID != "" || !strings.Contains(again.Error, "already on the list") {
+		t.Errorf("a duplicate name was accepted: %+v", again)
+	}
+
+	// A near-duplicate takes one deliberate confirmation, and writes nothing
+	// until it gets one. A split product silently halves the on-hand count.
+	before := len(liveProductNames(t, e))
+	_, body = admin.post(t, "/finance/products/new", url.Values{"name": {"Diesel generator hires"}})
+	var near productAnswer
+	_ = json.Unmarshal([]byte(body), &near)
+	if !near.NeedsConfirm || near.ID != "" {
+		t.Fatalf("a near-duplicate was not queried: %+v", near)
+	}
+	if len(liveProductNames(t, e)) != before {
+		t.Error("the unconfirmed near-duplicate was written anyway")
+	}
+	_, body = admin.post(t, "/finance/products/new", url.Values{
+		"name": {"Diesel generator hires"}, "confirm": {"yes"},
+	})
+	var confirmed productAnswer
+	_ = json.Unmarshal([]byte(body), &confirmed)
+	if confirmed.ID == "" {
+		t.Errorf("the confirmed near-duplicate was still refused: %+v", confirmed)
+	}
+
+	// A stranger cannot create products through it.
+	plain := e.client()
+	resp, err := plain.PostForm(e.URL+"/finance/products/new", url.Values{"name": {"Smuggled in"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == 200 {
+		t.Error("the protected product route answered a stranger")
+	}
+	for _, n := range liveProductNames(t, e) {
+		if n == "Smuggled in" {
+			t.Fatal("a stranger created a product")
+		}
+	}
+
+	// And both screens actually offer it, with the token the write needs.
+	for _, path := range []string{"/finance/orders/new", "/finance/movements/new"} {
+		_, form := admin.get(t, path)
+		if !strings.Contains(form, `data-new-endpoint="/finance/products/new"`) {
+			t.Errorf("%s offers no way to add a product that is not on the list", path)
+		}
+		if !strings.Contains(form, "data-csrf=") {
+			t.Errorf("%s cannot authorise the write", path)
+		}
+	}
+}
+
+func liveProductNames(t *testing.T, e *env) []string {
+	t.Helper()
+	out := []string{}
+	e.st.Read(func(reg *register.Register) {
+		for _, p := range reg.Products {
+			if p.Deleted == nil {
+				out = append(out, p.Name)
+			}
+		}
+	})
+	return out
+}

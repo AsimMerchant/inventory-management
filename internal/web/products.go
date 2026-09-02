@@ -281,6 +281,11 @@ type pickerData struct {
 	// OnlyPartyLabel, when set, offers a tick that narrows the list to the
 	// party named in PartyFrom. Empty means no such tick.
 	OnlyPartyLabel string
+	// NewEndpoint is where the picker posts a brand-new product, for screens
+	// that cannot use the desk's /product/new because nobody is on duty. CSRF
+	// goes with it because that press writes to the register.
+	NewEndpoint string
+	CSRF        string
 }
 
 // picker resolves a submitted productId against the list. A productId that

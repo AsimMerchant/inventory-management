@@ -12,7 +12,9 @@
     var chosen = box.querySelector('[data-multi-chosen]');
     var field = box.getAttribute('data-field');
     var endpoint = box.getAttribute('data-endpoint') || '/finance/api/products';
-    var rows = [], here = -1;
+    var newAt = box.getAttribute('data-new-endpoint') || '';
+    var csrf = box.getAttribute('data-csrf') || '';
+    var rows = [], here = -1, confirming = '';
 
     text.addEventListener('input', function () { load(text.value); });
     text.addEventListener('focus', function () { load(text.value); });
@@ -55,8 +57,67 @@
       here = rows.length ? 0 : -1;
       list.innerHTML = '';
       for (var j = 0; j < rows.length; j++) list.appendChild(row(rows[j], j));
+      // The thing being paid for is not always on the list yet. Adding it is a
+      // deliberate press of its own, never something that happens by typing.
+      var typed = text.value.trim();
+      if (newAt && typed !== '' && !exactly(found, typed)) list.appendChild(newRow(typed));
       list.hidden = !list.firstChild;
       paint();
+    }
+
+    function exactly(found, typed) {
+      for (var i = 0; i < found.length; i++) {
+        if (found[i].name.toLowerCase() === typed.toLowerCase()) return true;
+      }
+      return false;
+    }
+
+    function newRow(typed) {
+      var d = document.createElement('div');
+      d.className = 'new';
+      d.textContent = confirming === typed.toLowerCase()
+        ? 'Press again to add "' + typed + '" as a separate product'
+        : '+ Add "' + typed + '" as a brand-new product';
+      d.addEventListener('mousedown', function (e) { e.preventDefault(); create(typed); });
+      return d;
+    }
+
+    function create(typed) {
+      var body = 'name=' + encodeURIComponent(typed) + '&csrf=' + encodeURIComponent(csrf);
+      if (confirming === typed.toLowerCase()) body += '&confirm=yes';
+      var req = new XMLHttpRequest();
+      req.open('POST', newAt);
+      req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+      req.onload = function () {
+        var answer = {};
+        try { answer = JSON.parse(req.responseText); } catch (e) { answer = {}; }
+        if (answer.id) {
+          confirming = '';
+          add(answer.id, answer.name);
+          text.value = '';
+          hide();
+          text.focus();
+          return;
+        }
+        if (answer.needsConfirm) confirming = typed.toLowerCase();
+        else confirming = '';
+        say(answer.error || 'That product could not be added.');
+      };
+      req.send(body);
+    }
+
+    // The refusal goes where the person is looking, in the list itself.
+    function say(words) {
+      list.innerHTML = '';
+      var d = document.createElement('div');
+      d.className = 'warn';
+      d.textContent = words;
+      list.appendChild(d);
+      var typed = text.value.trim();
+      if (typed !== '') list.appendChild(newRow(typed));
+      rows = [];
+      here = -1;
+      list.hidden = false;
     }
 
     function row(found, i) {

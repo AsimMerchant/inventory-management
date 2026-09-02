@@ -140,13 +140,19 @@ func (s *Server) fill(d *orderDraft, r *http.Request) {
 					name = p.Name
 				}
 			}
+			// An order is often the first anybody hears of a product, so it
+			// can be added here — one deliberate press, the same guard against
+			// near-duplicates the desk gets.
 			l.Picker = pickerData{
-				Endpoint:   "/finance/api/products",
-				Label:      "Product",
-				Mode:       "all",
-				PickedID:   l.ProductID,
-				PickedName: name,
-				Products:   matchProductsMode(reg, "", "all"),
+				Endpoint:    "/finance/api/products",
+				Label:       "Product",
+				Mode:        "all",
+				PickedID:    l.ProductID,
+				PickedName:  name,
+				Products:    matchProductsMode(reg, "", "all"),
+				AllowNew:    true,
+				NewEndpoint: "/finance/products/new",
+				CSRF:        financeSessionOf(r).csrf,
 			}
 		}
 	})

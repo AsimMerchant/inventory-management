@@ -225,6 +225,7 @@ table.stk tr:last-child td{border-bottom:none}
 .sug div:last-child{border-bottom:none}
 .sug .hl{background:var(--accent-soft);font-weight:600}
 .sug .new{color:var(--accent);font-weight:600;border-top:1px solid var(--rule)}
+.sug .warn{color:var(--warn);background:var(--warn-soft)}
 .only{display:flex;align-items:center;gap:.4rem;margin-top:.4rem;font-size:.85rem;color:var(--ink-soft)}
 .chosen{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.35rem}
 .chosen:empty{display:none}

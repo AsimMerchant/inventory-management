@@ -2,7 +2,8 @@
      list underneath is the control; with script on it is hidden and typing
      finds products one at a time. Either way the product is picked, never
      typed. */}}
-<div class="field" data-multi data-field="{{.Field}}" data-endpoint="{{.Endpoint}}">
+<div class="field" data-multi data-field="{{.Field}}" data-endpoint="{{.Endpoint}}"
+     {{if .NewEndpoint}}data-new-endpoint="{{.NewEndpoint}}" data-csrf="{{.CSRF}}"{{end}}>
   <span class="lab">{{.Label}}</span>
   <div class="chosen" data-multi-chosen>
     {{range .Chosen}}<span class="chosen-tag"><span>{{.Name}}</span><input type="hidden" name="{{$.Field}}" value="{{.ID}}"><button type="button" class="chosen-off" data-multi-off aria-label="Take {{.Name}} off this entry">&times;</button></span>{{end}}

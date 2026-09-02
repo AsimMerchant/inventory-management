@@ -53,8 +53,13 @@ type multiPicker struct {
 	Label    string
 	Field    string
 	Endpoint string
-	Chosen   []productChoice
-	All      []productChoice
+	// NewEndpoint, when set, lets somebody add a product that is not on the
+	// list yet, through one deliberate press. CSRF goes with it because that
+	// press writes to the register.
+	NewEndpoint string
+	CSRF        string
+	Chosen      []productChoice
+	All         []productChoice
 }
 
 type productChoice struct {
@@ -214,7 +219,9 @@ func (s *Server) fillMoney(d *moneyDraft, r *http.Request) {
 			// the person can check and remove them.
 			row.ProductBox = multiPicker{
 				Label: "Related products", Endpoint: "/finance/api/products",
-				Field: rowField("productIds", i),
+				Field:       rowField("productIds", i),
+				NewEndpoint: "/finance/products/new",
+				CSRF:        financeSessionOf(r).csrf,
 			}
 			picked := map[string]bool{}
 			for _, id := range row.ProductIDs {

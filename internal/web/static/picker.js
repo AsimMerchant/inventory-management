@@ -34,6 +34,12 @@
       }
     }
     var newLabel = box.getAttribute('data-newlabel') || '';
+    // The financial screens have nobody on duty, so they cannot use the desk's
+    // /product/new. They post to their own route and stay on the page, because
+    // a redirect would throw away a half-filled order.
+    var newAt = box.getAttribute('data-new-endpoint') || '';
+    var csrf = box.getAttribute('data-csrf') || '';
+    var confirming = '';
     var rows = [];
     var here = -1;
 
@@ -123,15 +129,53 @@
     function newRow(q) {
       var d = document.createElement('div');
       d.className = 'new';
-      d.textContent = '+ Add "' + q + '" ' + newLabel;
+      d.textContent = confirming === q.toLowerCase()
+        ? 'Press again to add "' + q + '" as a separate product'
+        : '+ Add "' + q + '" ' + newLabel;
       d.addEventListener('mousedown', function (e) {
         e.preventDefault();
+        if (newAt) { create(q); return; }
         var form = document.querySelector('[data-newform]');
         if (!form) return;
         form.querySelector('[data-newname]').value = q;
         form.submit();
       });
       return d;
+    }
+
+    function create(q) {
+      var body = 'name=' + encodeURIComponent(q) + '&csrf=' + encodeURIComponent(csrf);
+      if (confirming === q.toLowerCase()) body += '&confirm=yes';
+      var req = new XMLHttpRequest();
+      req.open('POST', newAt);
+      req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+      req.onload = function () {
+        var answer = {};
+        try { answer = JSON.parse(req.responseText); } catch (e) { answer = {}; }
+        if (answer.id) {
+          confirming = '';
+          text.value = answer.name;
+          id.value = answer.id;
+          setCount(0);
+          hide();
+          return;
+        }
+        confirming = answer.needsConfirm ? q.toLowerCase() : '';
+        warn(answer.error || 'That product could not be added.', q);
+      };
+      req.send(body);
+    }
+
+    function warn(words, q) {
+      list.innerHTML = '';
+      var d = document.createElement('div');
+      d.className = 'warn';
+      d.textContent = words;
+      list.appendChild(d);
+      list.appendChild(newRow(q));
+      rows = [];
+      here = -1;
+      list.hidden = false;
     }
 
     function move(step) {

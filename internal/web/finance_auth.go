@@ -76,6 +76,7 @@ func (s *Server) financeRoutes(m *http.ServeMux) {
 	// 19
 	m.HandleFunc("GET /finance/movements/new", s.financeMoneyNew)
 	m.HandleFunc("POST /finance/movements/new", s.financeMoneyNew)
+	m.HandleFunc("POST /finance/products/new", s.financeNewProduct)
 	m.HandleFunc("GET /finance/movements/{id}/edit", s.financeMoneyEdit)
 	m.HandleFunc("POST /finance/movements/{id}/edit", s.financeMoneyEdit)
 	m.HandleFunc("POST /finance/movements/{id}/void", s.financeMoneyVoid)
