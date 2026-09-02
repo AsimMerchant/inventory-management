@@ -21,4 +21,5 @@
   {{end}}
 </table>
 <p>Money paid {{.Totals.Paid}} · Money received {{.Totals.Received}} · Net paid {{.Totals.Net}}</p>
-<p class="noprint"><button class="btn" type="button" onclick="window.print()">Print</button></p>
+<p class="noprint"><button class="btn" type="button" data-print>Print</button></p>
+<script src="/static/print.js"></script>

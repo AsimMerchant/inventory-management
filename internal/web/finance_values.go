@@ -186,7 +186,7 @@ func (s *Server) financeListAction(w http.ResponseWriter, r *http.Request) {
 		err = s.st.DeleteFinanceValue(sess.vaultKey, sess.accountID, id, now)
 		notice = "Removed."
 	default:
-		s.notFound(w, r)
+		s.financeNotFound(w, r)
 		return
 	}
 

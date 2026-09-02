@@ -442,7 +442,7 @@ func (s *Server) renderOrderDetail(w http.ResponseWriter, r *http.Request, id, p
 		}
 	})
 	if !found {
-		s.notFound(w, r)
+		s.financeNotFound(w, r)
 		return
 	}
 	s.financePage(w, r, "Order", "finance-order.html", data)
@@ -456,7 +456,7 @@ func (s *Server) financeProductNew(w http.ResponseWriter, r *http.Request) {
 	d := s.readOrderDraft(r)
 	at, err := strconv.Atoi(r.FormValue("line"))
 	if err != nil || at < 0 || at >= len(d.Lines) {
-		s.notFound(w, r)
+		s.financeNotFound(w, r)
 		return
 	}
 	name := d.Lines[at].ProductName
@@ -568,7 +568,7 @@ func (s *Server) financeOrderEdit(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		d, ok := s.draftFromOrder(r, id)
 		if !ok {
-			s.notFound(w, r)
+			s.financeNotFound(w, r)
 			return
 		}
 		s.renderOrderForm(w, r, d)

@@ -74,7 +74,12 @@ type page struct {
 	Content      template.HTML
 	Finance      bool
 	FinanceAdmin bool
-	CSRF         string
+	// Who is authorized here, shown on every financial page. It is never the
+	// on-duty inventory person: those are two different identities.
+	FinanceWho    string
+	FinanceMobile string
+	FinanceRole   string
+	CSRF          string
 }
 
 // add puts a banner on the page. A nil banner is no banner, so every caller can

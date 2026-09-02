@@ -94,9 +94,11 @@ func (s *Server) financeRoutes(m *http.ServeMux) {
 
 func financeHeaders(w http.ResponseWriter) {
 	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("X-Frame-Options", "DENY")
-	w.Header().Set("Content-Security-Policy", "default-src 'self'; form-action 'self'; frame-ancestors 'none'")
+	w.Header().Set("Content-Security-Policy",
+		"default-src 'self'; script-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 }
 
@@ -193,6 +195,22 @@ func (s *Server) authenticatedFinanceSession(r *http.Request) (*financeSession, 
 	return sess, false
 }
 
+// whoAmI is the authenticated financial identity every protected page shows.
+func (s *Server) whoAmI(sess *financeSession) (name, mobile, role string, admin bool) {
+	_ = s.st.ReadFinance(sess.vaultKey, func(data *register.FinanceData) {
+		for _, a := range data.Accounts {
+			if a.ID != sess.accountID {
+				continue
+			}
+			name, mobile, role = a.DisplayName, a.Mobile, "Financial user"
+			if a.Role == register.FinanceAdmin && a.Status == "active" {
+				role, admin = "Administrator", true
+			}
+		}
+	})
+	return
+}
+
 func (s *Server) sessionIsAdmin(sess *financeSession) bool {
 	admin := false
 	_ = s.st.ReadFinance(sess.vaultKey, func(data *register.FinanceData) {
@@ -264,7 +282,8 @@ func (s *Server) publicFinancePage(w http.ResponseWriter, name string, data any)
 
 func (s *Server) financePage(w http.ResponseWriter, r *http.Request, title, name string, data any) {
 	sess := r.Context().Value(financeContextKey{}).(*financeSession)
-	p := page{Title: title, Tabs: false, Finance: true, FinanceAdmin: s.sessionIsAdmin(sess), CSRF: sess.csrf}
+	p := page{Title: title, Tabs: false, Finance: true, CSRF: sess.csrf}
+	p.FinanceWho, p.FinanceMobile, p.FinanceRole, p.FinanceAdmin = s.whoAmI(sess)
 	s.render(w, http.StatusOK, p, name, data)
 }
 
