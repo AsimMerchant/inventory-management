@@ -22,9 +22,11 @@ type FinanceKeySlot struct {
 }
 
 type FinanceData struct {
-	Accounts            []FinanceAccount    `json:"accounts"`
-	Audit               []FinanceAuditEvent `json:"audit"`
-	RecoveryConfirmedAt *time.Time          `json:"recoveryConfirmedAt,omitempty"`
+	Accounts            []FinanceAccount       `json:"accounts"`
+	Orders              []FinanceOrder         `json:"orders"`
+	ReusableValues      []FinanceReusableValue `json:"reusableValues"`
+	Audit               []FinanceAuditEvent    `json:"audit"`
+	RecoveryConfirmedAt *time.Time             `json:"recoveryConfirmedAt,omitempty"`
 }
 
 type FinanceRole string

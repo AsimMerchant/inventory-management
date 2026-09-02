@@ -140,6 +140,12 @@ func normalizeFinance(f *register.FinanceData) {
 	if f.Audit == nil {
 		f.Audit = []register.FinanceAuditEvent{}
 	}
+	if f.Orders == nil {
+		f.Orders = []register.FinanceOrder{}
+	}
+	if f.ReusableValues == nil {
+		f.ReusableValues = []register.FinanceReusableValue{}
+	}
 }
 
 func decryptFinance(env *register.FinanceEnvelope, vaultKey []byte) (*register.FinanceData, error) {
@@ -205,6 +211,15 @@ func (s *Store) InitializeFinance(displayName, mobile, password string, now time
 	}
 	data := &register.FinanceData{Accounts: []register.FinanceAccount{{ID: accountID, DisplayName: displayName, Mobile: mobile, Role: register.FinanceAdmin, Status: "active", CreatedAt: now, CreatedByID: accountID}}, Audit: []register.FinanceAuditEvent{}}
 	data.Audit = append(data.Audit, accountAudit(data, accountID, now, "account_created", accountID, "Authorized account created", "", "name="+displayName+", mobile="+mobile+", role=admin, status=active"))
+	normalizeFinance(data)
+	// The five modes everyone already uses, so the first payment does not begin
+	// with the person inventing a list. Parties and purposes start empty
+	// because there is nothing sensible to guess.
+	for _, mode := range register.InitialPaymentModes {
+		if _, err := register.AddFinanceValue(data, register.FinanceMode, mode, accountID, now); err != nil {
+			return nil, "", "", err
+		}
+	}
 	if err := register.ValidateFinance(data); err != nil {
 		return nil, "", "", err
 	}
@@ -323,6 +338,22 @@ func deepCopyFinance(f *register.FinanceData) *register.FinanceData {
 	c := *f
 	c.Accounts = append([]register.FinanceAccount{}, f.Accounts...)
 	c.Audit = append([]register.FinanceAuditEvent{}, f.Audit...)
+	// Orders and values carry their own slices and a pointer. Sharing those
+	// backing arrays would let a refused transaction leave its half-applied
+	// edits behind in the live decrypted data.
+	c.Orders = append([]register.FinanceOrder{}, f.Orders...)
+	for i := range c.Orders {
+		c.Orders[i].Lines = append([]register.FinanceOrderLine{}, f.Orders[i].Lines...)
+		c.Orders[i].Changes = append([]register.FinanceChange{}, f.Orders[i].Changes...)
+		if f.Orders[i].AgreedPaise != nil {
+			v := *f.Orders[i].AgreedPaise
+			c.Orders[i].AgreedPaise = &v
+		}
+	}
+	c.ReusableValues = append([]register.FinanceReusableValue{}, f.ReusableValues...)
+	for i := range c.ReusableValues {
+		c.ReusableValues[i].Changes = append([]register.FinanceChange{}, f.ReusableValues[i].Changes...)
+	}
 	if f.RecoveryConfirmedAt != nil {
 		t := *f.RecoveryConfirmedAt
 		c.RecoveryConfirmedAt = &t

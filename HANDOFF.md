@@ -25,10 +25,60 @@ day, inclusive date range, or exact local date/time range. Money movements and
 physical settlement movements are separate because they may occur at different
 times. The reviewed contracts are specs 17–21: protected vault/accounts, orders and
 reusable values, money/audit/printable journal, supplier returns and sales, and the
-integrated browser acceptance gate. No Go implementation existed when this
-specification checkpoint was completed.
+integrated browser acceptance gate.
 
-Continuation details are also kept in `.agent-handoff/latest.md` after each milestone.
+### Build progress against specs 17–21
+
+`.agent-handoff/` is gitignored, so it does not survive a fresh clone. **This section is
+the resume artifact.** Keep it current after every committed slice.
+
+| Spec | Slice | Commit | State |
+|---|---|---|---|
+| 17 | Vault, accounts, sessions | `cdc431c` | **Done.** All 16 required tests pass under `-race`. |
+| 18 | 1. Order/value model, IDs, validation, rupee parser | this commit | **Done.** register-level tests pass. |
+| 18 | 2. Reusable values: in-closure resolve/create, admin `/finance/lists` | — | Not started |
+| 18 | 3. Orders: create, list, detail, `POST /finance/product/new` | — | Not started |
+| 18 | 4. Order edit and cancel, the six-row `FinanceChange` table | — | Not started |
+| 18 | 5. Full verification block, docs | — | Not started |
+| 19–21 | Movements, supplier returns and sales, browser acceptance | — | Not started |
+
+Spec 17 arrived from the previous session mid-refactor and did not compile: the request
+was being threaded into `Server.page` so the chrome can tell whether a finance session is
+live, and four `render*` helpers still referred to an `r` they did not take. Completing
+that threading was the whole fix; no spec-17 behaviour was changed.
+
+**The financial screens are placeholder HTML.** They work and are asserted by tests, but
+they are unstyled and have not been through `plain_language_reviewer`. Spec 21 makes them
+real. Do not judge the feature by opening it before then.
+
+#### Traps this build has already hit
+
+- `deepCopyFinance` was a shallow copy. `FinanceOrder` carries `Lines`, `Changes` and a
+  `*int64`; sharing those backing arrays would let a **refused** transaction leave
+  half-applied edits in the live decrypted data. It now deep-copies all three.
+- Spec 18's float grep has no `!**/*_test.go` exclusion, unlike its `Products = append`
+  grep on the line above. A float literal in a *test* therefore fails the gate. The tree
+  is clean of floats today, tests included; keep it that way rather than amending the
+  spec.
+- Resolution of a typed party/purpose/mode must happen **inside** the `UpdateFinance`
+  closure, not before it, or two simultaneous posts create two rows saying the same
+  thing.
+- `FinanceOrderLine.ID` is unique across the whole vault, not within one order, so
+  `NextID("OLN")` scans every line of every order.
+
+#### Known gap: two spec-18 tests depend on spec 19
+
+`TestCancelPaidUndeliveredOrderKeepsHistory` and
+`TestOrderCorrectionIsAuditedAndUsedLineCannotDisappear` both require a money movement
+pointing at an order line, and spec 18 explicitly forbids declaring the movement type.
+The refusal path and its exact wording `This product is already used by a ledger entry.`
+ship in spec 18 behind `register.FinanceLineIsReferenced`, which returns `false` until
+spec 19 fills it in. Both tests are written and cover everything reachable today; their
+movement-linked assertions are the named gap. **Spec 19 must implement that predicate and
+complete both tests.**
+
+Continuation details are also kept in `.agent-handoff/latest.md` after each milestone,
+but that file is gitignored: never make it the only record of anything.
 
 You are picking up a build in progress. This file tells you what exists, what is left,
 how to check the work is sound, and which mistakes are easy to make here.
