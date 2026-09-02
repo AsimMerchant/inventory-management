@@ -68,7 +68,7 @@ the resume artifact.** Keep it current after every committed slice.
 | 20 | 4. Settlement edit/void, inward guards, product cascade | `47a1758` | **Done.** All 13 spec-20 web tests plus 6 register tests pass. |
 | 21 | 1. Protected navigation, route and header matrix | `9dcda6e` | **Done.** All 6 required tests pass. |
 | 21 | 2. Plain-language review, two-step confirmations, paired spec/test amendments | `643b159` | **Done.** 13 new contract tests; all 74 required tests across 17–21 exist and pass. |
-| 21 | 3. Browser acceptance run, release gate, docs | in progress | **Steps 1–10 pass** in headless Chromium against a real native binary: 73 checks, 0 console errors, 0 external requests. Steps 11–15 outstanding. |
+| 21 | 3. Browser acceptance run, release gate, docs | in progress | **Scenario passed** — see the run record below. `release_gate` outstanding. |
 
 **Spec 21 makes two things blocking that spec 18 did not.** Its acceptance criterion 5
 requires an independent `plain_language_reviewer` with no blocking finding *and* an
@@ -91,6 +91,29 @@ that threading was the whole fix; no spec-17 behaviour was changed.
 **The financial screens are placeholder HTML.** They work and are asserted by tests, but
 they are unstyled and have not been through `plain_language_reviewer`. Spec 21 makes them
 real. Do not judge the feature by opening it before then.
+
+#### Browser acceptance run record (spec 21 criterion 2)
+
+Binary built from `fede98f` plus the fixes below, run from a fresh `mktemp -d`,
+Chromium via Playwright 1.62.1, discovered URL `http://127.0.0.1:8765`.
+
+| Pass | Result |
+|---|---|
+| Steps 1–13, normal JavaScript | **85 checks, 0 failures, 0 console errors, 0 external requests** |
+| Step 14, file on disk after stopping the server | schema 3; products, inwards and disposals readable; `finance` holds only `vaultVersion`, `keySlots`, `recovery`, `nonce`, `ciphertext` |
+| Step 14, restart with nobody logged in | Tents **60**, Chairs **30** — correct after a supplier return, a sale and a void — and no finance menu anywhere |
+| Step 15, JavaScript disabled | **17 checks, 0 failures**: login, an existing-value payment through the selects, a brand-new purpose through `Or add a new one`, exact-time filter, print view and logout |
+
+**Two names are in the public file, and both are deliberate.** Do not "fix" them:
+`inwards[].supplier` is ordinary inventory data the desk types, and
+`products[].createdBy` carries the authenticated display name because spec 18's contract
+requires it when a product is created through the finance route. No money, mobile,
+party list, settlement kind or record ID appears in plaintext. Everything else on the
+protected-value list was checked and is absent.
+
+**Still outstanding:** step 12 (cancel a paid, undelivered order and record the equal
+refund) was covered by handler tests but not driven in the browser; the idle-expiry
+boundary is deliberately left to the deterministic clock test as the spec directs.
 
 #### Browser acceptance: how to run it
 
