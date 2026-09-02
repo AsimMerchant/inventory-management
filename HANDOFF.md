@@ -44,8 +44,8 @@ the resume artifact.** Keep it current after every committed slice.
 | 19 | 3. Corrections and voids | `d6551ea` | **Done.** |
 | 19 | 4. Dashboard, journal, print view, financial activity | `d6551ea` | **Done.** All 13 required tests pass. |
 | 20 | 0. `Register.Disposals` and the new `OnHand` — **alone, as a regression canary** | `7e01240` | **Done.** Whole suite green with an empty slice. |
-| 20 | 1. Settlement types and pairing validation | `PENDING21` | **Done.** |
-| 20 | 2. Allocation, party aliases and supplier obligations | `PENDING21` | **Done.** 6 required register tests pass. |
+| 20 | 1. Settlement types and pairing validation | `206e705` | **Done.** |
+| 20 | 2. Allocation, party aliases and supplier obligations | `206e705` | **Done.** 6 required register tests pass. |
 | 20 | 3. Supplier returns, sales, settlement and obligation screens | — | Not started |
 | 20 | 4. Settlement edit/void, inward guards, product cascade | — | Not started |
 | 21 | 1. Protected navigation, route and header matrix | — | Not started |
