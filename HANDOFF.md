@@ -27,6 +27,53 @@ times. The reviewed contracts are specs 17–21: protected vault/accounts, order
 reusable values, money/audit/printable journal, supplier returns and sales, and the
 integrated browser acceptance gate.
 
+### Design the user dictated on 3 September 2026 — NOT BUILT, no code written
+
+Recorded verbatim in intent at the user's request after an evening in which the split
+between *Record an order* and *Record money* was the thing that finally lost him. He had
+just asked, correctly, what an order is even for: nothing in the program compares agreed
+against paid, an order changes no stock and enters no total, so as built it is optional
+paperwork. This is his answer to that.
+
+**One screen.** *Record money* absorbs *Record an order*. There is no separate screen for
+saying what was agreed. Money and the agreement are recorded together, in one place.
+
+**The estimated/exact distinction goes.** An agreed amount, or none. Nothing else.
+
+**Per product on that screen: the agreed quantity, and what kind of acquisition it is —
+Rent, Purchase, or a typed word.** The typed word is the user's example of `donated`, and
+this is the same reusable-value pattern as party, purpose and payment mode: type a new
+one once, it is offered to everyone afterwards. This is the continuation of the deferred
+acquisition-basis decision recorded below, now with a concrete shape.
+
+**The kind belongs to the product, and the desk is told.** A product created from this
+screen carries the kind the ledger gave it, so when somebody on duty records the goods
+arriving they can see *the ledger already says these are donated* rather than guessing
+between two radio buttons. This is aimed squarely at a live defect: the desk's Rent /
+Purchase tick is the only place that fact is ever decided, nothing corrects a wrong one,
+and a wrong one silently makes goods unreturnable. The user hit it himself — cooking
+vessels ticked `PURCHASE` never appear on *Return rented goods*.
+
+**Money is still real when the goods are free.** His words: goods may be donated while
+the labour for delivery is still payable. The kind describes how the goods arrived; it
+says nothing about whether money moved. The screen must allow a money entry against
+donated goods without treating the donation as a payment, and must allow an agreed
+quantity with no agreed amount at all.
+
+**Open, and explicitly his call, not to be assumed:**
+
+- When the desk sees the kind the ledger recorded, is it pre-filled and still changeable,
+  or fixed? They are the ones holding the delivery note.
+- Can a product of a typed kind such as `donated` be sent back or sold? Today only Rent
+  reaches *Return rented goods* and only Purchase reaches *Record a sale*. Donated goods
+  are plausibly neither, but that is a product decision.
+- What happens to the four orders already recorded in a real file, and to `FinanceOrder`
+  in schema 3, if the order screen merges into the money screen.
+
+**Do not start this without him.** It changes the shape of the ledger's central screen,
+touches the register's acquisition basis, and reaches the ordinary desk — the one part of
+the program he trusts and that currently works.
+
 ### Post-release fix in flight — branch `fix/product-pickers-at-scale`
 
 Branched from `master` at `v1.2.1` + docs. **Not merged.** It exists because the user
