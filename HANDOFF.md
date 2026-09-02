@@ -46,13 +46,27 @@ this is the same reusable-value pattern as party, purpose and payment mode: type
 one once, it is offered to everyone afterwards. This is the continuation of the deferred
 acquisition-basis decision recorded below, now with a concrete shape.
 
-**The kind belongs to the product, and the desk is told.** A product created from this
-screen carries the kind the ledger gave it, so when somebody on duty records the goods
-arriving they can see *the ledger already says these are donated* rather than guessing
-between two radio buttons. This is aimed squarely at a live defect: the desk's Rent /
-Purchase tick is the only place that fact is ever decided, nothing corrects a wrong one,
-and a wrong one silently makes goods unreturnable. The user hit it himself — cooking
-vessels ticked `PURCHASE` never appear on *Return rented goods*.
+**The inward screen gains the same third choice, and the desk still decides.** Corrected
+by the user on 3 September 2026 against an earlier reading of mine, which had the ledger
+telling the desk what it had recorded. It does not. There is no "the ledger says donated"
+message anywhere, nothing pre-selected and nothing enforced.
+
+Instead the inward screen's basis becomes three radios — **Rent / Purchase / Other** —
+and Other opens the list of typed kinds: sponsored, donated, borrowed, whatever is there.
+That list is one shared vocabulary. A kind typed on *Record money* is in the list at the
+desk afterwards; a kind typed at the desk is in the ledger's list too. It is the same
+reusable-value pattern as party, purpose and payment mode, and it is what the deferred
+acquisition-basis item below described — the user has folded that work into this design
+rather than leaving it separate.
+
+The ledger therefore contributes vocabulary, never an answer. The person holding the
+delivery note picks, exactly as they do today.
+
+This is still aimed at the live defect: the desk's Rent / Purchase tick is the only place
+that fact is ever decided, nothing corrects a wrong one, and a wrong one silently makes
+goods unreturnable. The user hit it himself — cooking vessels ticked `PURCHASE` never
+appear on *Return rented goods*. A third option does not fix a wrong tick on its own, so
+whether a recorded basis can be corrected afterwards is still worth putting to him.
 
 **Money is still real when the goods are free.** His words: goods may be donated while
 the labour for delivery is still payable. The kind describes how the goods arrived; it
@@ -62,11 +76,15 @@ quantity with no agreed amount at all.
 
 **Open, and explicitly his call, not to be assumed:**
 
-- When the desk sees the kind the ledger recorded, is it pre-filled and still changeable,
-  or fixed? They are the ones holding the delivery note.
 - Can a product of a typed kind such as `donated` be sent back or sold? Today only Rent
   reaches *Return rented goods* and only Purchase reaches *Record a sale*. Donated goods
   are plausibly neither, but that is a product decision.
+- Can a delivery's basis be corrected after it is recorded? A third radio stops the
+  desk being forced into a wrong answer, but does nothing for the wrong ones already in
+  a file.
+- Does the shared kinds list need the administrator rename / merge / safe-delete
+  maintenance the other reusable values have? The deferred note below says yes; it has
+  not been confirmed since the design changed shape.
 - What happens to the four orders already recorded in a real file, and to `FinanceOrder`
   in schema 3, if the order screen merges into the money screen.
 
@@ -296,7 +314,11 @@ branch lived. Its two standing hits are faults in the script, not the app: `mode
 q=ch` correctly returns nothing in this seed, and the journal-filter check clicks the
 wrong button (the filter works — 17 entries unfiltered, 1 for `day=2026-08-30`).
 
-### Deferred acquisition-basis follow-up — not in specs 17–21
+### Deferred acquisition-basis follow-up — now folded into the design above
+
+**Superseded 3 September 2026.** The user has folded this into the merged money-and-order
+design recorded above, rather than leaving it as separate later work. The reasoning below
+still stands and is why that design has a third acquisition choice at all.
 
 The user later clarified that acquisition basis should not become one fixed `Borrowed`
 enum. A future, separately specified feature should keep built-in suggestions for Rent
