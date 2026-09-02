@@ -10,6 +10,7 @@
       {{if .OnDuty}}<a class="who" href="/shift">{{.OnDuty}} · on duty</a>{{end}}
       <a href="/stock">Dashboard</a>
       <a href="/shift">Change person</a>
+	  {{if .Finance}}<a href="/finance">Financial ledger</a>{{if .FinanceAdmin}} <a href="/finance/accounts">Authorized people</a>{{end}} <form method="post" action="/finance/logout" style="display:inline"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit">Logout</button></form>{{else}}<a href="/finance/login">Authorized login</a>{{end}}
     </div>
     {{if .Tabs}}
     <div class="tabs">

@@ -313,11 +313,11 @@ func (s *Server) entryEdit(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	s.renderEdit(w, data, nil)
+	s.renderEdit(w, r, data, nil)
 }
 
-func (s *Server) renderEdit(w http.ResponseWriter, data editData, b *banner) {
-	p := s.page("Fix an entry")
+func (s *Server) renderEdit(w http.ResponseWriter, r *http.Request, data editData, b *banner) {
+	p := s.page("Fix an entry", r)
 	p.Tabs = false
 	p.add(b)
 	s.render(w, http.StatusOK, p, "edit.html", data)
@@ -343,7 +343,7 @@ func (s *Server) entrySave(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 	if data.Deleted {
-		s.renderEdit(w, data, nil)
+		s.renderEdit(w, r, data, nil)
 		return
 	}
 
@@ -353,19 +353,19 @@ func (s *Server) entrySave(w http.ResponseWriter, r *http.Request, id string) {
 	typed.readForm(r)
 	if typed.Kind == "issue" && r.FormValue("addPerson") != "" {
 		typed.Additional = append(typed.Additional, register.IssueRecipient{})
-		s.renderEdit(w, typed, nil)
+		s.renderEdit(w, r, typed, nil)
 		return
 	}
 	if typed.Kind == "issue" && r.FormValue("removePerson") != "" {
 		if at, err := strconv.Atoi(r.FormValue("removePerson")); err == nil && at >= 0 && at < len(typed.Additional) {
 			typed.Additional = append(typed.Additional[:at], typed.Additional[at+1:]...)
 		}
-		s.renderEdit(w, typed, nil)
+		s.renderEdit(w, r, typed, nil)
 		return
 	}
 
 	refuse := func(text string) {
-		s.renderEdit(w, typed, &banner{"bad", text})
+		s.renderEdit(w, r, typed, &banner{"bad", text})
 	}
 
 	if text := fieldRefusal(typed); text != "" {
@@ -751,14 +751,14 @@ func (s *Server) entryDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if data.Deleted {
-		s.renderEdit(w, data, nil)
+		s.renderEdit(w, r, data, nil)
 		return
 	}
 
 	data.DeleteOpen = true
 	reason := register.CleanName(r.FormValue("reason"))
 	if reason == "" {
-		s.renderEdit(w, data, &banner{"bad", "Say why you are deleting this."})
+		s.renderEdit(w, r, data, &banner{"bad", "Say why you are deleting this."})
 		return
 	}
 
@@ -781,10 +781,10 @@ func (s *Server) entryDelete(w http.ResponseWriter, r *http.Request) {
 		s.st.Read(func(reg *register.Register) {
 			refusal = deleteRefusal(reg, data, problems, orphaned)
 		})
-		s.renderEdit(w, data, &banner{"bad", refusal})
+		s.renderEdit(w, r, data, &banner{"bad", refusal})
 		return
 	case err != nil:
-		s.renderEdit(w, data, &banner{"bad", saveFailed})
+		s.renderEdit(w, r, data, &banner{"bad", saveFailed})
 		return
 	}
 	http.Redirect(w, r, data.From+"?deleted="+id, http.StatusSeeOther)

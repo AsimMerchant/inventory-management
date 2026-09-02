@@ -1,0 +1,6 @@
+<h1>Authorized login</h1>
+{{if .Expired}}<p>You were logged out because the computer was left idle.</p>{{end}}
+{{if .Error}}<div class="banner bad">{{.Error}}</div>{{end}}
+<form method="post"><input type="hidden" name="csrf" value="{{.CSRF}}"><label>Mobile number <input name="mobile"></label><label>Password <input type="password" name="password"></label><button type="submit">Log in</button></form>
+{{if .CanSetup}}<p><a href="/finance/setup">Set up authorized access</a></p>{{end}}
+<p><a href="/finance/activate">Activate my account</a></p><p><a href="/finance/recover">Recover access</a></p>

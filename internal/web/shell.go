@@ -63,15 +63,18 @@ type banner struct {
 
 // page is everything layout.html needs. Data carries whatever the page itself needs.
 type page struct {
-	Title   string   // the words in the chrome bar
-	Current string   // the path of the tab that is on, "" on a flow page
-	Tabs    bool     // flow pages and the shift screen show none
-	OnDuty  string   // the on-duty person's name, "" when nobody is
-	Narrow  bool     // the shift screen is 26rem wide, everything else 52rem
-	Warning string   // the recovery warning, on every page until restart
-	Banners []banner // usually one; a short return says two things at once
-	Tabbar  []tab
-	Content template.HTML
+	Title        string   // the words in the chrome bar
+	Current      string   // the path of the tab that is on, "" on a flow page
+	Tabs         bool     // flow pages and the shift screen show none
+	OnDuty       string   // the on-duty person's name, "" when nobody is
+	Narrow       bool     // the shift screen is 26rem wide, everything else 52rem
+	Warning      string   // the recovery warning, on every page until restart
+	Banners      []banner // usually one; a short return says two things at once
+	Tabbar       []tab
+	Content      template.HTML
+	Finance      bool
+	FinanceAdmin bool
+	CSRF         string
 }
 
 // add puts a banner on the page. A nil banner is no banner, so every caller can

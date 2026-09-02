@@ -120,6 +120,9 @@ func (s *Store) Update(fn func(*register.Register) error) error {
 		s.reg = snapshot
 		return err
 	}
+	// Ordinary inventory work never opens or rewrites the protected envelope.
+	// Restore it even if a future inventory callback accidentally touches it.
+	s.reg.Finance = snapshot.Finance
 	if err := s.save(); err != nil {
 		s.reg = snapshot
 		return err
@@ -184,7 +187,7 @@ func readRegister(path string) (*register.Register, error) {
 	if err := json.Unmarshal(data, &reg); err != nil {
 		return nil, fmt.Errorf("%s is not a readable register: %w", path, err)
 	}
-	if reg.SchemaVersion != 1 && reg.SchemaVersion != register.SchemaVersion {
+	if reg.SchemaVersion != 1 && reg.SchemaVersion != 2 && reg.SchemaVersion != register.SchemaVersion {
 		return nil, fmt.Errorf("%s was written by a different version of this program (schema %d)", path, reg.SchemaVersion)
 	}
 	reg.SchemaVersion = register.SchemaVersion
@@ -285,6 +288,21 @@ func deepCopy(r *register.Register) *register.Register {
 		c.Returns[i].Allocations = append([]register.Allocation(nil), c.Returns[i].Allocations...)
 		c.Returns[i].Changes = copyChanges(c.Returns[i].Changes)
 		c.Returns[i].Deleted = copyDeletion(c.Returns[i].Deleted)
+	}
+	if r.Finance != nil {
+		e := *r.Finance
+		e.KeySlots = append([]register.FinanceKeySlot{}, r.Finance.KeySlots...)
+		for i := range e.KeySlots {
+			if e.KeySlots[i].ExpiresAt != nil {
+				t := *e.KeySlots[i].ExpiresAt
+				e.KeySlots[i].ExpiresAt = &t
+			}
+		}
+		if e.Recovery.ExpiresAt != nil {
+			t := *e.Recovery.ExpiresAt
+			e.Recovery.ExpiresAt = &t
+		}
+		c.Finance = &e
 	}
 	return &c
 }

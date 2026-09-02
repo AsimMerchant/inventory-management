@@ -1,0 +1,3 @@
+<h1>Set up authorized access</h1>
+{{if .Error}}<div class="banner bad">{{.Error}}</div>{{end}}
+<form method="post"><input type="hidden" name="csrf" value="{{.CSRF}}"><label>Your name <input name="name"></label><label>Mobile number <input name="mobile"></label><label>Create password <input type="password" name="password"></label><label>Type password again <input type="password" name="again"></label><button type="submit">Set up authorized access</button></form>

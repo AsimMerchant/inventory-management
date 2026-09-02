@@ -9,18 +9,19 @@ import (
 )
 
 // SchemaVersion is the only file version this program reads or writes.
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 // Register is everything the store desk remembers.
 type Register struct {
-	SchemaVersion  int        `json:"schemaVersion"`
-	OnDutyStaffID  string     `json:"onDutyStaffId"` // "" when no shift started
-	ShiftStartedAt *time.Time `json:"shiftStartedAt,omitempty"`
-	Products       []Product  `json:"products"`
-	Staff          []Staff    `json:"staff"`
-	Inwards        []Inward   `json:"inwards"`
-	Issues         []Issue    `json:"issues"`
-	Returns        []Return   `json:"returns"`
+	SchemaVersion  int              `json:"schemaVersion"`
+	OnDutyStaffID  string           `json:"onDutyStaffId"` // "" when no shift started
+	ShiftStartedAt *time.Time       `json:"shiftStartedAt,omitempty"`
+	Products       []Product        `json:"products"`
+	Staff          []Staff          `json:"staff"`
+	Inwards        []Inward         `json:"inwards"`
+	Issues         []Issue          `json:"issues"`
+	Returns        []Return         `json:"returns"`
+	Finance        *FinanceEnvelope `json:"finance,omitempty"`
 }
 
 // Product is a thing the store stocks. Stock is pooled per product.

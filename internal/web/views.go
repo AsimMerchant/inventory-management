@@ -36,7 +36,7 @@ type stockData struct {
 }
 
 func (s *Server) stockView(w http.ResponseWriter, r *http.Request) {
-	p := s.page("Stock")
+	p := s.page("Stock", r)
 	p.Current = "/stock"
 
 	var data stockData
@@ -119,7 +119,7 @@ type outData struct {
 }
 
 func (s *Server) outView(w http.ResponseWriter, r *http.Request) {
-	p := s.page("Out with people")
+	p := s.page("Out with people", r)
 	p.Current = "/out"
 
 	var data outData
@@ -283,7 +283,7 @@ type inwardsData struct {
 }
 
 func (s *Server) inwardsView(w http.ResponseWriter, r *http.Request) {
-	p := s.page("Stuff came in")
+	p := s.page("Stuff came in", r)
 	p.Current = "/inwards"
 
 	var data inwardsData
@@ -343,7 +343,7 @@ type suppliersData struct {
 }
 
 func (s *Server) suppliersView(w http.ResponseWriter, r *http.Request) {
-	p := s.page("Suppliers")
+	p := s.page("Suppliers", r)
 	p.Current = "/suppliers"
 
 	var data suppliersData

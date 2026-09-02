@@ -90,7 +90,7 @@ func (s *Server) logView(w http.ResponseWriter, r *http.Request) {
 
 	data := logData{Day: day, EveryDay: day == "", Query: query, Today: today, Challan: challan}
 
-	p := s.page("Who did what")
+	p := s.page("Who did what", r)
 	p.Current = "/log"
 	s.st.Read(func(reg *register.Register) {
 		if productID != "" {
