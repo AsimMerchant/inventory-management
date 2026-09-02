@@ -46,8 +46,8 @@ the resume artifact.** Keep it current after every committed slice.
 | 20 | 0. `Register.Disposals` and the new `OnHand` — **alone, as a regression canary** | `7e01240` | **Done.** Whole suite green with an empty slice. |
 | 20 | 1. Settlement types and pairing validation | `206e705` | **Done.** |
 | 20 | 2. Allocation, party aliases and supplier obligations | `206e705` | **Done.** 6 required register tests pass. |
-| 20 | 3. Supplier returns, sales, settlement and obligation screens | — | Not started |
-| 20 | 4. Settlement edit/void, inward guards, product cascade | — | Not started |
+| 20 | 3. Supplier returns, sales, settlement and obligation screens | `PENDING22` | **Done.** |
+| 20 | 4. Settlement edit/void, inward guards, product cascade | `PENDING22` | **Done.** All 13 spec-20 web tests plus 6 register tests pass. |
 | 21 | 1. Protected navigation, route and header matrix | — | Not started |
 | 21 | 2. Plain-language review and the paired spec/test amendments | — | Not started |
 | 21 | 3. Browser acceptance run, release gate, docs | — | Not started |
@@ -88,6 +88,15 @@ real. Do not judge the feature by opening it before then.
   thing.
 - `FinanceOrderLine.ID` is unique across the whole vault, not within one order, so
   `NextID("OLN")` scans every line of every order.
+- **Resolving a shared value in its own transaction saves the file.** The settlement
+  screens first resolved the party in a separate `UpdateFinance`, then recorded the
+  settlement. A settlement refused for exceeding its cap had therefore already rewritten
+  the register and could leave a newly created party behind with nothing pointing at it.
+  Resolve inside the same write that stores the record.
+- **A supplier can have goods here before finance has ever heard of them.** Inventory
+  staff type the supplier straight onto the inward, so the return screen must work out
+  availability from the typed name (`SupplierReturnAvailableByName`) as well as from a
+  selected party, or the first return to any supplier reads "Only 0 can be returned".
 - **Adding a field to `Register` breaks three things at once**, and the canary commit is
   how you find out cheaply: the golden `internal/store/testdata/walkthrough-t0.json` has
   to be regenerated, `register.WalkthroughT0()` must set the new slice to empty or a

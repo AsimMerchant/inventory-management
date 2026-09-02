@@ -401,6 +401,22 @@ func supplierReturnAvailable(r *Register, f *FinanceData, partyID, productID, ex
 	return maxZero(minInt(stock, fromSupplier))
 }
 
+// SupplierReturnAvailableByName is the same limit for a supplier who is not on
+// the protected list yet. Inventory staff type the supplier straight onto the
+// inward, so goods can be sitting here under a name finance has never used;
+// the save creates the party, and this is what the screen must show before it.
+func SupplierReturnAvailableByName(r *Register, f *FinanceData, name, productID string) int {
+	key := FoldKey(name)
+	if key == "" {
+		return 0
+	}
+	if v, ok := FindFinanceValueByText(f, FinanceParty, name); ok {
+		return SupplierReturnAvailable(r, f, v.ID, productID)
+	}
+	fromSupplier := sumAllocations(remaining(r, f, productID, Rent, map[string]bool{key: true}, "", ""))
+	return maxZero(minInt(onHandExcluding(r, f, productID, "", ""), fromSupplier))
+}
+
 // PurchasedAvailableToSell is the most that may be sold now: the smaller of
 // what is in the store and what was bought and not yet sold.
 func PurchasedAvailableToSell(r *Register, f *FinanceData, productID string) int {
@@ -550,4 +566,27 @@ func SupplierObligations(r *Register, f *FinanceData) []SupplierObligation {
 		return out[i].ProductName < out[j].ProductName
 	})
 	return out
+}
+
+// ReallocateSupplierReturn is AllocateSupplierReturn for a correction: it
+// measures availability as if this settlement's own current removal were not
+// there, so reducing a return never refuses itself.
+func ReallocateSupplierReturn(r *Register, f *FinanceData, partyID, productID string, quantity int, exceptID string) ([]DisposalAllocation, error) {
+	return allocateSupplierReturn(r, f, partyID, productID, quantity, "supplier_return", exceptID)
+}
+
+// ReallocateStockSale is AllocateStockSale for a correction.
+func ReallocateStockSale(r *Register, f *FinanceData, productID string, quantity int, exceptID string) ([]DisposalAllocation, error) {
+	return allocateStockSale(r, f, productID, quantity, "sale", exceptID)
+}
+
+// SupplierReturnAvailableExcluding is what a correction to this return may
+// grow to, its own current removal set aside.
+func SupplierReturnAvailableExcluding(r *Register, f *FinanceData, partyID, productID, exceptID string) int {
+	return supplierReturnAvailable(r, f, partyID, productID, "supplier_return", exceptID)
+}
+
+// PurchasedAvailableToSellExcluding is the same for a sale correction.
+func PurchasedAvailableToSellExcluding(r *Register, f *FinanceData, productID, exceptID string) int {
+	return purchasedAvailableToSell(r, f, productID, "sale", exceptID)
 }

@@ -12,13 +12,14 @@ import (
 var ErrProductDeleted = errors.New("product was deleted")
 
 type ProductImpact struct {
-	ProductID     string
-	ProductName   string
-	InwardEntries int
-	IssueEntries  int
-	ReturnEntries int
-	CurrentlyOut  int
-	Version       string
+	ProductID       string
+	ProductName     string
+	InwardEntries   int
+	IssueEntries    int
+	ReturnEntries   int
+	DisposalEntries int
+	CurrentlyOut    int
+	Version         string
 }
 
 func ProductByID(r *Register, productID string) (Product, bool) {
@@ -68,15 +69,29 @@ func ProductDeletionImpact(r *Register, productID string) (ProductImpact, bool) 
 			}
 		}
 	}
+	var disposals []InventoryDisposal
+	for _, d := range r.Disposals {
+		if d.ProductID == p.ID {
+			disposals = append(disposals, d)
+			if d.InactiveAt == nil {
+				impact.DisposalEntries++
+			}
+		}
+	}
 	sort.Slice(inwards, func(i, j int) bool { return inwards[i].ID < inwards[j].ID })
 	sort.Slice(issues, func(i, j int) bool { return issues[i].ID < issues[j].ID })
 	sort.Slice(returns, func(i, j int) bool { return returns[i].ID < returns[j].ID })
+	sort.Slice(disposals, func(i, j int) bool { return disposals[i].ID < disposals[j].ID })
+	// The stale check compares this hash, so everything the deletion touches
+	// has to be in it. The encrypted envelope is not: the public route may not
+	// depend on protected bytes.
 	projection := struct {
-		Product Product
-		Inwards []Inward
-		Issues  []Issue
-		Returns []Return
-	}{p, inwards, issues, returns}
+		Product   Product
+		Inwards   []Inward
+		Issues    []Issue
+		Returns   []Return
+		Disposals []InventoryDisposal
+	}{p, inwards, issues, returns, disposals}
 	b, _ := json.Marshal(projection)
 	sum := sha256.Sum256(b)
 	impact.Version = hex.EncodeToString(sum[:])
@@ -139,6 +154,15 @@ func DeleteProductCascade(r *Register, productID, by string, at time.Time, reaso
 		if r.Returns[i].ProductID == productID && r.Returns[i].Deleted == nil {
 			x := d
 			r.Returns[i].Deleted = &x
+		}
+	}
+	// A stock removal for a product that is no longer in the working register
+	// stops applying, at exactly the moment the product went. The protected
+	// settlement behind it is untouched: that history is not being voided.
+	for i := range r.Disposals {
+		if r.Disposals[i].ProductID == productID && r.Disposals[i].InactiveAt == nil {
+			t := at
+			r.Disposals[i].InactiveAt = &t
 		}
 	}
 	if len(Validate(r)) != 0 {

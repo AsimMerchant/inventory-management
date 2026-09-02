@@ -80,9 +80,16 @@ func (s *Server) financeRoutes(m *http.ServeMux) {
 	m.HandleFunc("GET /finance/journal", s.financeJournal)
 	m.HandleFunc("GET /finance/journal/print", s.financeJournalPrint)
 	m.HandleFunc("GET /finance/audit", s.financeAudit)
+	// 20
 	m.HandleFunc("GET /finance/supplier-returns/new", s.financeSupplierReturnNew)
+	m.HandleFunc("POST /finance/supplier-returns/new", s.financeSupplierReturnNew)
 	m.HandleFunc("GET /finance/sales/new", s.financeSaleNew)
+	m.HandleFunc("POST /finance/sales/new", s.financeSaleNew)
 	m.HandleFunc("GET /finance/settlements", s.financeSettlements)
+	m.HandleFunc("GET /finance/settlements/{kind}/{id}/edit", s.financeSettlementEdit)
+	m.HandleFunc("POST /finance/settlements/{kind}/{id}/edit", s.financeSettlementEdit)
+	m.HandleFunc("POST /finance/settlements/{kind}/{id}/void", s.financeSettlementVoid)
+	m.HandleFunc("GET /finance/obligations", s.financeObligations)
 }
 
 func financeHeaders(w http.ResponseWriter) {

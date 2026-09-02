@@ -1,0 +1,36 @@
+<h1>{{.Heading}}</h1>
+{{if .Error}}<div class="banner bad">{{.Error}}</div>{{end}}
+<form method="post" action="{{.Action}}">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  {{template "value-picker.html" .Party}}
+  <div class="field">
+    <span class="lab">Product</span>
+    <select class="inp" name="productId">
+      <option value="">Pick the product from the list</option>
+      {{range .Products}}<option value="{{.ID}}"{{if eq .ID $.ProductID}} selected{{end}}>{{.Label}}</option>{{end}}
+    </select>
+  </div>
+  <div class="field">
+    <span class="lab">{{if eq .Kind "sale"}}Available to sell{{else}}Available to return{{end}}</span>
+    <output class="inp">{{.Available}}</output>
+  </div>
+  <div class="field">
+    <span class="lab">How many</span>
+    <input class="inp" type="number" name="quantity" min="1" value="{{.Quantity}}" inputmode="numeric">
+  </div>
+  <div class="field">
+    <span class="lab">{{if eq .Kind "sale"}}Date and time sold{{else}}Date and time returned{{end}}</span>
+    <input class="inp" type="datetime-local" name="at" value="{{.At}}">
+  </div>
+  <div class="field">
+    <span class="lab">Reference</span>
+    <input class="inp" type="text" name="reference" value="{{.Reference}}" autocomplete="off">
+  </div>
+  <div class="field">
+    <span class="lab">Remarks</span>
+    <input class="inp" type="text" name="remarks" value="{{.Remarks}}" autocomplete="off">
+  </div>
+  <button class="btn" type="submit">{{.Submit}}</button>
+</form>
+<p class="note">Money is recorded separately. A deposit coming back or the money for a sale is its own transaction.</p>
+<script src="/static/value-picker.js"></script>

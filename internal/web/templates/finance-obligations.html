@@ -1,0 +1,15 @@
+<h1>What suppliers are still owed</h1>
+<p>Counted from what actually arrived on rent, not from orders or deposits.</p>
+{{if not .Rows}}<p>Nothing has come in on rent yet.</p>{{end}}
+<table class="stk">
+  <tr><th>Supplier</th><th>Product</th><th>Sent</th><th>Gone back</th><th>Still here</th></tr>
+  {{range .Rows}}
+  <tr>
+    <td>{{.PartyName}}</td>
+    <td>{{.ProductName}}</td>
+    <td>{{.Received}}</td>
+    <td>{{.Returned}}</td>
+    <td>{{.Remaining}}</td>
+  </tr>
+  {{end}}
+</table>

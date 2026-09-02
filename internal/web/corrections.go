@@ -376,8 +376,20 @@ func (s *Server) entrySave(w http.ResponseWriter, r *http.Request, id string) {
 	var problems []register.Problem
 	var refusal string
 	err := s.st.Update(func(reg *register.Register) error {
+		// Which inward this was, before the change, so the disposal guard can
+		// see what moved.
+		var was register.Inward
+		for _, in := range reg.Inwards {
+			if in.ID == id {
+				was = in
+			}
+		}
 		changes, text := applyEdit(reg, typed, by, now)
 		if text != "" {
+			refusal = text
+			return errRefused
+		}
+		if text := disposalGuard(reg, was, id); text != "" {
 			refusal = text
 			return errRefused
 		}
@@ -764,8 +776,18 @@ func (s *Server) entryDelete(w http.ResponseWriter, r *http.Request) {
 
 	var problems []register.Problem
 	var orphaned []string
+	var stranded string
 	err := s.st.Update(func(reg *register.Register) error {
+		var was register.Inward
+		for _, in := range reg.Inwards {
+			if in.ID == id {
+				was = in
+			}
+		}
 		tombstone(reg, id, register.Deletion{At: now, By: by, Reason: reason})
+		if stranded = disposalGuard(reg, was, id); stranded != "" {
+			return errRefused
+		}
 		// The same one checker as the edit path.
 		problems = register.Validate(reg)
 		// And the one thing it cannot see: see the note on orphanedAllocations.
@@ -777,10 +799,12 @@ func (s *Server) entryDelete(w http.ResponseWriter, r *http.Request) {
 	})
 	switch {
 	case errors.Is(err, errRefused):
-		var refusal string
-		s.st.Read(func(reg *register.Register) {
-			refusal = deleteRefusal(reg, data, problems, orphaned)
-		})
+		refusal := stranded
+		if refusal == "" {
+			s.st.Read(func(reg *register.Register) {
+				refusal = deleteRefusal(reg, data, problems, orphaned)
+			})
+		}
 		s.renderEdit(w, r, data, &banner{"bad", refusal})
 		return
 	case err != nil:
@@ -818,6 +842,43 @@ func tombstone(reg *register.Register, id string, d register.Deletion) {
 // return first and the issue second is the way out of a wrong pair of entries,
 // and a deleted return holds nothing, so this only ever blocks the order that
 // would leave the register lying.
+// disposalGuard refuses an inward correction that would strand stock which has
+// already left the store. Quantity is caught by Validate; basis and supplier
+// are caught here, because recording which basis a removal drew on would give
+// away whether it was a sale or a return to a supplier, and the public route
+// is not allowed to know that.
+func disposalGuard(reg *register.Register, was register.Inward, id string) string {
+	if was.ID == "" {
+		return ""
+	}
+	allocated := 0
+	for _, d := range register.LiveDisposals(reg) {
+		for _, a := range d.Sources {
+			if a.InwardID == id {
+				allocated += a.Quantity
+			}
+		}
+	}
+	if allocated == 0 {
+		return ""
+	}
+	for _, in := range reg.Inwards {
+		if in.ID != id {
+			continue
+		}
+		if in.Deleted != nil {
+			return register.ErrStrandedDisposal
+		}
+		if in.Basis != was.Basis || register.FoldKey(in.Supplier) != register.FoldKey(was.Supplier) {
+			return register.ErrStrandedDisposal
+		}
+		if in.Quantity < allocated {
+			return register.ErrStrandedDisposal
+		}
+	}
+	return ""
+}
+
 func orphanedAllocations(reg *register.Register) []string {
 	live := map[string]bool{}
 	for _, is := range register.LiveIssues(reg) {
