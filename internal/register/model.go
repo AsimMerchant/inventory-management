@@ -9,7 +9,7 @@ import (
 )
 
 // SchemaVersion is the only file version this program reads or writes.
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 // Register is everything the store desk remembers.
 type Register struct {
@@ -21,6 +21,32 @@ type Register struct {
 	Inwards        []Inward   `json:"inwards"`
 	Issues         []Issue    `json:"issues"`
 	Returns        []Return   `json:"returns"`
+	// Disposals is the neutral public record that some stock physically left
+	// the store. It deliberately says nothing about whether that was a sale or
+	// a return to a supplier, to whom, or for how much: that is in the vault.
+	// It exists so ordinary stock arithmetic is right after a restart with
+	// nobody logged in.
+	Disposals []InventoryDisposal `json:"disposals"`
+	Finance   *FinanceEnvelope    `json:"finance,omitempty"`
+}
+
+// InventoryDisposal is one lot of stock that left the store for good.
+type InventoryDisposal struct {
+	ID         string               `json:"id"` // DSP-0001
+	ProductID  string               `json:"productId"`
+	Quantity   int                  `json:"quantity"`
+	Sources    []DisposalAllocation `json:"sources"`
+	RecordedAt time.Time            `json:"recordedAt"`
+	// InactiveAt says only that the subtraction no longer applies. It cannot
+	// reveal whether that happened through a protected void or a public
+	// product deletion.
+	InactiveAt *time.Time `json:"inactiveAt,omitempty"`
+}
+
+// DisposalAllocation attributes part of a disposal to the inward it came from.
+type DisposalAllocation struct {
+	InwardID string `json:"inwardId"`
+	Quantity int    `json:"quantity"`
 }
 
 // Product is a thing the store stocks. Stock is pooled per product.

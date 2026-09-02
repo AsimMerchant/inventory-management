@@ -1,0 +1,15 @@
+<h1>Rented goods still to return</h1>
+<p>Based only on goods actually received and supplier returns recorded here.</p>
+{{if not .Rows}}<p>Nothing has come in on rent yet.</p>{{end}}
+<table class="stk">
+  <tr><th>Supplier</th><th>Product</th><th>Received</th><th>Returned to supplier</th><th>Still to return</th></tr>
+  {{range .Rows}}
+  <tr>
+    <td>{{.PartyName}}</td>
+    <td>{{.ProductName}}</td>
+    <td>{{.Received}}</td>
+    <td>{{.Returned}}</td>
+    <td>{{if eq .Remaining 0}}All returned{{else}}{{.Remaining}}{{end}}</td>
+  </tr>
+  {{end}}
+</table>

@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"storeregister/internal/register"
@@ -12,15 +13,19 @@ import (
 // Server is the whole web side of the register. There is one of it, and it
 // holds the one store. now is a field so tests can pin the clock.
 type Server struct {
-	st      *store.Store
-	warning string // the recovery warning, shown on every page until restart
-	now     func() time.Time
-	mux     *http.ServeMux
+	st              *store.Store
+	warning         string // the recovery warning, shown on every page until restart
+	now             func() time.Time
+	mux             *http.ServeMux
+	financeMu       sync.Mutex
+	financeSessions map[string]*financeSession
+	preauth         map[string]string
+	financeFailures map[string][]time.Time
 }
 
 // NewServer wires the routing table. warning is LoadResult.Warning.
 func NewServer(st *store.Store, warning string, now func() time.Time) *Server {
-	s := &Server{st: st, warning: warning, now: now, mux: http.NewServeMux()}
+	s := &Server{st: st, warning: warning, now: now, mux: http.NewServeMux(), financeSessions: map[string]*financeSession{}, preauth: map[string]string{}, financeFailures: map[string][]time.Time{}}
 	s.routes()
 	return s
 }
@@ -29,6 +34,7 @@ func (s *Server) routes() {
 	m := s.mux
 
 	m.HandleFunc("GET /{$}", s.home)
+	s.financeRoutes(m)
 
 	// 05
 	m.HandleFunc("GET /shift", s.shiftScreen)
@@ -74,6 +80,19 @@ func (s *Server) routes() {
 // ServeHTTP applies the shift guard and then routes. Every route except the
 // shift screen itself and the static files needs a name to stamp on entries.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/finance") {
+		s.serveFinance(w, r)
+		return
+	}
+	// An authorized person may place an order before inventory staff start a
+	// shift. The finance order picker reuses the public product-name endpoint,
+	// so allow that read-only request for a confirmed finance session only.
+	if r.URL.Path == "/api/products" {
+		if sess, _ := s.authenticatedFinanceSession(r); sess != nil && !sess.recoveryPending {
+			s.mux.ServeHTTP(w, r)
+			return
+		}
+	}
 	_, pattern := s.mux.Handler(r)
 	if pattern != "/" && !exemptFromShift(r.URL.Path) {
 		var running bool
@@ -93,7 +112,7 @@ func exemptFromShift(path string) bool {
 	case "/shift", "/shift/start", "/shift/person":
 		return true
 	}
-	return strings.HasPrefix(path, "/static/")
+	return strings.HasPrefix(path, "/static/") || strings.HasPrefix(path, "/finance")
 }
 
 // home opens the register. Anybody reaching here has a name on them already:
@@ -126,5 +145,12 @@ func (s *Server) page(title string) page {
 			p.OnDuty = who.Name
 		}
 	})
+	// Ordinary pages never carry the protected group, even to somebody who is
+	// logged in to the financial area. Spec 21 fixes the public chrome as the
+	// inventory controls plus Authorized login and nothing else, and these
+	// responses are outside the finance header regime: putting a live session
+	// token on a page served without no-store or a content policy would leave
+	// it somewhere it is not protected. The financial pages build their own
+	// shell in financePage.
 	return p
 }

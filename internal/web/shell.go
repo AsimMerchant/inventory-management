@@ -63,15 +63,23 @@ type banner struct {
 
 // page is everything layout.html needs. Data carries whatever the page itself needs.
 type page struct {
-	Title   string   // the words in the chrome bar
-	Current string   // the path of the tab that is on, "" on a flow page
-	Tabs    bool     // flow pages and the shift screen show none
-	OnDuty  string   // the on-duty person's name, "" when nobody is
-	Narrow  bool     // the shift screen is 26rem wide, everything else 52rem
-	Warning string   // the recovery warning, on every page until restart
-	Banners []banner // usually one; a short return says two things at once
-	Tabbar  []tab
-	Content template.HTML
+	Title        string   // the words in the chrome bar
+	Current      string   // the path of the tab that is on, "" on a flow page
+	Tabs         bool     // flow pages and the shift screen show none
+	OnDuty       string   // the on-duty person's name, "" when nobody is
+	Narrow       bool     // the shift screen is 26rem wide, everything else 52rem
+	Warning      string   // the recovery warning, on every page until restart
+	Banners      []banner // usually one; a short return says two things at once
+	Tabbar       []tab
+	Content      template.HTML
+	Finance      bool
+	FinanceAdmin bool
+	// Who is authorized here, shown on every financial page. It is never the
+	// on-duty inventory person: those are two different identities.
+	FinanceWho    string
+	FinanceMobile string
+	FinanceRole   string
+	CSRF          string
 }
 
 // add puts a banner on the page. A nil banner is no banner, so every caller can
@@ -98,6 +106,19 @@ func (s *Server) render(w http.ResponseWriter, status int, p page, name string, 
 
 	var full bytes.Buffer
 	if err := templates.ExecuteTemplate(&full, "layout.html", p); err != nil {
+		http.Error(w, "The page could not be drawn. Go back to the register.", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	_, _ = w.Write(full.Bytes())
+}
+
+// renderBare draws a complete standalone document. Printable finance output
+// uses it so interactive chrome and controls are absent from the response.
+func (s *Server) renderBare(w http.ResponseWriter, status int, name string, data any) {
+	var full bytes.Buffer
+	if err := templates.ExecuteTemplate(&full, name, data); err != nil {
 		http.Error(w, "The page could not be drawn. Go back to the register.", http.StatusInternalServerError)
 		return
 	}

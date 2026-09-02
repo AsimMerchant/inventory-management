@@ -403,7 +403,9 @@ survives marshal/unmarshal `reflect.DeepEqual`, and the encoded bytes contain
 1. `go build ./...` succeeds with zero third-party imports: `go list -deps ./... | grep -v '^storeregister' | grep '\.' ` prints nothing.
 2. `go test ./internal/register/` passes, and all fourteen tests above exist by the names given.
 3. `grep -c 'float' internal/register/model.go` returns 0.
-4. `go doc storeregister/internal/register Register` lists exactly the eight fields above.
+4. `go doc storeregister/internal/register Register` lists the original eight inventory
+   fields above plus `Disposals` and encrypted `Finance` added by specs 20 and 17; it
+   contains no plaintext financial collection.
 5. Marshalling `WalkthroughT0()` and grepping for `"quantity": 890` returns nothing — 890 is never stored, only computed.
 
 ## Verification commands

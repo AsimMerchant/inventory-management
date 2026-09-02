@@ -28,7 +28,7 @@ func TestSchemaOneMigratesInMemoryWithoutWritingOnOpen(t *testing.T) {
 		t.Fatalf("source=%v", res.Source)
 	}
 	s.Read(func(r *register.Register) {
-		if r.SchemaVersion != 2 {
+		if r.SchemaVersion != 3 {
 			t.Errorf("schema=%d", r.SchemaVersion)
 		}
 		for _, p := range r.Products {
@@ -44,7 +44,7 @@ func TestSchemaOneMigratesInMemoryWithoutWritingOnOpen(t *testing.T) {
 	}
 }
 
-func TestFirstSaveAfterMigrationWritesSchemaTwoAtomically(t *testing.T) {
+func TestFirstSaveAfterMigrationWritesSchemaThreeAtomically(t *testing.T) {
 	source, _ := os.ReadFile(filepath.Join("testdata", "walkthrough-t0.json"))
 	path := filepath.Join(t.TempDir(), FileName)
 	if err := os.WriteFile(path, source, 0600); err != nil {
@@ -62,8 +62,8 @@ func TestFirstSaveAfterMigrationWritesSchemaTwoAtomically(t *testing.T) {
 		t.Fatal("backup is not exact schema-1 source")
 	}
 	main, _ := os.ReadFile(path)
-	if !bytes.Contains(main, []byte(`"schemaVersion": 2`)) {
-		t.Fatal("main is not schema 2")
+	if !bytes.Contains(main, []byte(`"schemaVersion": 3`)) {
+		t.Fatal("main is not schema 3")
 	}
 	if _, _, err := Open(path); err != nil {
 		t.Fatalf("reopen: %v", err)
@@ -71,7 +71,7 @@ func TestFirstSaveAfterMigrationWritesSchemaTwoAtomically(t *testing.T) {
 }
 
 func TestUnknownSchemaStillRefused(t *testing.T) {
-	for _, version := range []string{"0", "3"} {
+	for _, version := range []string{"0", "4"} {
 		t.Run(version, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), FileName)
 			data := []byte(`{"schemaVersion":` + version + `,"products":[],"staff":[],"inwards":[],"issues":[],"returns":[]}`)

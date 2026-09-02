@@ -10,7 +10,7 @@
 <details class="add" style="margin-top:1.3rem"><summary style="color:var(--bad)">Delete this product</summary>
   <p><strong>Delete {{.Name}}?</strong></p>
   <p>This will remove the product and all of its entries from the working register.</p>
-  <p>Received entries: {{.Impact.InwardEntries}}<br>Issue entries: {{.Impact.IssueEntries}}<br>Return entries: {{.Impact.ReturnEntries}}<br>Currently out: {{.Impact.CurrentlyOut}} {{productWord .Name}}</p>
+  <p>Received entries: {{.Impact.InwardEntries}}<br>Issue entries: {{.Impact.IssueEntries}}<br>Return entries: {{.Impact.ReturnEntries}}<br>Stock removal entries: {{.Impact.DisposalEntries}}<br>Currently out: {{.Impact.CurrentlyOut}} {{productWord .Name}}</p>
   <p>The history will stay in Who did what.</p>
   <form method="post" action="delete">
     <input type="hidden" name="impactVersion" value="{{.Impact.Version}}">

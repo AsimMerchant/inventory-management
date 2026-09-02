@@ -1,0 +1,38 @@
+<h1>Shared lists</h1>
+<p>These suggestions appear for every authorized person while they record financial details. Rename a spelling and every current record that used it shows the new wording; Financial activity keeps the earlier wording.</p>
+{{if .Error}}<div class="banner bad">{{.Error}}</div>{{end}}
+{{if .Notice}}<div class="banner ok">{{.Notice}}</div>{{end}}
+
+{{range .Sections}}
+<h2>{{.Title}}</h2>
+{{if not .Rows}}<p>Nothing on this list yet.</p>{{end}}
+<ul class="lists">
+  {{range .Rows}}
+  <li>
+    <strong>{{.Value}}</strong>
+    <form method="post" action="/finance/lists/{{.ID}}/rename">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+      <input class="inp" type="text" name="value" value="{{.Value}}" autocomplete="off">
+      <button class="btn ghost" type="submit">Rename</button>
+    </form>
+    {{if .Targets}}
+    <form method="post" action="/finance/lists/{{.ID}}/merge">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+      <select class="inp" name="target">
+        {{range .Targets}}<option value="{{.ID}}">{{.Value}}</option>{{end}}
+      </select>
+      <button class="btn ghost" type="submit">Combine duplicates</button>
+    </form>
+    {{end}}
+    {{if .Used}}
+    <p class="note">In use. Correct the wording or merge it.</p>
+    {{else}}
+    <form method="post" action="/finance/lists/{{.ID}}/delete">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+      <button class="btn ghost" type="submit">Delete unused value</button>
+    </form>
+    {{end}}
+  </li>
+  {{end}}
+</ul>
+{{end}}

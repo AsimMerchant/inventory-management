@@ -83,6 +83,37 @@ screen would make someone remember something, that is a design bug, not a wordin
 
 ## State as of 1 September 2026
 
+### Work begun 2 September 2026
+
+The user commissioned a protected financial ledger on branch
+`feature/financial-ledger`. This deliberately supersedes the historical prohibitions
+on authentication, money and supplier-return workflows inside the new authorized
+area; the ordinary inventory screens retain their existing no-login workflow and
+must expose no financial data. Reviewed specifications 17–21 govern the new work. See the
+active-work section of `HANDOFF.md` for the current requirements and verification
+state — it carries the committed slice-by-slice build table, the traps this build has
+already hit and the named gaps the next spec must close. (`.agent-handoff/latest.md`
+mirrors it but is gitignored, so it must never be the only record of anything.)
+
+**All five specs, 17 to 21, are built and green.** The encrypted vault with individual
+accounts and sessions; orders with the shared party, purpose and payment-mode lists;
+money in and out with audited corrections, voids and a filtered printable journal;
+supplier returns and stock sales with a neutral public stock projection so ordinary
+arithmetic is right after a restart with nobody logged in; and the protected interface
+with its two-step destructive actions. Every screen has been through
+`plain_language_reviewer`, and the whole scenario has been driven in a real browser
+against a real binary, including a pass with JavaScript switched off.
+
+**The file format is now schema 3, and that matters more than anything else here.**
+The new build reads schema 1, 2 and 3, so upgrading is safe. `v1.1.1` reads only 1 and
+2 and does *not* refuse a schema-3 file cleanly: it treats the mismatch as damage, sets
+the real data aside as `store-register.json.corrupt-<timestamp>`, falls back to `.bak`
+and shows pre-upgrade data behind the ordinary damage banner. Same trap as the
+`v1.0.1` to `v1.1.1` upgrade, same procedural fix, and it cannot be fixed in the new
+version because the defect is in the released reader. Before the new `.exe` is used:
+back up `store-register.json`, delete the old `.exe` from the laptop and the pen drive,
+then put the new one there.
+
 Specs 01–12 shipped as `v1.0.0`. Spec 13, one issue naming multiple joint recipients,
 shipped as `v1.0.1` and went to the stakeholders. Their feedback became specs 14, 15 and
 16, released together as **`v1.1.1`**: `Dashboard` and `Change person` on every screen

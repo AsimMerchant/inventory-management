@@ -123,7 +123,7 @@ func TestFileIsHumanReadable(t *testing.T) {
 	}
 	text := string(data)
 	for _, want := range []string{
-		"  \"schemaVersion\": 2,\n",
+		"  \"schemaVersion\": 3,\n",
 		"      \"name\": \"Chairs\",\n",
 		"      \"supplier\": \"Sharma Tent House\",\n",
 		"Sharma Tent House",
@@ -359,7 +359,7 @@ func TestWrongSchemaVersionRefused(t *testing.T) {
 	path := filepath.Join(dir, FileName)
 
 	future := mustEncode(t, register.WalkthroughT0())
-	future = []byte(strings.Replace(string(future), `"schemaVersion": 2`, `"schemaVersion": 3`, 1))
+	future = []byte(strings.Replace(string(future), `"schemaVersion": 3`, `"schemaVersion": 4`, 1))
 	if err := os.WriteFile(path, future, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -387,7 +387,7 @@ func TestWrongSchemaVersionRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, _, err := Open(path2); err == nil {
-		t.Error("Open accepted a schema 2 file with no backup")
+		t.Error("Open accepted a schema 4 file with no backup")
 	}
 }
 

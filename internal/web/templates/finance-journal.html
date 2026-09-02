@@ -1,0 +1,48 @@
+<h1>{{.Heading}}</h1>
+{{if .Error}}<div class="banner bad">{{.Error}}</div>{{end}}
+{{if .Notice}}<div class="banner ok">{{.Notice}}</div>{{end}}
+<form method="get" action="/finance/journal" class="filters">
+  <p class="note">Use One day, a From and To date, or both Exact start and Exact end. Start and end are included.</p>
+  <div class="field"><span class="lab">One day</span><input class="inp" type="date" name="day" value="{{.Day}}"></div>
+  <div class="field"><span class="lab">From</span><input class="inp" type="date" name="from" value="{{.From}}"></div>
+  <div class="field"><span class="lab">To</span><input class="inp" type="date" name="to" value="{{.To}}"></div>
+  <div class="field"><span class="lab">Exact start</span><input class="inp" type="datetime-local" name="fromTime" value="{{.FromTime}}"></div>
+  <div class="field"><span class="lab">Exact end</span><input class="inp" type="datetime-local" name="toTime" value="{{.ToTime}}"></div>
+  <button class="btn" type="submit">Show</button>
+  <a class="btn ghost" href="/finance/journal">Every date</a>
+</form>
+<p class="note">Showing {{.FilterLabel}}</p>
+<div class="tiles">
+  <div class="tile"><span class="lab">Money paid</span><strong>{{.Totals.Paid}}</strong></div>
+  <div class="tile"><span class="lab">Money received</span><strong>{{.Totals.Received}}</strong></div>
+  <div class="tile"><span class="lab">Net paid</span><strong>{{.Totals.Net}}</strong></div>
+</div>
+<p><a href="{{.PrintLink}}">Print this journal</a></p>
+{{if not .Rows}}<p>No transactions for these dates.</p>{{end}}
+<ul class="rows">
+  {{range .Rows}}
+  <li>
+    <strong>{{.Direction}} {{.Amount}}</strong>
+    <div>{{longstamp .OccurredAt}}</div>
+    <div>{{.Party}} · {{.Purpose}} · {{.Mode}}</div>
+    {{if .Order}}<div>Order: {{.Order}}</div>{{end}}
+    {{if .Products}}<div>Products: {{.Products}}</div>{{end}}
+    {{if .Settlement}}<div>Related stock return or sale: {{.Settlement}}</div>{{end}}
+    {{if .Reference}}<div>Reference: {{.Reference}}</div>{{end}}
+    {{if .Remarks}}<div>Remarks: {{.Remarks}}</div>{{end}}
+    <div class="note">Recorded by {{.RecordedBy}} · {{.RecordedMob}} · {{longstamp .RecordedAt}}</div>
+    {{range .Changes}}<div class="note">{{.Label}}: {{.From}} → {{.To}} · {{.ByName}} · {{if .ByMobile}}{{.ByMobile}}{{else}}mobile not recorded{{end}} · {{longstamp .At}}</div>{{end}}
+    {{if .VoidLine}}<div class="note">{{.VoidLine}} · {{.Voided.ByName}} · {{if .Voided.ByMobile}}{{.Voided.ByMobile}}{{else}}mobile not recorded{{end}} · {{longstamp .Voided.At}}</div>{{end}}
+    {{if not .Voided}}
+    <p class="actions"><a href="/finance/movements/{{.ID}}/edit">Fix this transaction</a></p>
+    <details class="danger">
+      <summary>Review voiding this transaction</summary>
+      <form method="post" action="/finance/movements/{{.ID}}/void">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <button class="btn" type="submit">Review voiding this transaction</button>
+      </form>
+    </details>
+    {{end}}
+  </li>
+  {{end}}
+</ul>

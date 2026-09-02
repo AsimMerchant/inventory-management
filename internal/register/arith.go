@@ -84,9 +84,31 @@ func OutWithPeople(r *Register, productID string) int {
 	return issued - Returned(r, productID)
 }
 
+// LiveDisposals are the stock removals still in force.
+func LiveDisposals(r *Register) []InventoryDisposal {
+	out := []InventoryDisposal{}
+	for _, d := range r.Disposals {
+		if d.InactiveAt == nil {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// Disposed is how many of a product have left the store for good.
+func Disposed(r *Register, productID string) int {
+	total := 0
+	for _, d := range LiveDisposals(r) {
+		if d.ProductID == productID {
+			total += d.Quantity
+		}
+	}
+	return total
+}
+
 // OnHand is how many of a product are in the store.
 func OnHand(r *Register, productID string) int {
-	return CameIn(r, productID) - OutWithPeople(r, productID)
+	return CameIn(r, productID) - OutWithPeople(r, productID) - Disposed(r, productID)
 }
 
 // StockRow is one line of the stock table.
@@ -515,7 +537,16 @@ const (
 	NegativeOnHand ProblemKind = iota
 	NegativeOut
 	OverAllocatedIssue
+	// StrandedDisposal is stock that already left the store being attributed
+	// to an inward that can no longer account for it.
+	StrandedDisposal
 )
+
+// ErrStrandedDisposal is what the correction screens say when an inward
+// cannot be changed because some of that stock has already gone. It is
+// deliberately neutral: the public route cannot decrypt whether the protected
+// allocation was a sale or a return to a supplier.
+const ErrStrandedDisposal = "Some of this stock has already left the store. Fix that return or sale first."
 
 // Problem is one broken invariant, with the two numbers that disagree.
 type Problem struct {
@@ -561,7 +592,59 @@ func Validate(r *Register) []Problem {
 			})
 		}
 	}
+
+	// Every live stock removal must still be attributable to inwards that can
+	// account for it. An inward corrected downwards, deleted, or moved to
+	// another basis or supplier would otherwise strand what already left.
+	live := map[string]Inward{}
+	for _, in := range LiveInwards(r) {
+		live[in.ID] = in
+	}
+	taken := map[string]int{}
+	for _, d := range LiveDisposals(r) {
+		if _, ok := ProductByID(r, d.ProductID); !ok {
+			problems = append(problems, Problem{
+				ProductID: d.ProductID, ProductName: names[d.ProductID],
+				Kind: StrandedDisposal, Have: d.Quantity, Want: 0,
+			})
+			continue
+		}
+		if d.Quantity < 1 || d.Quantity != disposalSum(d) {
+			problems = append(problems, Problem{
+				ProductID: d.ProductID, ProductName: names[d.ProductID],
+				Kind: StrandedDisposal, Have: disposalSum(d), Want: d.Quantity,
+			})
+			continue
+		}
+		for _, a := range d.Sources {
+			in, ok := live[a.InwardID]
+			if !ok || in.ProductID != d.ProductID || a.Quantity < 1 {
+				problems = append(problems, Problem{
+					ProductID: d.ProductID, ProductName: names[d.ProductID],
+					Kind: StrandedDisposal, Have: a.Quantity, Want: 0,
+				})
+				continue
+			}
+			taken[a.InwardID] += a.Quantity
+		}
+	}
+	for id, total := range taken {
+		if in := live[id]; total > in.Quantity {
+			problems = append(problems, Problem{
+				ProductID: in.ProductID, ProductName: names[in.ProductID],
+				Kind: StrandedDisposal, Have: total, Want: in.Quantity,
+			})
+		}
+	}
 	return problems
+}
+
+func disposalSum(d InventoryDisposal) int {
+	total := 0
+	for _, a := range d.Sources {
+		total += a.Quantity
+	}
+	return total
 }
 
 // QuantityError is a refused quantity. The sentence shown to the person at the

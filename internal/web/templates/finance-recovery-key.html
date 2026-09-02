@@ -1,0 +1,1 @@
+<h1>Replace the recovery key?</h1><p>The current recovery key will stop working. You must save and confirm the new key before you can return to the financial ledger.</p>{{if .Error}}<div class="banner bad">{{.Error}}</div>{{end}}<form method="post"><input type="hidden" name="csrf" value="{{.CSRF}}"><button>Continue to replace key</button></form>

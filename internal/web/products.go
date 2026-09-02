@@ -268,6 +268,10 @@ type pickerData struct {
 	PickedID   string
 	PickedName string
 	Products   []suggestion
+	// Endpoint is which route the picker asks for suggestions. The ordinary
+	// desk uses /api/products, which is behind the shift guard. The financial
+	// area has no shift, so it asks its own session-gated route instead.
+	Endpoint string
 }
 
 // picker resolves a submitted productId against the list. A productId that

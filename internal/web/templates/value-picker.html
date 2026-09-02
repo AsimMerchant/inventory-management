@@ -1,0 +1,19 @@
+{{/* The shared party, purpose and payment-mode picker. Unlike the product
+     picker, typing something genuinely new here is normal: a supplier nobody
+     has dealt with before is not a mistake. So the last row adds the value as
+     part of saving the record, in the same write, and the server does the same
+     resolution again whatever the browser did. */}}
+<div class="field" data-values data-kind="{{.Kind}}">
+  <span class="lab">{{.Label}}</span>
+  <input class="inp" type="text" name="{{.TextField}}" autocomplete="off" value="{{.PickedText}}" data-values-text>
+  <input type="hidden" name="{{.IDField}}" value="{{.PickedID}}" data-values-id>
+  <div class="sug" hidden data-values-list></div>
+  <noscript>
+    <select class="inp" name="{{.IDField}}Choice">
+      <option value="">Pick from the list</option>
+      {{range .Values}}<option value="{{.ID}}"{{if eq .ID $.PickedID}} selected{{end}}>{{.Value}}</option>{{end}}
+    </select>
+    <span class="lab">Or add a new one</span>
+    <input class="inp" type="text" name="{{.TextField}}New" autocomplete="off">
+  </noscript>
+</div>

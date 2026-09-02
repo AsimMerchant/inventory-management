@@ -1,0 +1,14 @@
+<h1>Financial activity</h1>
+<p>Everything anybody did in the financial area. Nothing here can be changed or removed.</p>
+{{if not .Rows}}<p>Nothing recorded yet.</p>{{end}}
+<ul class="rows">
+  {{range .Rows}}
+  <li>
+    <strong>{{.Kind}}</strong> {{.Entity}}
+    <div>{{.Summary}}</div>
+    {{if .Before}}<div class="note">Was: {{.Before}}</div>{{end}}
+    {{if .After}}<div class="note">Now: {{.After}}</div>{{end}}
+    <div class="note">{{.ByName}} · {{if .ByMobile}}{{.ByMobile}}{{else}}mobile not recorded{{end}} · {{longstamp .At}}</div>
+  </li>
+  {{end}}
+</ul>

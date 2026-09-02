@@ -4,13 +4,31 @@
 <title>{{.Title}}</title>
 <link rel="stylesheet" href="/static/app.css">
 <div class="wrap">
-  <div class="screen" style="max-width:{{if .Narrow}}26rem{{else}}52rem{{end}};margin:1.5rem auto">
+  <div class="screen {{if .Narrow}}narrow{{else}}wide{{end}}">
     <div class="chrome">
       <span class="dot"></span> {{.Title}}
       {{if .OnDuty}}<a class="who" href="/shift">{{.OnDuty}} · on duty</a>{{end}}
       <a href="/stock">Dashboard</a>
       <a href="/shift">Change person</a>
+      {{if not .Finance}}<a href="/finance/login">Authorized login</a>{{end}}
     </div>
+    {{if .Finance}}
+    {{/* The protected group is kept visibly separate from the ordinary
+         inventory chrome above it, and every financial page carries it, so
+         Financial ledger and Logout are always one press away. Logout is a
+         POST with the session's token, never a link. */}}
+    <div class="chrome finance">
+      <span class="who">{{.FinanceWho}} · {{.FinanceMobile}} · {{.FinanceRole}}</span>
+      <a href="/finance">Financial ledger</a>
+      <a href="/finance/orders">Orders</a>
+      <a href="/finance/journal">Transactions</a>
+      <a href="/finance/settlements">Stock returned or sold</a>
+      <a href="/finance/audit">Financial activity</a>
+      {{if .FinanceAdmin}}<a href="/finance/accounts">Authorized people</a>
+      <a href="/finance/lists">Reusable lists</a>{{end}}
+      <form class="inline-form" method="post" action="/finance/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="btn ghost" type="submit">Logout</button></form>
+    </div>
+    {{end}}
     {{if .Tabs}}
     <div class="tabs">
       {{range .Tabbar}}<a class="tab{{if eq .Path $.Current}} on{{end}}" href="{{.Path}}">{{.Label}}</a>{{end}}

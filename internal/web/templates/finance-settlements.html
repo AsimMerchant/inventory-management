@@ -1,0 +1,34 @@
+<h1>Stock returned or sold</h1>
+{{if .Error}}<div class="banner bad">{{.Error}}</div>{{end}}
+{{if .Notice}}<div class="banner ok">{{.Notice}}</div>{{end}}
+<p>
+  <a href="/finance/supplier-returns/new">Return rented goods</a> ·
+  <a href="/finance/sales/new">Record a sale</a> ·
+  <a href="/finance/obligations">Rented goods still to return</a>
+</p>
+{{if not .Rows}}<p>Nothing has gone back or been sold yet.</p>{{end}}
+<ul class="rows">
+  {{range .Rows}}
+  <li>
+    <strong>{{.KindLabel}} · {{.Quantity}} {{.Product}}</strong>
+    <div>{{.Party}}</div>
+    <div>{{longstamp .At}}</div>
+    {{if .Reference}}<div>Reference: {{.Reference}}</div>{{end}}
+    {{if .Remarks}}<div>Remarks: {{.Remarks}}</div>{{end}}
+    <div class="note">Recorded by {{.RecordedBy}} · {{longstamp .RecordedAt}}</div>
+    {{if .ProductGone}}<div class="note">The product was removed from the working register.</div>{{end}}
+    {{range .Changes}}<div class="note">{{.Label}}: {{.From}} → {{.To}} · {{.ByName}} · {{longstamp .At}}</div>{{end}}
+    {{if .VoidLine}}<div class="note">{{.VoidLine}} · {{.Voided.ByName}} · {{longstamp .Voided.At}}</div>{{end}}
+    {{if not .Voided}}
+    <p class="actions"><a href="/finance/settlements/{{.Kind}}/{{.ID}}/edit">Fix this record</a></p>
+    <details class="danger">
+      <summary>Review voiding this stock movement</summary>
+      <form method="post" action="/finance/settlements/{{.Kind}}/{{.ID}}/void">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <button class="btn" type="submit">Review voiding this stock movement</button>
+      </form>
+    </details>
+    {{end}}
+  </li>
+  {{end}}
+</ul>

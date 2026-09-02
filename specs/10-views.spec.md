@@ -253,7 +253,11 @@ then three `we bought it` rows for Chairs (310), Charcoal sacks (12) and Water d
 ## Acceptance criteria
 
 1. `go test ./internal/web/ -run 'TestStock|TestOut|TestInwards|TestSuppliers' -count=1` passes with all twenty-two tests.
-2. `grep -rniE 'settle|amount|invoice|payment|₹|rupee|still owed|given back' internal/web/templates/` returns nothing.
+2. Specs 17–21 supersede the old all-template money grep. The four ordinary reading
+   templates remain free of financial vocabulary/data:
+   `rg -ni 'settle|amount|invoice|payment|₹|rupee|still owed|given back|financial ledger' internal/web/templates/{stock,out,inwards,suppliers}.html`
+   returns nothing. Public leakage across rendered routes is additionally proved by
+   `TestPublicPagesLeakNoFinanceContent` from spec 17.
 3. `grep -n 'method="post"\|<button' internal/web/templates/suppliers.html` returns nothing.
 4. All four routes return 200 over `WalkthroughT0()` and over an empty register — a
    test loops the four paths against both and asserts the status and a non-empty body.
@@ -268,7 +272,7 @@ then three `we bought it` rows for Chairs (310), Charcoal sacks (12) and Water d
 ```
 cd /home/asim/Projects/inventory-management
 go test ./internal/web/ -run 'TestStock|TestOut|TestInwards|TestSuppliers' -count=1 -v
-grep -rniE 'settle|amount|invoice|payment' internal/web/templates/   # must print nothing
+rg -ni 'settle|amount|invoice|payment|₹|rupee|still owed|given back|financial ledger' internal/web/templates/{stock,out,inwards,suppliers}.html   # must print nothing
 ```
 
 ## Open

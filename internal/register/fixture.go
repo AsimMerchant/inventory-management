@@ -106,6 +106,10 @@ func WalkthroughT0() *Register {
 				imran, imranMobile, at(2026, time.September, 1, 9, 45)),
 		},
 		Returns: []Return{},
+		// Empty, like every other slice: the reader normalises a missing key
+		// to this, so a fixture that left it nil would not compare equal to
+		// the same register read back off disk.
+		Disposals: []InventoryDisposal{},
 	}
 }
 

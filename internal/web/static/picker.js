@@ -10,6 +10,7 @@
     var id = box.querySelector('[data-picker-id]');
     var list = box.querySelector('[data-picker-list]');
     var mode = box.getAttribute('data-mode') || 'all';
+    var endpoint = box.getAttribute('data-endpoint') || '/api/products';
     var newLabel = box.getAttribute('data-newlabel') || '';
     var rows = [];
     var here = -1;
@@ -32,7 +33,7 @@
 
     function load(q) {
       var req = new XMLHttpRequest();
-      req.open('GET', '/api/products?mode=' + mode + '&q=' + encodeURIComponent(q));
+      req.open('GET', endpoint + '?mode=' + mode + '&q=' + encodeURIComponent(q));
       req.onload = function () {
         if (req.status !== 200) { hide(); return; }
         draw(JSON.parse(req.responseText), q);

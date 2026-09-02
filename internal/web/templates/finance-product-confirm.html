@@ -1,0 +1,10 @@
+<h1>Add a product</h1>
+<p><strong>{{.Existing}}</strong> is already on the list. Is <strong>{{.Typed}}</strong> a different thing?</p>
+<form method="post" action="/finance/product/new">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <input type="hidden" name="line" value="{{.Line}}">
+  <input type="hidden" name="confirm" value="yes">
+  {{range $key, $values := .Draft}}{{range $values}}<input type="hidden" name="{{$key}}" value="{{.}}">{{end}}{{end}}
+  <button class="btn" type="submit">Yes, add {{.Typed}} as a separate product</button>
+</form>
+<p><a href="/finance/orders/new">No, go back</a></p>

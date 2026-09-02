@@ -1,0 +1,13 @@
+<h1>{{.Heading}}</h1>
+<p>{{.Warning}}</p>
+{{if .ExtraWarning}}<p>{{.ExtraWarning}}</p>{{end}}
+{{if .Error}}<div class="banner bad">{{.Error}}</div>{{end}}
+<form method="post" action="{{.Action}}">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <input type="hidden" name="confirm" value="yes">
+  {{if .Target}}<input type="hidden" name="target" value="{{.Target}}">{{end}}
+  {{if .ConfirmedTarget}}<input type="hidden" name="confirmedTarget" value="{{.ConfirmedTarget}}">{{end}}
+  {{if .AskReason}}<div class="field"><span class="lab">{{.ReasonLabel}}</span><input class="inp" type="text" name="reason" value="{{.Reason}}" autocomplete="off"></div>{{end}}
+  {{if .AskPassword}}<div class="field"><span class="lab">Current password</span><input class="inp" type="password" name="password" autocomplete="current-password"></div>{{end}}
+  <button class="btn" type="submit">{{.Button}}</button>
+</form>

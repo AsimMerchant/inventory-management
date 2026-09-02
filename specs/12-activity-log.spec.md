@@ -709,10 +709,10 @@ A count is the one place on this page where `1 lines` could appear.
    `corrections.go`.
 8. **No parallel log table:**
    `grep -rniE 'auditLog|activityLog|LogRecord|logEntries *\[\]' internal/register/model.go`
-   returns nothing, and `go doc storeregister/internal/register Register` still lists
-   exactly the seven fields from `01-data-model.spec.md`. The log adds no field to the
-   file format. (The runtime half of this — the file being untouched by a visit — is
-   `TestLogIsReadOnly`, not a criterion here.)
+   returns nothing. `Register` may contain the schema-3 `Disposals` and encrypted
+   `Finance` fields required by specs 17–20, but still contains no stored activity-log
+   slice. (The runtime half—the file being untouched by a visit—is `TestLogIsReadOnly`,
+   not a criterion here.)
 9. **No edit route is reachable from this page:**
    `grep -n '/entry/' internal/web/templates/log.html` returns nothing.
 10. `grep -rniE 'password|login|authenticate|permission|audit trail' internal/web/log.go internal/web/templates/log.html`
