@@ -155,3 +155,17 @@ func mergedInto(data *register.FinanceData, id string) bool {
 	}
 	return false
 }
+
+// ReadBoth hands the inventory record and the decrypted vault to one callback
+// under a single lock. Store.Read and Store.ReadFinance both take that lock, so
+// a screen showing an order beside its live product must not nest them.
+func (s *Store) ReadBoth(vaultKey []byte, fn func(*register.Register, *register.FinanceData)) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data, err := decryptFinance(s.reg.Finance, vaultKey)
+	if err != nil {
+		return err
+	}
+	fn(deepCopy(s.reg), deepCopyFinance(data))
+	return nil
+}

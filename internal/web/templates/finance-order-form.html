@@ -8,6 +8,7 @@
   <h2>Products ordered</h2>
   {{range .Lines}}
   <fieldset class="line">
+    <input type="hidden" name="lineId" value="{{.LineID}}">
     {{template "picker.html" .Picker}}
     <div class="field">
       <span class="lab">Expected quantity</span>

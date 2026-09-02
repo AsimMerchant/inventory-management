@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"html"
 	"net/http"
 	"net/url"
 	"strings"
@@ -309,5 +310,119 @@ func TestFinancialUserCannotManageReusableValues(t *testing.T) {
 		}
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestFinanceSuggestionOrderingSelectionAndNoScript(t *testing.T) {
+	e := newTestServer(t, register.WalkthroughT0(), orderNow)
+	admin, key, adminID := financeAdmin(t, e)
+
+	// Ten parties, so the eight-row cap and the ordering both have to bite.
+	parties := []string{
+		"Sharma Events", "Sharma Tent House", "Sharma Lights", "Sharma Sound",
+		"Sharma Catering", "Sharma Decorators", "Sharma Transport", "Sharma Chairs",
+		"New Sharma Supplies", "Anand Sharma & Sons",
+	}
+	if err := e.st.UpdateFinance(key, func(_ *register.Register, f *register.FinanceData) error {
+		for _, p := range parties {
+			if _, err := register.AddFinanceValue(f, register.FinanceParty, p, adminID, orderNow); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	got := suggestValues(t, admin, "party", "sharma")
+	if len(got) != 8 {
+		t.Fatalf("%d suggestions, want the eight-row cap: %v", len(got), got)
+	}
+	// The eight names starting with the query, alphabetically. The two that
+	// merely contain it are pushed out by the cap.
+	want := "Sharma Catering,Sharma Chairs,Sharma Decorators,Sharma Events," +
+		"Sharma Lights,Sharma Sound,Sharma Tent House,Sharma Transport"
+	if strings.Join(got, ",") != want {
+		t.Fatalf("ordering is %v", got)
+	}
+	// With a narrower query the cap no longer bites, and the one name that
+	// merely contains the query comes after the one that starts with it.
+	narrow := suggestValues(t, admin, "party", "sharma s")
+	if strings.Join(narrow, ",") != "Sharma Sound,New Sharma Supplies" {
+		t.Fatalf("substring matches come out as %v", narrow)
+	}
+
+	// The picker markup carries a hidden ID beside the visible text, and a
+	// no-script select that lists every live value.
+	status, body := admin.get(t, "/finance/orders/new")
+	if status != 200 {
+		t.Fatalf("the order form = %d", status)
+	}
+	for _, want := range []string{
+		`name="partyName"`, `name="partyId"`, `data-values-id`, `data-values-text`,
+		"<noscript>", "Or add a new one", `src="/static/value-picker.js"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the party picker has no %s", want)
+		}
+	}
+	// html/template escapes an ampersand, so compare against the unescaped body.
+	plain := html.UnescapeString(body)
+	for _, p := range parties {
+		if !strings.Contains(plain, ">"+p+"<") {
+			t.Errorf("the no-script list omits %q", p)
+		}
+	}
+
+	chairs := productIDNamed(t, e, "Chairs")
+
+	// The server-only path: an existing value chosen by ID, with no typed text.
+	sharma := valueIDByText(t, e, key, register.FinanceParty, "Sharma Events")
+	form := orderForm("", chairs, "10", "rent")
+	form.Set("partyId", sharma)
+	if status, body := admin.post(t, "/finance/orders/new", form); status != 303 {
+		t.Fatalf("selecting by id = %d: %s", status, body)
+	}
+
+	// The server-only path: a genuinely new value typed with no ID, created as
+	// part of the save. Freight and Product adjustment are the spec's examples.
+	before := 0
+	_ = e.st.ReadFinance(key, func(f *register.FinanceData) { before = len(f.ReusableValues) })
+	typed := orderForm("Freight Movers", chairs, "10", "rent")
+	if status, body := admin.post(t, "/finance/orders/new", typed); status != 303 {
+		t.Fatalf("typing a new party = %d: %s", status, body)
+	}
+	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
+		if len(f.ReusableValues) != before+1 {
+			t.Errorf("the new party did not appear on the shared list")
+		}
+		if _, ok := register.FindFinanceValueByText(f, register.FinanceParty, "Freight Movers"); !ok {
+			t.Error("Freight Movers was not created")
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A stale or unknown ID falls back to the typed text rather than filing the
+	// order against the wrong party.
+	stale := orderForm("Product adjustment", chairs, "10", "rent")
+	stale.Set("partyId", "PTY-9999")
+	if status, body := admin.post(t, "/finance/orders/new", stale); status != 303 {
+		t.Fatalf("a stale id = %d: %s", status, body)
+	}
+	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
+		last := f.Orders[len(f.Orders)-1]
+		if got := register.FinanceValueText(f, last.PartyID); got != "Product adjustment" {
+			t.Errorf("the order was filed against %q", got)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Neither an ID nor text is refused: the party is mandatory.
+	blank := orderForm("", chairs, "10", "rent")
+	if status, body := admin.post(t, "/finance/orders/new", blank); status != 200 ||
+		!strings.Contains(body, "Say who this order is with.") {
+		t.Errorf("a blank party gave %d", status)
 	}
 }

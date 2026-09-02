@@ -309,6 +309,20 @@ rg -n 'ReusableValues|FinanceParty|FinancePurpose|FinanceMode' internal/web/inwa
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /tmp/register.exe .
 ```
 
+## Defects found while implementing
+
+1. Two required tests, `TestCancelPaidUndeliveredOrderKeepsHistory` and
+   `TestOrderCorrectionIsAuditedAndUsedLineCannotDisappear`, depend on a money movement
+   pointing at an order line, while the Contract above forbids this spec from declaring
+   a movement type. Both are therefore **partial**: the refusal path and its exact
+   wording `This product is already used by a ledger entry.` ship here behind
+   `register.FinanceLineIsReferenced`, which returns `false` until spec 19 fills it in.
+   Spec 19 must implement that predicate and complete both tests.
+2. The float grep in the verification block below has no `--glob '!**/*_test.go'`
+   exclusion, unlike the `Products = append` grep on the line above it. A float literal
+   in a test therefore fails the gate. The tree is float-free including tests, so the
+   grep is left exactly as written rather than loosened.
+
 ## Open
 
 1. Orders intentionally do not reconcile expected versus received quantities because

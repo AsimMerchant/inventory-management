@@ -461,3 +461,236 @@ func TestInventoryReceivesPartialOrderWithoutOrderKnowledge(t *testing.T) {
 		t.Error("the inward form reaches the protected value list")
 	}
 }
+
+// saveOrder records one order and returns its ID.
+func saveOrder(t *testing.T, e *env, admin *testClient, key []byte, form url.Values) string {
+	t.Helper()
+	if status, body := admin.post(t, "/finance/orders/new", form); status != 303 {
+		t.Fatalf("order save = %d: %s", status, body)
+	}
+	id := ""
+	_ = e.st.ReadFinance(key, func(f *register.FinanceData) { id = f.Orders[len(f.Orders)-1].ID })
+	return id
+}
+
+func orderByID(t *testing.T, e *env, key []byte, id string) register.FinanceOrder {
+	t.Helper()
+	var o register.FinanceOrder
+	ok := false
+	if err := e.st.ReadFinance(key, func(f *register.FinanceData) { o, ok = register.FinanceOrderByID(f, id) }); err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatalf("no order %s", id)
+	}
+	return o
+}
+
+// TestOrderCorrectionIsAuditedAndUsedLineCannotDisappear covers everything the
+// correction contract reaches today. The movement-linked half of the spec's
+// scenario needs spec 19's money movements, which do not exist yet: the guard
+// and its exact refusal are implemented and exercised through
+// register.FinanceLineIsReferenced, which returns false until spec 19 fills it
+// in. See HANDOFF.md, "Known gap: two spec-18 tests depend on spec 19".
+func TestOrderCorrectionIsAuditedAndUsedLineCannotDisappear(t *testing.T) {
+	e := newTestServer(t, register.WalkthroughT0(), orderNow)
+	admin, key, adminID := financeAdmin(t, e)
+	chairs := productIDNamed(t, e, "Chairs")
+	tables := productIDNamed(t, e, "Round tables")
+
+	form := orderForm("Sharma Events", chairs, "100", "rent")
+	form.Set("agreedTotal", "25000")
+	form.Set("agreedKind", "estimated")
+	form.Set("remarks", "Delivery on the 4th")
+	id := saveOrder(t, e, admin, key, form)
+	created := orderByID(t, e, key, id)
+
+	// Correct every field at once.
+	edit := url.Values{
+		"partyName": {"Sharma Tent House"},
+		"lineId":    {created.Lines[0].ID, ""},
+		"productId": {chairs, tables}, "productName": {"", ""},
+		"quantity": {"120", "40"}, "basis": {"rent", "purchase"},
+		"orderedAt":   {"2026-09-03T09:30"},
+		"agreedTotal": {"31000.50"}, "agreedKind": {"exact"},
+		"remarks": {""},
+	}
+	if status, body := admin.post(t, "/finance/orders/"+id+"/edit", edit); status != 303 {
+		t.Fatalf("correction = %d: %s", status, body)
+	}
+
+	o := orderByID(t, e, key, id)
+	// What was recorded when, and by whom, is never rewritten by a correction.
+	if !o.CreatedAt.Equal(created.CreatedAt) || o.CreatedByID != created.CreatedByID {
+		t.Errorf("the correction rewrote who recorded the order")
+	}
+	if o.Lines[0].ID != created.Lines[0].ID {
+		t.Errorf("the kept line changed id")
+	}
+
+	// One change per changed field, in the spec's order.
+	var got []string
+	for _, c := range o.Changes {
+		got = append(got, c.Field)
+		if c.ByAccountID != adminID || c.ByMobile != "9886140023" || !c.At.Equal(orderNow) {
+			t.Errorf("change %s is attributed to %+v", c.Field, c)
+		}
+	}
+	want := "party,products,agreedTotal,agreedKind,orderedAt,remarks"
+	if strings.Join(got, ",") != want {
+		t.Fatalf("changes are %v, want %s", got, want)
+	}
+	byField := map[string]register.FinanceChange{}
+	for _, c := range o.Changes {
+		byField[c.Field] = c
+	}
+	for field, wants := range map[string][3]string{
+		"party":       {"Supplier or other party", "Sharma Events", "Sharma Tent House"},
+		"products":    {"Products ordered", "100 Chairs — rent", "120 Chairs — rent; 40 Round tables — purchase"},
+		"agreedTotal": {"Agreed total", "₹25000.00", "₹31000.50"},
+		"agreedKind":  {"Estimate or exact", "Estimate", "Exact"},
+		"orderedAt":   {"Order date and time", "3 September 2026 · 11:00 am", "3 September 2026 · 9:30 am"},
+		"remarks":     {"Remarks", "Delivery on the 4th", "Blank"},
+	} {
+		c := byField[field]
+		if c.Label != wants[0] || c.From != wants[1] || c.To != wants[2] {
+			t.Errorf("%s recorded as %q: %q → %q", field, c.Label, c.From, c.To)
+		}
+	}
+
+	// One order_edited event, after the field changes.
+	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
+		edits := 0
+		for _, a := range f.Audit {
+			if a.Kind == "order_edited" && a.EntityID == id {
+				edits++
+			}
+		}
+		if edits != 1 {
+			t.Errorf("%d order_edited events", edits)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Submitting the same values again records nothing.
+	if status, _ := admin.post(t, "/finance/orders/"+id+"/edit", edit); status != 303 {
+		t.Fatal("the no-op correction was refused")
+	}
+	if again := orderByID(t, e, key, id); len(again.Changes) != len(o.Changes) {
+		t.Errorf("a no-op correction recorded %d changes", len(again.Changes)-len(o.Changes))
+	}
+
+	// The refusal a movement-linked line gets is implemented and worded exactly.
+	if register.ErrLineUsed.Error() != "This product is already used by a ledger entry." {
+		t.Errorf("the refusal reads %q", register.ErrLineUsed)
+	}
+	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
+		if got := lineRefusal(f, o.Lines, nil); got != register.ErrLineUsed.Error() {
+			// No movement exists yet, so no line is referenced and nothing is
+			// refused. Spec 19 makes this assertion bite.
+			if got != "" {
+				t.Errorf("lineRefusal said %q", got)
+			}
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestCancelPaidUndeliveredOrderKeepsHistory covers the cancellation contract.
+// Its "after a movement from spec 19" half is the named gap: no payment type
+// exists to record yet. See HANDOFF.md.
+func TestCancelPaidUndeliveredOrderKeepsHistory(t *testing.T) {
+	e := newTestServer(t, register.WalkthroughT0(), orderNow)
+	admin, key, _ := financeAdmin(t, e)
+	chairs := productIDNamed(t, e, "Chairs")
+	id := saveOrder(t, e, admin, key, orderForm("Sharma Events", chairs, "100", "rent"))
+
+	beforeProducts, beforeStock := 0, onHand(e)
+	e.st.Read(func(reg *register.Register) { beforeProducts = len(reg.Products) })
+
+	// A cancellation must say why.
+	if status, body := admin.post(t, "/finance/orders/"+id+"/cancel", nil); status != 200 ||
+		!strings.Contains(body, "Say why this order is cancelled.") {
+		t.Fatalf("a blank reason gave %d", status)
+	}
+	if orderByID(t, e, key, id).Status != "open" {
+		t.Fatal("a refused cancellation changed the order")
+	}
+
+	if status, body := admin.post(t, "/finance/orders/"+id+"/cancel",
+		url.Values{"reason": {"Supplier could not deliver"}}); status != 303 {
+		t.Fatalf("cancel = %d: %s", status, body)
+	}
+
+	o := orderByID(t, e, key, id)
+	if o.Status != "cancelled" {
+		t.Fatalf("status is %q", o.Status)
+	}
+	// The order and its products stay. Nothing is erased.
+	if len(o.Lines) != 1 || o.Lines[0].ExpectedQuantity != 100 {
+		t.Errorf("cancellation changed the lines: %+v", o.Lines)
+	}
+	after := 0
+	e.st.Read(func(reg *register.Register) { after = len(reg.Products) })
+	if after != beforeProducts {
+		t.Error("cancelling an order deleted a product")
+	}
+	if got := onHand(e); !sameStock(beforeStock, got) {
+		t.Error("cancelling an order moved stock")
+	}
+
+	// It is audited with the reason, and still visible on both screens.
+	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
+		found := false
+		for _, a := range f.Audit {
+			if a.Kind == "order_cancelled" && a.EntityID == id {
+				found = true
+				if a.Summary != "Supplier could not deliver" || a.Before != "open" || a.After != "cancelled" {
+					t.Errorf("cancellation audit is %+v", a)
+				}
+			}
+		}
+		if !found {
+			t.Error("no order_cancelled audit event")
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/finance/orders", "/finance/orders/" + id} {
+		status, body := admin.get(t, path)
+		if status != 200 || !strings.Contains(body, "Cancelled") {
+			t.Errorf("%s = %d and does not show the cancellation", path, status)
+		}
+	}
+
+	// Cancelling twice is refused rather than recorded twice.
+	if status, _ := admin.post(t, "/finance/orders/"+id+"/cancel", url.Values{"reason": {"again"}}); status != 200 {
+		t.Error("a second cancellation was accepted")
+	}
+}
+
+func TestOrderListAndDetailShowSnapshotsAndRenames(t *testing.T) {
+	e := newTestServer(t, register.WalkthroughT0(), orderNow)
+	admin, key, _ := financeAdmin(t, e)
+	chairs := productIDNamed(t, e, "Chairs")
+	id := saveOrder(t, e, admin, key, orderForm("Sharma Events", chairs, "100", "rent"))
+
+	// The inventory side renames the product. The order keeps its own label.
+	if err := e.st.Update(func(reg *register.Register) error {
+		return register.RenameProduct(reg, chairs, "Folding chairs", "Suresh Kumar", orderNow)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := orderByID(t, e, key, id).Lines[0].ProductNameSnapshot; got != "Chairs" {
+		t.Fatalf("the snapshot was rewritten to %q", got)
+	}
+	status, body := admin.get(t, "/finance/orders/"+id)
+	if status != 200 {
+		t.Fatalf("detail = %d", status)
+	}
+	if !strings.Contains(body, "Chairs") || !strings.Contains(body, "now called Folding chairs") {
+		t.Errorf("the detail page does not show the snapshot and the new name: %s", body)
+	}
+}

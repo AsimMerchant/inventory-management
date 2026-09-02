@@ -35,11 +35,10 @@ the resume artifact.** Keep it current after every committed slice.
 | Spec | Slice | Commit | State |
 |---|---|---|---|
 | 17 | Vault, accounts, sessions | `cdc431c` | **Done.** All 16 required tests pass under `-race`. |
-| 18 | 1. Order/value model, IDs, validation, rupee parser | this commit | **Done.** register-level tests pass. |
-| 18 | 2. Reusable values: typeahead, admin `/finance/lists` | this commit | **Done.** 3 required tests pass. |
-| 18 | 3. Orders: create, list, detail, `POST /finance/product/new` | this commit | **Done.** 6 required tests pass. |
-| 18 | 4. Order edit and cancel, the six-row `FinanceChange` table | — | Not started |
-| 18 | 5. Full verification block, docs | — | Not started |
+| 18 | 1. Order/value model, IDs, validation, rupee parser | `0b9cbb9` | **Done.** register-level tests pass. |
+| 18 | 2. Reusable values: typeahead, admin `/finance/lists` | `f162427` | **Done.** 3 required tests pass. |
+| 18 | 3. Orders: create, list, detail, `POST /finance/product/new` | `c484970` | **Done.** 6 required tests pass. |
+| 18 | 4. Order edit and cancel, the six-row `FinanceChange` table, suggestion ordering, docs | `4398d02` | **Done.** All 12 required tests pass. |
 | 19–21 | Movements, supplier returns and sales, browser acceptance | — | Not started |
 
 Spec 17 arrived from the previous session mid-refactor and did not compile: the request
@@ -65,6 +64,24 @@ real. Do not judge the feature by opening it before then.
   thing.
 - `FinanceOrderLine.ID` is unique across the whole vault, not within one order, so
   `NextID("OLN")` scans every line of every order.
+- **`Store.Read` and `Store.ReadFinance` both take the same non-reentrant mutex.**
+  Nesting them deadlocks the request with no error and no test failure — the run just
+  hangs. Any screen needing the inventory record and the vault together must use
+  `Store.ReadBoth`, which hands over both under one lock. This bit the order list and
+  detail screens.
+
+#### What spec 19 inherits
+
+- `register.FinanceLineIsReferenced` returns `false` and must start reporting whether a
+  movement points at an order line. `lineRefusal` in `internal/web/finance_orders.go`
+  already calls it and already carries the exact wording.
+- `register.FinanceValueIsUsed` currently checks only `FinanceOrder.PartyID`. Every new
+  movement field naming a party, purpose or payment mode must be added to it, or an
+  administrator will be able to delete a value a movement still points at.
+- `Store.ReadBoth` is the way to read the inventory record and the vault together.
+- `financeAuditFor` in `internal/web/finance_orders.go` and `store.FinanceAudit` do the
+  same job at two layers; spec 19 should use whichever layer it writes in rather than
+  adding a third.
 
 #### Known gap: two spec-18 tests depend on spec 19
 

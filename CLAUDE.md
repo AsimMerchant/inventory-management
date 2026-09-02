@@ -90,8 +90,17 @@ The user commissioned a protected financial ledger on branch
 on authentication, money and supplier-return workflows inside the new authorized
 area; the ordinary inventory screens retain their existing no-login workflow and
 must expose no financial data. Reviewed specifications 17–21 govern the new work. See the
-active-work section of `HANDOFF.md` and `.agent-handoff/latest.md` for the current
-requirements and verification state.
+active-work section of `HANDOFF.md` for the current requirements and verification
+state — it carries the committed slice-by-slice build table, the traps this build has
+already hit and the named gaps the next spec must close. (`.agent-handoff/latest.md`
+mirrors it but is gitignored, so it must never be the only record of anything.)
+
+Specs 17 and 18 are built and green: the encrypted vault with individual accounts and
+sessions, and orders with the shared party, purpose and payment-mode lists. Specs
+19–21 — money movements and the printable journal, supplier returns and stock sales,
+and the browser acceptance gate — are not started. The financial screens are working
+placeholder HTML and have not been through `plain_language_reviewer`; spec 21 makes
+them real.
 
 Specs 01–12 shipped as `v1.0.0`. Spec 13, one issue naming multiple joint recipients,
 shipped as `v1.0.1` and went to the stakeholders. Their feedback became specs 14, 15 and

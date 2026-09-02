@@ -62,8 +62,9 @@ func (s *Server) readOrderDraft(r *http.Request) orderDraft {
 
 	ids, names := r.Form["productId"], r.Form["productName"]
 	quantities, bases := r.Form["quantity"], r.Form["basis"]
+	lineIDs := r.Form["lineId"]
 	count := len(names)
-	for _, n := range []int{len(ids), len(quantities), len(bases)} {
+	for _, n := range []int{len(ids), len(quantities), len(bases), len(lineIDs)} {
 		if n > count {
 			count = n
 		}
@@ -80,6 +81,7 @@ func (s *Server) readOrderDraft(r *http.Request) orderDraft {
 			ProductName: register.CleanName(at(names, i)),
 			Quantity:    strings.TrimSpace(at(quantities, i)),
 			Basis:       at(bases, i),
+			LineID:      at(lineIDs, i),
 		})
 	}
 	if len(d.Lines) == 0 {
@@ -99,6 +101,7 @@ func (d orderDraft) query() url.Values {
 		q.Add("productName", l.ProductName)
 		q.Add("quantity", l.Quantity)
 		q.Add("basis", l.Basis)
+		q.Add("lineId", l.LineID)
 	}
 	q.Set("orderedAt", d.OrderedAt)
 	q.Set("agreedTotal", d.Agreed)
@@ -402,12 +405,10 @@ type ordersData struct {
 func (s *Server) financeOrders(w http.ResponseWriter, r *http.Request) {
 	sess := financeSessionOf(r)
 	data := ordersData{CSRF: sess.csrf}
-	s.st.Read(func(reg *register.Register) {
-		_ = s.st.ReadFinance(sess.vaultKey, func(f *register.FinanceData) {
-			for _, o := range register.SortedFinanceOrders(f) {
-				data.Orders = append(data.Orders, viewOrder(reg, f, o))
-			}
-		})
+	_ = s.st.ReadBoth(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) {
+		for _, o := range register.SortedFinanceOrders(f) {
+			data.Orders = append(data.Orders, viewOrder(reg, f, o))
+		}
 	})
 	s.financePage(w, r, "Orders", "finance-orders.html", data)
 }
@@ -435,12 +436,10 @@ func (s *Server) renderOrderDetail(w http.ResponseWriter, r *http.Request, id, p
 		data.Notice = "Order corrected."
 	}
 	found := false
-	s.st.Read(func(reg *register.Register) {
-		_ = s.st.ReadFinance(sess.vaultKey, func(f *register.FinanceData) {
-			if o, ok := register.FinanceOrderByID(f, id); ok {
-				data.Order, found = viewOrder(reg, f, o), true
-			}
-		})
+	_ = s.st.ReadBoth(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) {
+		if o, ok := register.FinanceOrderByID(f, id); ok {
+			data.Order, found = viewOrder(reg, f, o), true
+		}
 	})
 	if !found {
 		s.notFound(w, r)
@@ -517,4 +516,255 @@ func (s *Server) financeProductNew(w http.ResponseWriter, r *http.Request) {
 		q.Set("added", name)
 		http.Redirect(w, r, "/finance/orders/new?"+q.Encode(), http.StatusSeeOther)
 	}
+}
+
+// financeOrderCancel marks an order cancelled. It never voids a payment,
+// deletes a product or moves stock: a cancelled order stays on the screen and
+// can still receive a refund recorded separately.
+func (s *Server) financeOrderCancel(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	reason := register.CleanName(r.FormValue("reason"))
+	if reason == "" {
+		s.renderOrderDetail(w, r, id, "Say why this order is cancelled.")
+		return
+	}
+	sess := financeSessionOf(r)
+	now := s.now()
+
+	refusal := ""
+	err := s.st.UpdateFinance(sess.vaultKey, func(_ *register.Register, f *register.FinanceData) error {
+		for i := range f.Orders {
+			if f.Orders[i].ID != id {
+				continue
+			}
+			if f.Orders[i].Status == "cancelled" {
+				refusal = "This order is already cancelled."
+				return errOrderRefused
+			}
+			f.Orders[i].Status = "cancelled"
+			f.Audit = append(f.Audit, financeAuditFor(f, sess.accountID, now, "order_cancelled", "order", id,
+				reason, "open", "cancelled"))
+			return nil
+		}
+		refusal = "That order is not on the list."
+		return errOrderRefused
+	})
+	switch {
+	case errors.Is(err, errOrderRefused):
+		s.renderOrderDetail(w, r, id, refusal)
+	case err != nil:
+		s.renderOrderDetail(w, r, id, saveFailed)
+	default:
+		http.Redirect(w, r, "/finance/orders/"+id+"?cancelled=1", http.StatusSeeOther)
+	}
+}
+
+// financeOrderEdit corrects one order. Every changed field is recorded, in the
+// order the spec lists, and nothing is silently deleted.
+func (s *Server) financeOrderEdit(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	sess := financeSessionOf(r)
+
+	if r.Method != http.MethodPost {
+		d, ok := s.draftFromOrder(r, id)
+		if !ok {
+			s.notFound(w, r)
+			return
+		}
+		s.renderOrderForm(w, r, d)
+		return
+	}
+
+	d := s.readOrderDraft(r)
+	d.OrderID, d.Heading, d.Submit = id, "Fix this order", "Save the correction"
+	d.Action = "/finance/orders/" + id + "/edit"
+
+	if r.FormValue("addLine") != "" {
+		d.Lines = append(d.Lines, orderLine{})
+		s.renderOrderForm(w, r, d)
+		return
+	}
+	if at := r.FormValue("removeLine"); at != "" {
+		if i, err := strconv.Atoi(at); err == nil && i >= 0 && i < len(d.Lines) && len(d.Lines) > 1 {
+			d.Lines = append(d.Lines[:i], d.Lines[i+1:]...)
+		}
+		s.renderOrderForm(w, r, d)
+		return
+	}
+
+	now := s.now()
+	orderedAt, agreed, refusal := orderFields(d)
+	if refusal != "" {
+		d.Error = refusal
+		s.renderOrderForm(w, r, d)
+		return
+	}
+
+	err := s.st.UpdateFinance(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) error {
+		at := -1
+		for i := range f.Orders {
+			if f.Orders[i].ID == id {
+				at = i
+			}
+		}
+		if at < 0 {
+			refusal = "That order is not on the list."
+			return errOrderRefused
+		}
+		before := f.Orders[at]
+
+		partyID, err := resolveValue(f, register.FinanceParty, d.Party.PickedID, d.Party.PickedText, sess.accountID, now)
+		if err != nil {
+			refusal = "Say who this order is with."
+			return errOrderRefused
+		}
+		lines, text := buildLines(reg, f, d)
+		if text != "" {
+			refusal = text
+			return errOrderRefused
+		}
+		if text := lineRefusal(f, before.Lines, lines); text != "" {
+			refusal = text
+			return errOrderRefused
+		}
+
+		after := before
+		after.PartyID, after.Lines, after.OrderedAt = partyID, lines, orderedAt
+		after.AgreedPaise, after.AgreedKind, after.Remarks = agreed, d.AgreedKind, d.Remarks
+		if agreed == nil {
+			after.AgreedKind = ""
+		}
+
+		changes := orderChanges(f, before, after, sess.accountID, now)
+		if len(changes) == 0 {
+			return nil
+		}
+		after.Changes = append(append([]register.FinanceChange{}, before.Changes...), changes...)
+		f.Orders[at] = after
+		f.Audit = append(f.Audit, financeAuditFor(f, sess.accountID, now, "order_edited", "order", id,
+			"Order corrected", orderSummary(f, before), orderSummary(f, after)))
+		return nil
+	})
+	switch {
+	case errors.Is(err, errOrderRefused):
+		d.Error = refusal
+		s.renderOrderForm(w, r, d)
+	case err != nil:
+		d.Error = saveFailed
+		s.renderOrderForm(w, r, d)
+	default:
+		http.Redirect(w, r, "/finance/orders/"+id+"?corrected=1", http.StatusSeeOther)
+	}
+}
+
+// lineRefusal holds the one rule corrections must not break: a line a ledger
+// entry points at may change how many were expected, and nothing else.
+func lineRefusal(f *register.FinanceData, before, after []register.FinanceOrderLine) string {
+	kept := map[string]register.FinanceOrderLine{}
+	for _, l := range after {
+		kept[l.ID] = l
+	}
+	for _, old := range before {
+		if !register.FinanceLineIsReferenced(f, old.ID) {
+			continue
+		}
+		now, ok := kept[old.ID]
+		if !ok || now.ProductID != old.ProductID || now.Basis != old.Basis {
+			return register.ErrLineUsed.Error()
+		}
+	}
+	return ""
+}
+
+// orderChanges records one FinanceChange per changed field, in the order the
+// spec fixes. Submitting the same values again records nothing.
+func orderChanges(f *register.FinanceData, before, after register.FinanceOrder, actorID string, at time.Time) []register.FinanceChange {
+	var out []register.FinanceChange
+	add := func(field, label, from, to string) {
+		if from == to {
+			return
+		}
+		var name, mobile string
+		for _, a := range f.Accounts {
+			if a.ID == actorID {
+				name, mobile = a.DisplayName, a.Mobile
+			}
+		}
+		out = append(out, register.FinanceChange{
+			At: at, ByAccountID: actorID, ByName: name, ByMobile: mobile,
+			Field: field, Label: label, From: from, To: to,
+		})
+	}
+	add("party", "Supplier or other party",
+		register.FinanceValueText(f, before.PartyID), register.FinanceValueText(f, after.PartyID))
+	add("products", "Products ordered", lineText(before.Lines), lineText(after.Lines))
+	add("agreedTotal", "Agreed total", totalText(before.AgreedPaise), totalText(after.AgreedPaise))
+	add("agreedKind", "Estimate or exact", kindText(before.AgreedKind), kindText(after.AgreedKind))
+	add("orderedAt", "Order date and time",
+		before.OrderedAt.Format("2 January 2006 · 3:04 pm"), after.OrderedAt.Format("2 January 2006 · 3:04 pm"))
+	add("remarks", "Remarks", remarkText(before.Remarks), remarkText(after.Remarks))
+	return out
+}
+
+func totalText(paise *int64) string {
+	if paise == nil {
+		return "Not entered"
+	}
+	return register.FormatRupees(*paise)
+}
+
+func kindText(kind string) string {
+	switch kind {
+	case "estimated":
+		return "Estimate"
+	case "exact":
+		return "Exact"
+	}
+	return "Not entered"
+}
+
+func remarkText(s string) string {
+	if s == "" {
+		return "Blank"
+	}
+	return s
+}
+
+// draftFromOrder fills the correction form with what is stored.
+func (s *Server) draftFromOrder(r *http.Request, id string) (orderDraft, bool) {
+	sess := financeSessionOf(r)
+	d := orderDraft{
+		OrderID: id, Heading: "Fix this order", Submit: "Save the correction",
+		Action: "/finance/orders/" + id + "/edit",
+	}
+	found := false
+	_ = s.st.ReadFinance(sess.vaultKey, func(f *register.FinanceData) {
+		o, ok := register.FinanceOrderByID(f, id)
+		if !ok {
+			return
+		}
+		found = true
+		d.Party.PickedID = o.PartyID
+		d.Party.PickedText = register.FinanceValueText(f, o.PartyID)
+		for _, l := range o.Lines {
+			d.Lines = append(d.Lines, orderLine{
+				ProductID: l.ProductID, ProductName: l.ProductNameSnapshot,
+				Quantity: strconv.Itoa(l.ExpectedQuantity), Basis: string(l.Basis),
+				LineID: l.ID, Locked: register.FinanceLineIsReferenced(f, l.ID),
+			})
+		}
+		d.OrderedAt = o.OrderedAt.Format("2006-01-02T15:04")
+		if o.AgreedPaise != nil {
+			d.Agreed = strconv.FormatInt(*o.AgreedPaise/100, 10) + "." + pad2(*o.AgreedPaise%100)
+		}
+		d.AgreedKind, d.Remarks = o.AgreedKind, o.Remarks
+	})
+	return d, found
+}
+
+func pad2(n int64) string {
+	if n < 10 {
+		return "0" + strconv.FormatInt(n, 10)
+	}
+	return strconv.FormatInt(n, 10)
 }
