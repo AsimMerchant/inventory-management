@@ -46,8 +46,8 @@ the resume artifact.** Keep it current after every committed slice.
 | 20 | 0. `Register.Disposals` and the new `OnHand` — **alone, as a regression canary** | `7e01240` | **Done.** Whole suite green with an empty slice. |
 | 20 | 1. Settlement types and pairing validation | `206e705` | **Done.** |
 | 20 | 2. Allocation, party aliases and supplier obligations | `206e705` | **Done.** 6 required register tests pass. |
-| 20 | 3. Supplier returns, sales, settlement and obligation screens | `PENDING22` | **Done.** |
-| 20 | 4. Settlement edit/void, inward guards, product cascade | `PENDING22` | **Done.** All 13 spec-20 web tests plus 6 register tests pass. |
+| 20 | 3. Supplier returns, sales, settlement and obligation screens | `47a1758` | **Done.** |
+| 20 | 4. Settlement edit/void, inward guards, product cascade | `47a1758` | **Done.** All 13 spec-20 web tests plus 6 register tests pass. |
 | 21 | 1. Protected navigation, route and header matrix | — | Not started |
 | 21 | 2. Plain-language review and the paired spec/test amendments | — | Not started |
 | 21 | 3. Browser acceptance run, release gate, docs | — | Not started |
