@@ -43,7 +43,7 @@ the resume artifact.** Keep it current after every committed slice.
 | 19 | 2. Recording money, single and batch | `f70d75d` | **Done.** 7 required tests pass. |
 | 19 | 3. Corrections and voids | `d6551ea` | **Done.** |
 | 19 | 4. Dashboard, journal, print view, financial activity | `d6551ea` | **Done.** All 13 required tests pass. |
-| 20 | 0. `Register.Disposals` and the new `OnHand` — **alone, as a regression canary** | dcc56b8 | **Done.** Whole suite green with an empty slice. |
+| 20 | 0. `Register.Disposals` and the new `OnHand` — **alone, as a regression canary** | `7e01240` | **Done.** Whole suite green with an empty slice. |
 | 20 | 1. Pairing validation across the public and protected halves | — | Not started |
 | 20 | 2. Allocation and supplier obligations | — | Not started |
 | 20 | 3. Supplier returns, sales, settlement and obligation screens | — | Not started |
