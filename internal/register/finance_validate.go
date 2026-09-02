@@ -62,10 +62,81 @@ func ValidateFinance(f *FinanceData) error {
 	if f.ReusableValues == nil {
 		return fmt.Errorf("financial reusable values must be a list")
 	}
+	if f.Movements == nil {
+		return fmt.Errorf("financial movements must be a list")
+	}
 	if err := validateReusableValues(f, seenIDs); err != nil {
 		return err
 	}
-	return validateOrders(f, seenIDs)
+	if err := validateOrders(f, seenIDs); err != nil {
+		return err
+	}
+	return validateMovements(f, seenIDs)
+}
+
+// validateMovements holds the money invariants. Every one of them is something
+// a total would otherwise have to re-check on the way out.
+func validateMovements(f *FinanceData, accountIDs map[string]bool) error {
+	ids := make(map[string]bool)
+	for _, m := range f.Movements {
+		if m.ID == "" || ids[m.ID] {
+			return fmt.Errorf("money movement id is blank or duplicated")
+		}
+		ids[m.ID] = true
+		if m.Direction != MoneyOut && m.Direction != MoneyIn {
+			return fmt.Errorf("money movement direction is invalid")
+		}
+		if m.AmountPaise <= 0 {
+			return fmt.Errorf("money movement amount must be positive")
+		}
+		if !accountIDs[m.RecordedByID] {
+			return fmt.Errorf("money movement recorder is unknown")
+		}
+		for _, pair := range []struct {
+			id   string
+			kind FinanceValueKind
+		}{{m.PartyID, FinanceParty}, {m.PurposeID, FinancePurpose}, {m.ModeID, FinanceMode}} {
+			v, ok := ResolveFinanceValue(f, pair.id)
+			if !ok || v.Kind != pair.kind {
+				return fmt.Errorf("money movement %s is unknown", pair.kind)
+			}
+		}
+		if m.OrderID == "" {
+			if len(m.OrderLineIDs) != 0 {
+				return fmt.Errorf("money movement names order lines with no order")
+			}
+		} else {
+			order, ok := FinanceOrderByID(f, m.OrderID)
+			if !ok {
+				return fmt.Errorf("money movement order is unknown")
+			}
+			belongs := make(map[string]bool)
+			for _, l := range order.Lines {
+				belongs[l.ID] = true
+			}
+			seen := make(map[string]bool)
+			for _, lineID := range m.OrderLineIDs {
+				if !belongs[lineID] || seen[lineID] {
+					return fmt.Errorf("money movement names a line that is not on its order")
+				}
+				seen[lineID] = true
+			}
+		}
+		for _, p := range m.Products {
+			if p.ProductID == "" || CleanName(p.ProductName) == "" {
+				return fmt.Errorf("money movement product snapshot is invalid")
+			}
+		}
+		if m.Voided != nil {
+			if !accountIDs[m.Voided.ByAccountID] || CleanName(m.Voided.Reason) == "" {
+				return fmt.Errorf("money movement void is incomplete")
+			}
+		}
+		if err := validateFinanceChanges(m.Changes, accountIDs); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // validateReusableValues holds the two rules the lists rest on: one live
@@ -211,6 +282,10 @@ func (f *FinanceData) NextID(prefix string) string {
 			for _, l := range o.Lines {
 				ids = append(ids, l.ID)
 			}
+		}
+	case "MOV":
+		for _, m := range f.Movements {
+			ids = append(ids, m.ID)
 		}
 	case "PTY", "PUR", "PMD":
 		for _, v := range f.ReusableValues {

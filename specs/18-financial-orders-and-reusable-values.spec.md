@@ -318,7 +318,12 @@ CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /tmp/register.exe .
    wording `This product is already used by a ledger entry.` ship here behind
    `register.FinanceLineIsReferenced`, which returns `false` until spec 19 fills it in.
    Spec 19 must implement that predicate and complete both tests.
-2. The float grep in the verification block below has no `--glob '!**/*_test.go'`
+2. Money rendering. This spec says only "`₹` and exactly two decimals"; specs 19 and 21
+   write every amount with digit separators (`₹5,000.00`, `₹25,000.00`). Since two
+   later reviewed specs are explicit and this one is silent, `FormatRupees` groups
+   digits the Indian way — three, then twos — so ₹1,23,45,678.90. This spec is the one
+   that is under-specified, not the others.
+3. The float grep in the verification block below has no `--glob '!**/*_test.go'`
    exclusion, unlike the `Products = append` grep on the line above it. A float literal
    in a test therefore fails the gate. The tree is float-free including tests, so the
    grep is left exactly as written rather than loosened.

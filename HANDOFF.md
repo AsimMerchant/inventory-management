@@ -39,7 +39,31 @@ the resume artifact.** Keep it current after every committed slice.
 | 18 | 2. Reusable values: typeahead, admin `/finance/lists` | `f162427` | **Done.** 3 required tests pass. |
 | 18 | 3. Orders: create, list, detail, `POST /finance/product/new` | `c484970` | **Done.** 6 required tests pass. |
 | 18 | 4. Order edit and cancel, the six-row `FinanceChange` table, suggestion ordering, docs | `b97023b` | **Done.** All 12 required tests pass. |
-| 19–21 | Movements, supplier returns and sales, browser acceptance | — | Not started |
+| 19 | 1. Movement model, totals, journal filters, checked int64 money | `see git log` | **Done.** register-level tests pass. |
+| 19 | 2. Recording money, single and batch | — | Not started |
+| 19 | 3. Corrections and voids | — | Not started |
+| 19 | 4. Dashboard, journal, print view, financial activity | — | Not started |
+| 20 | 0. `Register.Disposals` and the new `OnHand` — **alone, as a regression canary** | — | Not started |
+| 20 | 1. Pairing validation across the public and protected halves | — | Not started |
+| 20 | 2. Allocation and supplier obligations | — | Not started |
+| 20 | 3. Supplier returns, sales, settlement and obligation screens | — | Not started |
+| 20 | 4. Settlement edit/void, inward guards, product cascade | — | Not started |
+| 21 | 1. Protected navigation, route and header matrix | — | Not started |
+| 21 | 2. Plain-language review and the paired spec/test amendments | — | Not started |
+| 21 | 3. Browser acceptance run, release gate, docs | — | Not started |
+
+**Spec 21 makes two things blocking that spec 18 did not.** Its acceptance criterion 5
+requires an independent `plain_language_reviewer` with no blocking finding *and* an
+independent `release_gate` reporting `READY`; neither can be replaced by the
+implementer's own report. Criterion 2 requires the browser scenario actually executed
+against a real native binary, in normal mode, again with JavaScript off, and again after
+a restart.
+
+**Decision taken before spec 20 starts:** spec 20's central invariant pairs a protected
+settlement with a public disposal, which `ValidateFinance(f)` cannot see. Rather than
+widen that signature across every spec-17 call site mid-feature, the pairing check lives
+in its own `ValidatePairing(reg, f)` called beside the two existing validators inside
+`UpdateFinance`.
 
 Spec 17 arrived from the previous session mid-refactor and did not compile: the request
 was being threaded into `Server.page` so the chrome can tell whether a finance session is

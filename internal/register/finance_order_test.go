@@ -15,6 +15,7 @@ func financeSeed() *FinanceData {
 		}},
 		Orders:         []FinanceOrder{},
 		ReusableValues: []FinanceReusableValue{},
+		Movements:      []MoneyMovement{},
 		Audit:          []FinanceAuditEvent{},
 	}
 	for _, mode := range InitialPaymentModes {
@@ -63,7 +64,10 @@ func TestParseRupeesAcceptsAndRefuses(t *testing.T) {
 
 func TestFormatRupeesAlwaysTwoDecimals(t *testing.T) {
 	cases := map[int64]string{
-		1: "₹0.01", 50: "₹0.50", 100: "₹1.00", 500050: "₹5000.50", 2500000: "₹25000.00",
+		1: "₹0.01", 50: "₹0.50", 100: "₹1.00",
+		500050: "₹5,000.50", 2500000: "₹25,000.00",
+		// Indian grouping: three digits, then twos.
+		1234567890: "₹1,23,45,678.90",
 	}
 	for paise, want := range cases {
 		if got := FormatRupees(paise); got != want {

@@ -146,6 +146,9 @@ func normalizeFinance(f *register.FinanceData) {
 	if f.ReusableValues == nil {
 		f.ReusableValues = []register.FinanceReusableValue{}
 	}
+	if f.Movements == nil {
+		f.Movements = []register.MoneyMovement{}
+	}
 }
 
 func decryptFinance(env *register.FinanceEnvelope, vaultKey []byte) (*register.FinanceData, error) {
@@ -353,6 +356,18 @@ func deepCopyFinance(f *register.FinanceData) *register.FinanceData {
 	c.ReusableValues = append([]register.FinanceReusableValue{}, f.ReusableValues...)
 	for i := range c.ReusableValues {
 		c.ReusableValues[i].Changes = append([]register.FinanceChange{}, f.ReusableValues[i].Changes...)
+	}
+	// A movement carries four nested things. Sharing any of them would let a
+	// refused transaction leave half-applied edits in the live decrypted data.
+	c.Movements = append([]register.MoneyMovement{}, f.Movements...)
+	for i := range c.Movements {
+		c.Movements[i].OrderLineIDs = append([]string{}, f.Movements[i].OrderLineIDs...)
+		c.Movements[i].Products = append([]register.FinanceProductRef{}, f.Movements[i].Products...)
+		c.Movements[i].Changes = append([]register.FinanceChange{}, f.Movements[i].Changes...)
+		if f.Movements[i].Voided != nil {
+			v := *f.Movements[i].Voided
+			c.Movements[i].Voided = &v
+		}
 	}
 	if f.RecoveryConfirmedAt != nil {
 		t := *f.RecoveryConfirmedAt

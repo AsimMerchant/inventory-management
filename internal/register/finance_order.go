@@ -2,7 +2,6 @@ package register
 
 import (
 	"errors"
-	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -231,6 +230,13 @@ func FinanceValueIsUsed(f *FinanceData, id string) bool {
 			return true
 		}
 	}
+	// A voided movement still points at its values: its history has to keep
+	// saying what it said.
+	for _, m := range f.Movements {
+		if m.PartyID == id || m.PurposeID == id || m.ModeID == id {
+			return true
+		}
+	}
 	return false
 }
 
@@ -322,12 +328,38 @@ func allDigits(s string) bool {
 	return true
 }
 
-// FormatRupees renders paise as ₹ with exactly two decimals, integers only.
+// FormatRupees renders paise as ₹ with exactly two decimals and Indian digit
+// grouping, using integers only. Specs 19 and 21 write amounts as ₹5,000.00, so
+// the grouping is part of the contract, not decoration.
 func FormatRupees(paise int64) string {
 	sign := ""
 	if paise < 0 {
 		sign = "-"
 		paise = -paise
 	}
-	return fmt.Sprintf("₹%s%d.%02d", sign, paise/100, paise%100)
+	return "₹" + sign + groupIndian(paise/100) + "." + twoDigits(paise%100)
+}
+
+// groupIndian puts a comma after the last three digits and then after every two:
+// 12345678 becomes 1,23,45,678.
+func groupIndian(n int64) string {
+	d := strconv.FormatInt(n, 10)
+	if len(d) <= 3 {
+		return d
+	}
+	head, tail := d[:len(d)-3], d[len(d)-3:]
+	var parts []string
+	for len(head) > 2 {
+		parts = append([]string{head[len(head)-2:]}, parts...)
+		head = head[:len(head)-2]
+	}
+	parts = append([]string{head}, parts...)
+	return strings.Join(parts, ",") + "," + tail
+}
+
+func twoDigits(n int64) string {
+	if n < 10 {
+		return "0" + strconv.FormatInt(n, 10)
+	}
+	return strconv.FormatInt(n, 10)
 }

@@ -547,7 +547,7 @@ func TestOrderCorrectionIsAuditedAndUsedLineCannotDisappear(t *testing.T) {
 	for field, wants := range map[string][3]string{
 		"party":       {"Supplier or other party", "Sharma Events", "Sharma Tent House"},
 		"products":    {"Products ordered", "100 Chairs — rent", "120 Chairs — rent; 40 Round tables — purchase"},
-		"agreedTotal": {"Agreed total", "₹25000.00", "₹31000.50"},
+		"agreedTotal": {"Agreed total", "₹25,000.00", "₹31,000.50"},
 		"agreedKind":  {"Estimate or exact", "Estimate", "Exact"},
 		"orderedAt":   {"Order date and time", "3 September 2026 · 11:00 am", "3 September 2026 · 9:30 am"},
 		"remarks":     {"Remarks", "Delivery on the 4th", "Blank"},
