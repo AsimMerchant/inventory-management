@@ -324,7 +324,7 @@ func TestPhysicalSettlementRechecksInsideAtomicUpdate(t *testing.T) {
 	}
 }
 
-func TestDepositRefundAndSaleProceedsAreSeparateFromStock(t *testing.T) {
+func TestDepositRefundHasNoStockEffect(t *testing.T) {
 	e := newTestServer(t, emptyStock(), orderNow)
 	admin, key, _ := financeAdmin(t, e)
 	tables := productIDNamed(t, e, "Round tables")
@@ -346,26 +346,61 @@ func TestDepositRefundAndSaleProceedsAreSeparateFromStock(t *testing.T) {
 		t.Errorf("a deposit refund moved stock to %d", got)
 	}
 
-	// A sale, then its proceeds in two instalments.
+	// Voiding the return moves stock only, and touches no money.
+	returns, _ := settlements(t, e, key)
+	if status, _ := admin.post(t, "/finance/settlements/supplier_return/"+returns[0].ID+"/void",
+		url.Values{"reason": {"Counted wrong"}}); status != 303 {
+		t.Fatal("the void was refused")
+	}
+	if got := stockOf(t, e, tables); got != 100 {
+		t.Errorf("after voiding the return the stock is %d, want 100", got)
+	}
+	if got := totals(t, e, key); got.ReceivedPaise != 500000 {
+		t.Errorf("voiding a return changed the money totals: %+v", got)
+	}
+	_ = chairs
+}
+
+func TestSaleProceedsMayArriveInInstallments(t *testing.T) {
+	e := newTestServer(t, emptyStock(), orderNow)
+	admin, key, _ := financeAdmin(t, e)
+	chairs := productIDNamed(t, e, "Chairs")
+
+	receive(t, e, chairs, 60, "purchase", "Gupta Traders", "2026-09-03")
 	admin.post(t, "/finance/sales/new", settleForm("Patel Decorators", chairs, 50, "2026-09-03T16:00"))
 	if got := stockOf(t, e, chairs); got != 10 {
 		t.Fatalf("after selling 50 the stock is %d", got)
 	}
-	for _, amount := range []string{"4000", "6000"} {
+
+	// The money comes later, and in two parts, at different times.
+	for i, amount := range []string{"4000", "6000"} {
 		form := moneyForm("in", amount, "Patel Decorators", "Sale proceeds", "UPI")
+		form.Set("occurredAt", []string{"2026-09-04T10:00", "2026-09-06T17:30"}[i])
 		if status, _ := admin.post(t, "/finance/movements/new", form); status != 303 {
 			t.Fatalf("the %s instalment was refused", amount)
 		}
 	}
-	// Stock fell once, by fifty; the money arrived twice.
+
+	// Stock fell once, by fifty. The money arrived twice.
 	if got := stockOf(t, e, chairs); got != 10 {
 		t.Errorf("the instalments moved stock to %d", got)
 	}
-	if got := totals(t, e, key); got.ReceivedPaise != 1500000 {
-		t.Errorf("received total is %d, want 1500000", got.ReceivedPaise)
+	if got := totals(t, e, key); got.ReceivedPaise != 1000000 {
+		t.Errorf("received total is %d, want 1000000", got.ReceivedPaise)
 	}
-	if all := movements(t, e, key); len(all) != 3 {
-		t.Errorf("%d money rows, want 3", len(all))
+	all := movements(t, e, key)
+	if len(all) != 2 {
+		t.Fatalf("%d money rows, want 2", len(all))
+	}
+	_, journal := admin.get(t, "/finance/journal")
+	for _, want := range []string{"₹4,000.00", "₹6,000.00", "Sale proceeds"} {
+		if !strings.Contains(journal, want) {
+			t.Errorf("the journal is missing %s", want)
+		}
+	}
+	// Only one sale, however many payments it took.
+	if _, sales := settlements(t, e, key); len(sales) != 1 {
+		t.Errorf("%d sales recorded", len(sales))
 	}
 }
 
