@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Financial Ledger, Step by Step &middot; Store Register</title>
+<meta name="description" content="A picture-by-picture walkthrough of the financial ledger in Store Register v1.2.1, from setting up the locked area to end-of-event returns and sales.">
+<meta property="og:title" content="The Financial Ledger, Step by Step">
+<meta property="og:description" content="Every screen in the new locked money area, in the order you will meet them.">
+<meta property="og:image" content="images/14-journal.jpg">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>&#128210;</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+:root{
+  --paper:#f6f8f5; --card:#ffffff; --ink:#16202b; --ink-soft:#4a5a68;
+  --rule:#d6ddd7; --rule-soft:#e6ebe6;
+  --accent:#1f4e79; --accent-soft:#eaf0f6;
+  --stamp:#8a5230; --stamp-soft:#f7efe8;
+  --shadow:0 1px 2px rgba(22,32,43,.06), 0 8px 24px rgba(22,32,43,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#11171d; --card:#18202a; --ink:#e6ecef; --ink-soft:#9fb0bd;
+    --rule:#2b3742; --rule-soft:#222c36;
+    --accent:#8fbde6; --accent-soft:#1b2836;
+    --stamp:#d9a077; --stamp-soft:#2b2119;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#11171d; --card:#18202a; --ink:#e6ecef; --ink-soft:#9fb0bd;
+  --rule:#2b3742; --rule-soft:#222c36;
+  --accent:#8fbde6; --accent-soft:#1b2836;
+  --stamp:#d9a077; --stamp-soft:#2b2119;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  font-size:17px; line-height:1.6; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:60rem;margin:0 auto;padding:0 1.5rem 6rem}
+h1,h2,h3{font-family:"Zilla Slab",Georgia,serif;text-wrap:balance;margin:0}
+a{color:var(--accent)}
+
+/* ---- masthead ---- */
+.mast{padding:4rem 0 2.5rem;border-bottom:2px solid var(--ink)}
+.eyebrow{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.72rem;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 1rem
+}
+h1{font-size:clamp(2.3rem,6vw,3.6rem);font-weight:700;line-height:1.05;letter-spacing:-.01em}
+.standfirst{font-size:1.2rem;color:var(--ink-soft);max-width:38rem;margin:1.1rem 0 0}
+
+/* ---- the one thing that must not be missed ---- */
+.critical{
+  margin:2.5rem 0 0;padding:1.4rem 1.5rem;background:var(--stamp-soft);
+  border-left:4px solid var(--stamp);border-radius:0 4px 4px 0
+}
+.critical h2{font-size:1.15rem;color:var(--stamp);margin-bottom:.5rem}
+.critical ol{margin:.7rem 0 0;padding-left:1.2rem}
+.critical li{margin:.35rem 0}
+.critical p:last-child{margin-bottom:0}
+.dl{
+  display:inline-block;font-weight:600;text-decoration:none;color:#fff;
+  background:var(--stamp);padding:.5rem 1rem;border-radius:4px
+}
+.dl:hover,.dl:focus-visible{filter:brightness(1.1)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ---- parts and steps ---- */
+.part{margin-top:4.5rem}
+.part-head{border-bottom:1px solid var(--rule);padding-bottom:.7rem;margin-bottom:2rem}
+.part-head h2{font-size:1.9rem;font-weight:600;letter-spacing:-.005em}
+.sub{margin:.25rem 0 0;color:var(--ink-soft);font-size:1rem}
+
+.step{display:grid;grid-template-columns:3.5rem 1fr;gap:1.25rem;margin-bottom:2.75rem}
+.rail{position:relative;display:flex;justify-content:center}
+.rail::after{
+  content:"";position:absolute;top:2.1rem;bottom:-2.75rem;width:1px;background:var(--rule-soft)
+}
+.step:last-child .rail::after{display:none}
+.num{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.8rem;font-weight:500;
+  color:var(--accent);background:var(--accent-soft);
+  width:2.1rem;height:2.1rem;display:grid;place-items:center;border-radius:50%;
+  font-variant-numeric:tabular-nums;position:relative;z-index:1
+}
+.shot{margin:0}
+.shot img{
+  display:block;width:auto;max-width:100%;height:auto;border:1px solid var(--rule);
+  border-radius:5px;background:var(--card);box-shadow:var(--shadow)
+}
+figcaption{margin-top:.75rem;color:var(--ink-soft);font-size:.97rem;max-width:34rem}
+figcaption b{color:var(--ink);font-weight:600}
+
+/* ---- closing notes ---- */
+.notes{margin-top:5rem;padding-top:2rem;border-top:2px solid var(--ink);
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:2rem}
+.note h3{font-size:1.05rem;font-weight:600;margin-bottom:.4rem}
+.note p{margin:0;color:var(--ink-soft);font-size:.97rem}
+.note code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.85em;
+  background:var(--accent-soft);padding:.12em .4em;border-radius:3px;color:var(--accent);
+  word-break:break-all}
+.colophon{margin-top:3rem;font-size:.87rem;color:var(--ink-soft)}
+@media (max-width:600px){
+  body{font-size:16px}
+  .step{grid-template-columns:2.4rem 1fr;gap:.85rem}
+  .rail::after{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="mast">
+  <p class="eyebrow">Store Register &middot; version 1.2.1</p>
+  <h1>The Financial Ledger, Step&nbsp;by&nbsp;Step</h1>
+  <p class="standfirst">Every screen in the new locked money area, in the order you will
+  meet them. The store desk's own work does not change at all.</p>
+  <div class="critical">
+    <h2>Do this before you run the new program</h2>
+    <ol>
+      <li>Copy <b>store-register.json</b> somewhere safe. It is the whole register.</li>
+      <li>Delete the old <b>StoreRegister.exe</b> from the laptop <b>and</b> the pen drive.</li>
+      <li>Put the new one in the same folder and open it as usual.</li>
+    </ol>
+    <p style="margin-top:.8rem"><a class="dl" href="https://github.com/AsimMerchant/inventory-management/releases/latest">Download version 1.2.1</a></p>
+    <p style="margin-top:.8rem">Version 1.1.1 cannot read the new file. It will not say so
+    politely &mdash; it will claim the register is damaged and show old figures as if they
+    were current. Your existing data is safe and opens with the same numbers.</p>
+  </div>
+</header>
+<section class="part">
+<header class="part-head"><h2>Before anything</h2><p class="sub">What the store desk sees</p></header>
+<div class="step"><div class="rail"><span class="num">01</span></div><div class="body"><figure class="shot"><img src="images/01-ordinary-stock.jpg" alt="The ordinary Stock screen on a brand-new register, so the counts are still zero. Nothing here has changed for the store desk — same tabs, same words, no login. The only new thing is the small Authorized login link in the bar at the top." loading="lazy"><figcaption>The ordinary Stock screen on a brand-new register, so the counts are still zero. Nothing here has changed for the store desk — same tabs, same words, no login. The only new thing is the small <b>Authorized login</b> link in the bar at the top.</figcaption></figure></div></div>
+</section>
+<section class="part">
+<header class="part-head"><h2>Getting in</h2><p class="sub">Setting up the locked area, once</p></header>
+<div class="step"><div class="rail"><span class="num">02</span></div><div class="body"><figure class="shot"><img src="images/02-login.jpg" alt="Pressing Authorized login opens this. The very first time, nobody has an account yet, so you choose Set up authorized access." loading="lazy"><figcaption>Pressing <b>Authorized login</b> opens this. The very first time, nobody has an account yet, so you choose <b>Set up authorized access</b>.</figcaption></figure></div></div>
+<div class="step"><div class="rail"><span class="num">03</span></div><div class="body"><figure class="shot"><img src="images/03-setup.jpg" alt="The first person gives their name, mobile number and a password they choose themselves. This person becomes the administrator." loading="lazy"><figcaption>The first person gives their name, mobile number and a password they choose themselves. This person becomes the administrator.</figcaption></figure></div></div>
+<div class="step"><div class="rail"><span class="num">04</span></div><div class="body"><figure class="shot"><img src="images/04-recovery-key.jpg" alt="This screen appears once and never again. Write the recovery key on paper and keep it somewhere safe. It is the only way back in if everybody forgets their password. (The real key is hidden in this picture.)" loading="lazy"><figcaption><b>This screen appears once and never again.</b> Write the recovery key on paper and keep it somewhere safe. It is the only way back in if everybody forgets their password. (The real key is hidden in this picture.)</figcaption></figure></div></div>
+<div class="step"><div class="rail"><span class="num">05</span></div><div class="body"><figure class="shot"><img src="images/05-ledger-empty.jpg" alt="The financial ledger, before anything is recorded. The bar underneath the ordinary one is the protected menu, and it says who is logged in. Logout is always there." loading="lazy"><figcaption>The financial ledger, before anything is recorded. The bar underneath the ordinary one is the protected menu, and it says who is logged in. <b>Logout</b> is always there.</figcaption></figure></div></div>
+</section>
+<section class="part">
+<header class="part-head"><h2>The other people</h2><p class="sub">Everyone gets their own password</p></header>
+<div class="step"><div class="rail"><span class="num">06</span></div><div class="body"><figure class="shot"><img src="images/06-setup-code.jpg" alt="The administrator adds the other people who are allowed in. Each gets a one-time code that works once and expires in 24 hours. They use it to choose their own password — nobody shares one. (The real code is hidden here.)" loading="lazy"><figcaption>The administrator adds the other people who are allowed in. Each gets a one-time code that works once and expires in 24 hours. They use it to choose <b>their own</b> password — nobody shares one. (The real code is hidden here.)</figcaption></figure></div></div>
+</section>
+<section class="part">
+<header class="part-head"><h2>Orders</h2><p class="sub">What you agreed to take</p></header>
+<div class="step"><div class="rail"><span class="num">07</span></div><div class="body"><figure class="shot"><img src="images/07-order-form.jpg" alt="Recording an order: what you agreed to take, before anything arrives. The supplier box remembers every name anyone types. A product that is not on the list yet can be added right here." loading="lazy"><figcaption>Recording an order: what you agreed to take, before anything arrives. The supplier box remembers every name anyone types. A product that is not on the list yet can be added right here.</figcaption></figure></div></div>
+<div class="step"><div class="rail"><span class="num">08</span></div><div class="body"><figure class="shot"><img src="images/08-order-two-lines.jpg" alt="One order can list several products, each rented or bought separately. The agreed total is optional, and you say whether it is an estimate or exact." loading="lazy"><figcaption>One order can list several products, each rented or bought separately. The agreed total is optional, and you say whether it is an estimate or exact.</figcaption></figure></div></div>
+<div class="step"><div class="rail"><span class="num">09</span></div><div class="body"><figure class="shot"><img src="images/09-order-saved.jpg" alt="The saved order. It is only what was agreed — it does not change your stock by itself." loading="lazy"><figcaption>The saved order. It is only what was agreed — it does not change your stock by itself.</figcaption></figure></div></div>
+<div class="step"><div class="rail"><span class="num">10</span></div><div class="body"><figure class="shot"><img src="images/10-stock-zero.jpg" alt="The new product appears on the ordinary Stock screen at zero, so the desk can receive it normally. Nothing about the supplier, the money or the order shows here." loading="lazy"><figcaption>The new product appears on the ordinary Stock screen at zero, so the desk can receive it normally. Nothing about the supplier, the money or the order shows here.</figcaption></figure></div></div>
+</section>
+<section class="part">
+<header class="part-head"><h2>The goods arrive</h2><p class="sub">The desk works exactly as before</p></header>
+<div class="step"><div class="rail"><span class="num">11</span></div><div class="body"><figure class="shot"><img src="images/11-stock-received.jpg" alt="The desk records what actually arrived, exactly as it always has — 70 tents, then 30 more, then the chairs. It never has to know an order exists." loading="lazy"><figcaption>The desk records what actually arrived, exactly as it always has — 70 tents, then 30 more, then the chairs. It never has to know an order exists.</figcaption></figure></div></div>
+</section>
+<section class="part">
+<header class="part-head"><h2>Money</h2><p class="sub">Paid and received, whenever it happens</p></header>
+<div class="step"><div class="rail"><span class="num">12</span></div><div class="body"><figure class="shot"><img src="images/12-money-form.jpg" alt="Recording money. Every entry says who it was with, what it was for and how it was paid. Those three lists remember themselves — type a new supplier or purpose once and it is there for everyone next time." loading="lazy"><figcaption>Recording money. Every entry says who it was with, what it was for and how it was paid. Those three lists remember themselves — type a new supplier or purpose once and it is there for everyone next time.</figcaption></figure></div></div>
+<div class="step"><div class="rail"><span class="num">13</span></div><div class="body"><figure class="shot"><img src="images/13-money-split.jpg" alt="One settlement can be split. Paid ₹9,000 covering the rent, the freight and the labour? Press Add another amount and record all three together — they are saved as three separate entries, or none at all." loading="lazy"><figcaption>One settlement can be split. Paid ₹9,000 covering the rent, the freight and the labour? Press <b>Add another amount</b> and record all three together — they are saved as three separate entries, or none at all.</figcaption></figure></div></div>
+</section>
+<section class="part">
+<header class="part-head"><h2>The journal</h2><p class="sub">Every entry, and a page you can print</p></header>
+<div class="step"><div class="rail"><span class="num">14</span></div><div class="body"><figure class="shot"><img src="images/14-journal.jpg" alt="The transaction journal: every entry, newest first, with running totals of money paid, money received and the difference." loading="lazy"><figcaption>The transaction journal: every entry, newest first, with running totals of money paid, money received and the difference.</figcaption></figure></div></div>
+<div class="step"><div class="rail"><span class="num">15</span></div><div class="body"><figure class="shot"><img src="images/15-journal-print.jpg" alt="The printable version. Only the entries, oldest first, with none of the buttons. You can narrow it to one day, a range of dates, or an exact stretch of time first." loading="lazy"><figcaption>The printable version. Only the entries, oldest first, with none of the buttons. You can narrow it to one day, a range of dates, or an exact stretch of time first.</figcaption></figure></div></div>
+</section>
+<section class="part">
+<header class="part-head"><h2>End of the event</h2><p class="sub">Goods going back, and goods sold</p></header>
+<div class="step"><div class="rail"><span class="num">16</span></div><div class="body"><figure class="shot"><img src="images/16-supplier-return.jpg" alt="Sending rented goods back. Choose the supplier, press the button, and it tells you the most that can go back — you can never send back more than they actually sent you, or more than is in the store." loading="lazy"><figcaption>Sending rented goods back. Choose the supplier, press the button, and it tells you the most that can go back — you can never send back more than they actually sent you, or more than is in the store.</figcaption></figure></div></div>
+<div class="step"><div class="rail"><span class="num">17</span></div><div class="body"><figure class="shot"><img src="images/17-stock-after-return.jpg" alt="Stock drops straight away, and stays right even after the program is closed and reopened with nobody logged in." loading="lazy"><figcaption>Stock drops straight away, and stays right even after the program is closed and reopened with nobody logged in.</figcaption></figure></div></div>
+<div class="step"><div class="rail"><span class="num">18</span></div><div class="body"><figure class="shot"><img src="images/18-obligations.jpg" alt="What is still to go back, per supplier and product. It counts real goods that actually arrived — not orders, not deposits." loading="lazy"><figcaption>What is still to go back, per supplier and product. It counts real goods that actually arrived — not orders, not deposits.</figcaption></figure></div></div>
+<div class="step"><div class="rail"><span class="num">19</span></div><div class="body"><figure class="shot"><img src="images/19-settlements.jpg" alt="Everything that has left the store, returns and sales together. Money is kept separate on purpose: a deposit coming back is its own entry, recorded whenever it actually arrives." loading="lazy"><figcaption>Everything that has left the store, returns and sales together. Money is kept separate on purpose: a deposit coming back is its own entry, recorded whenever it actually arrives.</figcaption></figure></div></div>
+</section>
+<section class="part">
+<header class="part-head"><h2>Everything is written down</h2><p class="sub">Nobody can quietly change anything</p></header>
+<div class="step"><div class="rail"><span class="num">20</span></div><div class="body"><figure class="shot"><img src="images/20-activity.jpg" alt="Financial activity: everything anybody did, with their name, mobile number and the time. Nobody can edit or delete this, not even the administrator." loading="lazy"><figcaption>Financial activity: everything anybody did, with their name, mobile number and the time. Nobody can edit or delete this, not even the administrator.</figcaption></figure></div></div>
+</section><section class="notes">
+  <div class="note">
+    <h3>Nothing changed for the desk</h3>
+    <p>Same five tabs, same screens, same words, no login. If you only record goods
+    coming in and going out, your day is exactly as it was.</p>
+  </div>
+  <div class="note">
+    <h3>Money is not readable in the file</h3>
+    <p>Suppliers, amounts, purposes and remarks are encrypted inside the register file.
+    Opening it in Notepad shows the stock records and nothing about money.</p>
+  </div>
+  <div class="note">
+    <h3>Goods and money stay separate</h3>
+    <p>Sending goods back does not create a refund, and a refund does not move stock.
+    They happen at different times, so they are recorded separately.</p>
+  </div>
+  <div class="note">
+    <h3>Where to get it</h3>
+    <p><code>github.com/AsimMerchant/inventory-management/releases/latest</code></p>
+  </div>
+</section>
+<p class="colophon"><a href="https://github.com/AsimMerchant/inventory-management">Store Register on GitHub</a>
+&middot; <a href="https://github.com/AsimMerchant/inventory-management/releases/latest">Download the latest version</a></p>
+<p class="colophon">Screens captured from version 1.2.1 running on a real machine. The
+recovery key and the one&#8209;time setup code are hidden in the two pictures that show
+them.</p>
+</div>
+</body>
+</html>
