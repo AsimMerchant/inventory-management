@@ -83,9 +83,31 @@ forms, and that assertion was proved by deleting the tags and watching both test
   `Show what can go back to this supplier` button still fills the plain select with the
   availability labels.
 
-**Still to do before merge:** nothing found outstanding, but the wider "what else breaks
-at forty products rather than three" sweep the user asked about has not been run across
-every screen — only the two controls named above.
+**Second pass, after review**
+
+- `picker.html` also posts a free-text `productName` and can render an "add as a
+  brand-new product" row. Neither reaches the settlement screens: `AllowNew` is left
+  false so `data-newlabel` is empty and no create row is drawn, and
+  `settlementFields` derives the product name from `productId` alone, refusing with
+  "Pick the product from the list." if nothing was pressed. The catalogue cannot be
+  written from a settlement screen.
+- Orphans this change stranded, now removed: `moneyDraft.Products`, `moneyRow.Products`
+  and `settlementDraft.Products` (the templates read `.Picker`/`.ProductBox` instead),
+  and the whole `except` path through `pickerData`, `picker.html`, `picker.js` and
+  `settlementSuggestions` — the settlement picker renders only under `{{if not
+  .Editing}}`, where the ID is empty, so it was unreachable. `fillSettlement` still uses
+  the `…Excluding` register functions, which the edit path does reach.
+- `TestSplitMoneyEntryKeepsEachRowsProducts`: adding a second amount redraws the page
+  without losing the first row's chip, and the two saved entries carry one product each.
+- `TestCorrectionCanTakeEveryProductOff`: taking every chip off submits no `productIds`
+  at all; the entry ends with none and the audit records `Chairs; Tents → Blank`.
+- Browser, same seeded instance: both of the above driven for real, plus removing a
+  server-drawn chip (which uses the `data-multi-off` delegation, not the listener on a
+  tag the script just added) and replacing it with another.
+
+**Still to do before merge:** the wider "what else breaks at forty products rather than
+three" sweep the user asked about has not been run across every screen — only the two
+controls named above.
 
 ### Deferred acquisition-basis follow-up — not in specs 17–21
 

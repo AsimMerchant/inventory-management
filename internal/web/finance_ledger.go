@@ -32,7 +32,6 @@ type moneyRow struct {
 	Remarks     string
 	Orders      []moneyOrderChoice
 	Lines       []moneyLineChoice
-	Products    []suggestion
 	ProductBox  multiPicker
 	Settlements []moneySettlementChoice
 	Removable   bool
@@ -72,16 +71,15 @@ type moneySettlementChoice struct {
 // settlement is split by purpose: a deposit, the rent, the freight and the
 // labour are four events that happen to be paid at once.
 type moneyDraft struct {
-	CSRF     string
-	Action   string
-	Heading  string
-	Submit   string
-	MoveID   string
-	Error    string
-	Notice   string
-	Rows     []moneyRow
-	Editing  bool
-	Products []suggestion
+	CSRF    string
+	Action  string
+	Heading string
+	Submit  string
+	MoveID  string
+	Error   string
+	Notice  string
+	Rows    []moneyRow
+	Editing bool
 }
 
 // readMoneyDraft reads the form back as typed. Nothing is resolved here:
@@ -177,7 +175,6 @@ func itoa(i int) string {
 func (s *Server) fillMoney(d *moneyDraft, r *http.Request) {
 	sess := financeSessionOf(r)
 	_ = s.st.ReadBoth(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) {
-		d.Products = matchProductsMode(reg, "", "all")
 		for i := range d.Rows {
 			row := &d.Rows[i]
 			row.Index = i
@@ -211,7 +208,6 @@ func (s *Server) fillMoney(d *moneyDraft, r *http.Request) {
 					})
 				}
 			}
-			row.Products = d.Products
 			row.Settlements = settlementChoices(f, row.Settlement)
 			// Type to find a product, the same as every other screen. A money
 			// entry may cover several, so the chosen ones stay on screen where

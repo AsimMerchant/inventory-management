@@ -86,7 +86,7 @@ func (s *Server) financeAPIProducts(w http.ResponseWriter, r *http.Request) {
 	switch q.Get("mode") {
 	case "return", "sale":
 		_ = s.st.ReadBoth(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) {
-			out = settlementSuggestions(reg, f, q.Get("mode"), q.Get("party"), q.Get("except"), q.Get("q"))
+			out = settlementSuggestions(reg, f, q.Get("mode"), q.Get("party"), q.Get("q"))
 		})
 	default:
 		s.st.Read(func(reg *register.Register) {
@@ -100,7 +100,7 @@ func (s *Server) financeAPIProducts(w http.ResponseWriter, r *http.Request) {
 // settlementSuggestions lists what may still go back to one supplier, or what
 // may still be sold, matched the same way the product picker matches anywhere
 // else: names starting with the query first, then the rest, capped at eight.
-func settlementSuggestions(reg *register.Register, f *register.FinanceData, mode, party, except, query string) []suggestion {
+func settlementSuggestions(reg *register.Register, f *register.FinanceData, mode, party, query string) []suggestion {
 	partyID := ""
 	if v, ok := register.ResolveFinanceValue(f, party); ok {
 		partyID = v.ID
@@ -113,9 +113,9 @@ func settlementSuggestions(reg *register.Register, f *register.FinanceData, mode
 		available := 0
 		switch {
 		case mode == "sale":
-			available = register.PurchasedAvailableToSellExcluding(reg, f, p.ID, except)
+			available = register.PurchasedAvailableToSell(reg, f, p.ID)
 		case partyID != "":
-			available = register.SupplierReturnAvailableExcluding(reg, f, partyID, p.ID, except)
+			available = register.SupplierReturnAvailable(reg, f, partyID, p.ID)
 		case party != "":
 			// The supplier may be on the inwards but not on the protected list
 			// yet, which is normal: the desk types it, finance has not used it.

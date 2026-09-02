@@ -30,7 +30,6 @@ type settlementDraft struct {
 	Reference   string
 	Remarks     string
 	Available   int
-	Products    []suggestion
 	Picker      pickerData
 	Editing     bool
 }
@@ -94,9 +93,7 @@ func (s *Server) fillSettlement(d *settlementDraft, r *http.Request) {
 			Label: "Product", Mode: mode, Endpoint: "/finance/api/products",
 			PickedID:  d.ProductID,
 			PartyFrom: `[data-values][data-kind="party"] [data-values-text]`,
-			Except:    d.ID,
 		}
-		d.Products = []suggestion{}
 		for _, p := range reg.Products {
 			if p.Deleted != nil {
 				continue
@@ -119,8 +116,7 @@ func (s *Server) fillSettlement(d *settlementDraft, r *http.Request) {
 				ID: p.ID, Name: p.Name, OnHand: available,
 				Label: p.Name + " — " + strconv.Itoa(available) + " available",
 			}
-			d.Products = append(d.Products, row)
-			// The same rows are the picker's no-script fallback.
+			// These same rows are the picker's no-script fallback.
 			d.Picker.Products = append(d.Picker.Products, row)
 			if p.ID == d.ProductID {
 				d.Available = available

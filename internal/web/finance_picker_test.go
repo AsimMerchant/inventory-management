@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -259,5 +260,122 @@ func noscriptStripped(page string) string {
 			return page[:i]
 		}
 		page = page[:i] + page[i+j+len("</noscript>"):]
+	}
+}
+
+// TestSplitMoneyEntryKeepsEachRowsProducts covers the headline the release notes
+// make: one payment split across several purposes, recorded together. Each
+// amount has its own product control, and the chips on one row must not leak
+// onto another or vanish when the page is redrawn to add a row.
+func TestSplitMoneyEntryKeepsEachRowsProducts(t *testing.T) {
+	e := newTestServer(t, emptyStock(), orderNow)
+	admin, key, _ := financeAdmin(t, e)
+	chairs := newProduct(t, e, "Chairs")
+	tents := newProduct(t, e, "Tents")
+
+	// Adding a second amount redraws the page. The first row's chosen product
+	// has to come back with it.
+	status, page := admin.post(t, "/finance/movements/new", url.Values{
+		"direction-0": {"out"}, "amount": {"4000"},
+		"occurredAt": {"2026-09-03T11:00"},
+		"partyName":  {"Bala Transport"}, "purposeName": {"Freight"},
+		"modeName":     {"Cash"},
+		"productIds-0": {chairs},
+		"addRow":       {"yes"},
+	})
+	if status != 200 {
+		t.Fatalf("adding a second amount = %d", status)
+	}
+	if !strings.Contains(page, `data-multi data-field="productIds-1"`) {
+		t.Error("the second amount has no product control of its own")
+	}
+	if !strings.Contains(noscriptStripped(page), "<span>Chairs</span>") {
+		t.Error("the first amount lost its product when the row was added")
+	}
+
+	// Saving both: each entry keeps only its own products.
+	status, body := admin.post(t, "/finance/movements/new", url.Values{
+		"direction-0": {"out"}, "direction-1": {"out"},
+		"amount":       {"4000", "1500"},
+		"occurredAt":   {"2026-09-03T11:00", "2026-09-03T11:05"},
+		"partyName":    {"Bala Transport", "Bala Transport"},
+		"purposeName":  {"Freight", "Unloading labour"},
+		"modeName":     {"Cash", "Cash"},
+		"productIds-0": {chairs},
+		"productIds-1": {tents},
+	})
+	if status != 303 {
+		t.Fatalf("the split entry = %d: %s", status, body)
+	}
+	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
+		if len(f.Movements) != 2 {
+			t.Fatalf("%d movements stored, want 2", len(f.Movements))
+		}
+		for _, m := range f.Movements {
+			if len(m.Products) != 1 {
+				t.Fatalf("an entry carries %d products, want 1", len(m.Products))
+			}
+		}
+		got := []string{f.Movements[0].Products[0].ProductName, f.Movements[1].Products[0].ProductName}
+		sort.Strings(got)
+		if got[0] != "Chairs" || got[1] != "Tents" {
+			t.Errorf("the two entries carry %v, want Chairs and Tents one each", got)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestCorrectionCanTakeEveryProductOff is the path the old multi-select made
+// impossible to reason about: emptying the list. Taking every chip off submits
+// no productIds at all, and the entry must end up with none rather than
+// silently keeping what it had.
+func TestCorrectionCanTakeEveryProductOff(t *testing.T) {
+	e := newTestServer(t, emptyStock(), orderNow)
+	admin, key, _ := financeAdmin(t, e)
+	chairs := newProduct(t, e, "Chairs")
+	tents := newProduct(t, e, "Tents")
+
+	if status, body := admin.post(t, "/finance/movements/new", url.Values{
+		"direction-0": {"out"}, "amount": {"1500"},
+		"occurredAt": {"2026-09-03T11:00"},
+		"partyName":  {"Bala Transport"}, "purposeName": {"Freight"},
+		"modeName":     {"Cash"},
+		"productIds-0": {chairs, tents},
+	}); status != 303 {
+		t.Fatalf("the entry = %d: %s", status, body)
+	}
+	id := ""
+	if err := e.st.ReadFinance(key, func(f *register.FinanceData) { id = f.Movements[0].ID }); err != nil {
+		t.Fatal(err)
+	}
+
+	status, body := admin.post(t, "/finance/movements/"+id+"/edit", url.Values{
+		"direction-0": {"out"}, "amount": {"1500"},
+		"occurredAt": {"2026-09-03T11:00"},
+		"partyName":  {"Bala Transport"}, "purposeName": {"Freight"},
+		"modeName": {"Cash"},
+		// No productIds at all: every chip was taken off.
+	})
+	if status != 303 {
+		t.Fatalf("the correction = %d: %s", status, body)
+	}
+	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
+		m := f.Movements[0]
+		if len(m.Products) != 0 {
+			t.Errorf("the entry still carries %d products after all were taken off", len(m.Products))
+		}
+		// And the audit says so, rather than the change happening silently.
+		found := false
+		for _, c := range m.Changes {
+			if c.Field == "products" && c.From == "Chairs; Tents" {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("clearing the products was not recorded: %+v", m.Changes)
+		}
+	}); err != nil {
+		t.Fatal(err)
 	}
 }

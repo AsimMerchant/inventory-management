@@ -14,7 +14,6 @@
     // Extra context some lists need, such as which supplier the goods would
     // go back to. Read fresh on every keystroke: the person may change it.
     var partySel = box.getAttribute('data-party-from');
-    var except = box.getAttribute('data-except') || '';
     var newLabel = box.getAttribute('data-newlabel') || '';
     var rows = [];
     var here = -1;
@@ -42,7 +41,6 @@
         var el = document.querySelector(partySel);
         if (el && el.value) extra += '&party=' + encodeURIComponent(el.value);
       }
-      if (except) extra += '&except=' + encodeURIComponent(except);
       req.open('GET', endpoint + '?mode=' + mode + '&q=' + encodeURIComponent(q) + extra);
       req.onload = function () {
         if (req.status !== 200) { hide(); return; }
