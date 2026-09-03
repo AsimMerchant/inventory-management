@@ -307,6 +307,17 @@ allowed to differ, so equality is not a key. Any such linking has to work on pro
 supplier, with the challan as a strong hint a human can read, never as an identifier the
 program relies on.
 
+**Settled 3 September 2026: the challan is on the approved money form, and it lives outside
+the vault.** The form carries `Challan no.` once per entry, the supplier's own number. The
+user asked for it to be kept out of the encrypted half so the desk sees the same numbers in
+its suggestions: *"we need to keep this also out of vault since inward folks will be able to
+see this in suggestions."* Same reasoning as products, acquisition kinds and supplier names.
+
+**The one consequence, put to him and not hidden:** the bill itself stays in the vault, so
+publishing its challan tells the desk *that a bill exists* against challan `STH/4390`,
+without revealing any amount. No figure escapes, which is the line he drew — but it is a
+deliberate decision, not an oversight.
+
 Worth deciding when this is planned, none of it assumed:
 
 - Whether typing a supplier challan on the ledger should show what came in under it. That
@@ -607,7 +618,16 @@ same commit. And `ValueKindPrefix` returns `""` for a kind it does not know, whi
 `validateReusableValues` then rejects as *"kind and id do not agree"* — so the new
 `FinanceValueKind` constant and its prefix case must land together.
 
+**Retired 3 September 2026: whether an agreement with no money needs recording.** Asked
+three times and never answered, because the question stopped existing. Under the rule the
+user approved — a bill creates the debt, not an agreement — nothing is owed before the
+supplier bills, so there is nothing to write down and no back door is needed.
+
 **Open, and explicitly his call, not to be assumed:**
+
+- *Return rented goods* is now a slightly untrue name: borrowed and donated goods go back
+  through it too. *Send goods back to supplier* would cover all three. Cosmetic, nothing
+  breaks either way, and the user has not decided.
 
 **Decided 3 September 2026, and shipped the same day: `SchemaVersion` goes to 4, and only
 when the third kind ships.** It has shipped; see the step-two section above for the
