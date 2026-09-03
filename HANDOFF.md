@@ -104,10 +104,51 @@ from then on deliveries split across both. So the kinds list gets the rename, me
 safe-delete-if-unused screen that supplier/payee, purpose and payment mode already have,
 built the same way rather than as a new mechanism.
 
+### Can this be built without disturbing the file? Checked 3 September 2026
+
+Asked by the user before any building, because real inventory is already recorded and
+the json cannot be dropped. Read from the code, not assumed. Conclusion: **yes, going
+forward. No record already written is rewritten, and no migration step is needed.** What
+stops being safe is going *backwards*, and only once a typed kind is actually used.
+
+**Keeping the four existing orders is a hard constraint, not a preference.**
+`finance_validate.go:182-187` resolves every movement's `orderId` through
+`FinanceOrderByID`, and `store/finance.go:173` runs `ValidateFinance` on *every vault
+decrypt*, not only on save. So converting or deleting those orders makes the vault
+refuse to load. Leave `FinanceOrder` in place, retire only the screen that creates new
+ones, show the existing rows read-only.
+
+**Dropping the estimated/exact distinction needs no migration.**
+`finance_validate.go:285-295` demands `estimated|exact` only when a total is present. Old
+rows keep their `agreedKind` and load unchanged; nothing new has to write one.
+
+**The third acquisition kind is additive on disk and a bounded code audit off it.** No
+field is removed or repurposed: `Inward.Basis` gains a value and a companion kind ID.
+Nothing in `internal/store` validates `Basis` on load — it is checked only at the form
+boundary, `web/inward.go:165`. But every place that asks `== Rent` treats anything else
+as a purchase, so each must be visited in the same change:
+
+- `arith.go:129, 141, 486, 509` — `arith.go:118` says it outright, *"Rent if any inward
+  for the product is rent, else Purchase"*, so donated goods would show as **Purchase**
+  on the stock view and group with purchases in the suppliers view until this is fixed.
+- `finance_settlement.go:400, 421, 470, 530` — the settlement caps.
+- `web/inward.go:165`, `web/views.go:48`, `web/corrections.go` — form guard and pills.
+
+Two traps in the same area, both silent if missed. `finance_validate.go:312` refuses an
+order line whose basis is not rent or purchase, and that runs on load — widen it in the
+same commit. And `ValueKindPrefix` returns `""` for a kind it does not know, which
+`validateReusableValues` then rejects as *"kind and id do not agree"* — so the new
+`FinanceValueKind` constant and its prefix case must land together.
+
 **Open, and explicitly his call, not to be assumed:**
 
-- What happens to the four orders already recorded in a real file, and to `FinanceOrder`
-  in schema 3, if the order screen merges into the money screen.
+- Bump `SchemaVersion` to 4, or leave it at 3? Not bumping means `v1.2.1` opens the file
+  happily and silently reads every typed kind as a purchase — recreating the exact defect
+  this design exists to remove. Bumping means `v1.2.1` refuses, but refuses badly, through
+  the `copyAside` plus stale `.bak` damage path at `store.go:190`, which cannot be fixed
+  in a released reader. The mitigation is the procedure he already chose on 1 September:
+  back up the json, delete the old exe from the laptop and the pen drive. Recommendation:
+  bump to 4 — a loud, already-documented failure beats a quiet wrong number.
 
 **Do not start this without him.** It changes the shape of the ledger's central screen,
 touches the register's acquisition basis, and reaches the ordinary desk — the one part of
