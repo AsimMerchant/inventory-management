@@ -27,6 +27,73 @@ times. The reviewed contracts are specs 17–21: protected vault/accounts, order
 reusable values, money/audit/printable journal, supplier returns and sales, and the
 integrated browser acceptance gate.
 
+### The agreed order of work, settled with the user on 3 September 2026
+
+Four things to clear, then one to plan. This order is his, and the reasoning is his:
+the merge is the thing he has asked for repeatedly, it is the smaller change, and it is
+the screen the balances work will live next to.
+
+1. **Merge *Record an order* into *Record money*.** The design section below.
+2. **The third acquisition kind** — Rent, Purchase or a typed word, on the money screen
+   and at the inward desk, with the shared list getting the same rename / merge /
+   safe-delete tools as the other reusable values. The schema-4 decision belongs here.
+3. **The stock list's PURCHASE default** — the defect immediately below.
+4. **Merge branch `fix/product-pickers-at-scale`** — eleven commits, built and tested,
+   waiting only on his word.
+
+Then **balances**, which needs planning with him before a line is written.
+
+### The ledger cannot say where you stand — named 3 September 2026, NOT BUILT
+
+The user's words after being shown what an estimate does today: *"so we didnt actually
+ever build a real ledger, this is a fake ledger after all"*, and later, *"the main centre
+piece of ledger is missing from the fucking ledger"*. He is right, and this was never in
+specs 17–21, so it is a gap in what was asked for, not a defect against the contract.
+
+What exists is a cash book and it is honest: every movement in and out, audited,
+correctable, voidable, encrypted, with a filtered printable journal and totals. What does
+not exist is any notion of a **balance**.
+
+Demonstrated, not assumed. Record an order with an estimated total of ₹25,000, then pay
+₹23,000 against it: the order detail goes on showing *Estimated total ₹25,000*
+(`web/finance_orders.go:405-410`), the journal shows ₹23,000, and nothing anywhere
+compares the two. No warning, no outstanding figure, no flag. `MoneyForOrder` at
+`register/finance_ledger.go:121` would compute exactly that comparison and **has no
+caller outside tests**.
+
+So the program answers *what money moved?* and cannot answer *where do I stand?* — and
+the second is the question a ledger is opened to ask. It is also why the order screen
+felt like pointless paperwork to him this morning: an order compared to nothing is a note
+to yourself.
+
+The two pieces, both from figures already in the file, needing no new file format:
+
+- **Per order** — agreed, paid, and the difference still to pay, shown on the order.
+- **Per party** — everything agreed with one supplier against everything paid to them,
+  and the standing position, on one screen.
+
+**Plan this with him before building.** He has watched three fixes introduce three
+defects in one day and explicitly refused a wing-it approach: *"just wing it then 40
+issues show up then fix that and forget the actual purpose of software at all"*.
+
+### The stock list calls a product PURCHASE before anything has arrived
+
+Live in `v1.2.1`, found 3 September 2026, small and self-contained. `StockRows` in
+`register/arith.go:139-141` starts every product at `Purchase` and only lifts it to
+`Rent` if some live inward says so — so a product created before its goods arrive is
+displayed as bought, with no delivery anywhere to justify it.
+
+It matters more once the merged money screen can create a product: record money for
+donated goods, no inward yet, and the desk's stock list asserts PURCHASE.
+
+Intended fix, agreed in principle with the user and not yet built: with no deliveries the
+product has no acquisition kind, and the row shows a dash or *not received yet* rather
+than claiming one. The kind becomes a fact when the desk records the delivery.
+
+Not to be confused with a bigger idea raised and deliberately deferred the same day: a
+column showing what the ledger *expects* to arrive. That one leads straight to
+partial-receipt tracking and is its own piece of work, worth doing after the merge lands.
+
 ### Design the user dictated on 3 September 2026 — NOT BUILT, no code written
 
 Recorded verbatim in intent at the user's request after an evening in which the split
