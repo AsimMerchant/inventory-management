@@ -328,13 +328,26 @@ same commit. And `ValueKindPrefix` returns `""` for a kind it does not know, whi
 
 **Open, and explicitly his call, not to be assumed:**
 
-- Bump `SchemaVersion` to 4, or leave it at 3? Not bumping means `v1.2.1` opens the file
-  happily and silently reads every typed kind as a purchase — recreating the exact defect
-  this design exists to remove. Bumping means `v1.2.1` refuses, but refuses badly, through
-  the `copyAside` plus stale `.bak` damage path at `store.go:190`, which cannot be fixed
-  in a released reader. The mitigation is the procedure he already chose on 1 September:
-  back up the json, delete the old exe from the laptop and the pen drive. Recommendation:
-  bump to 4 — a loud, already-documented failure beats a quiet wrong number.
+**Decided 3 September 2026: `SchemaVersion` goes to 4, and only when the third kind
+ships.** The user delegated the call — *"u decide that"* — under one requirement: the new
+exe must open the existing `v1.2.1` file with every order intact. That requirement is met
+either way and is not what the number affects. The reader accepts schema 1, 2 and 3 and
+will accept 4, so upgrading is unaffected; the version number governs only an **old** exe
+opening a **new** file.
+
+Left at 3, `v1.2.1` opens a file containing typed kinds and silently reads every one of
+them as a purchase — recreating the exact defect the design exists to remove, in the
+user's live register, with no warning. Bumped to 4 it refuses instead. The refusal is bad
+— `copyAside` plus a stale `.bak` behind the damage banner, `store.go:190`, unfixable in
+a released reader — but it is visible, and the handling is the procedure the user already
+chose on 1 September: back up the json, then delete the old exe from the laptop and the
+pen drive.
+
+A loud, already-documented failure beats a quiet wrong number in the register.
+
+**The merge on its own needs no bump.** It stores nothing new — it reuses `FinanceOrder`
+exactly as schema 3 already defines it. Only the third acquisition kind changes what a
+file can contain.
 
 **Do not start this without him.** It changes the shape of the ledger's central screen,
 touches the register's acquisition basis, and reaches the ordinary desk — the one part of
