@@ -106,11 +106,22 @@ They are unrelated pieces of paper. A supplier challan `447` and one of our issu
 `447` have nothing to do with each other, so a search that returns both is wrong. Never
 match them, never search them together, never share a field.
 
-**The ledger's challan is the supplier's one, and it is the same number the desk types.**
-Confirmed by the user on 3 September 2026. Not a new kind of challan: the vendor's bill
-number appears on *Stuff came in* and on the merged money screen, one per product line,
-and that is what ties the payment to the delivery. Our issue book has no business in the
-ledger.
+**The ledger's challan is the supplier's one — usually the same number the desk types,
+but not always.** Confirmed and then qualified by the user on 3 September 2026: *"ledger
+challan and inward challan for same product might be different sometimes, not always, but
+sometimes, so inward person should be allowed to enter different challan number for same
+product."* Our issue book still has no business in the ledger.
+
+So these are **two independent fields that usually agree**, not one number stored twice.
+The desk types what is on the paper in their hand; the ledger person types what is on
+theirs. Neither is ever pre-filled from the other, neither overwrites the other, and the
+desk is never blocked or warned for entering a different one. This is the same rule the
+user already set for rent versus purchase: the ledger offers, the desk decides.
+
+**Therefore a payment cannot be tied to a delivery by matching challan numbers.** They are
+allowed to differ, so equality is not a key. Any such linking has to work on product and
+supplier, with the challan as a strong hint a human can read, never as an identifier the
+program relies on.
 
 Worth deciding when this is planned, none of it assumed:
 
