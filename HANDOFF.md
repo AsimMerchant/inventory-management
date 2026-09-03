@@ -318,12 +318,16 @@ fields stay independent, as recorded above. There is nothing further to decide h
 earlier note in this section raised the visibility of a bill's challan as though it were a
 question; it was not, a challan number is not financial data, and it has been removed.
 
-Worth deciding when this is planned, none of it assumed:
+**A supplier challan is searchable, and that is the whole requirement.** Decided by the
+user on 3 September 2026. Type a challan number, get what is recorded under it, on
+whichever screen you are on. He cut off an attempt of mine to reason about what should be
+attached to the result: *"why do we care, search for a challan get the challan, simple, why
+are u complicating things?"* Do not design further than that.
 
-- Whether typing a supplier challan on the ledger should show what came in under it. That
-  search does not exist today: `FindOutstandingByChallan` walks issues only, so nothing
-  anywhere finds a delivery by the vendor's number. It would have to be written, and it
-  must stay strictly on the supplier side.
+The one thing that has to be written: this search does not exist today.
+`FindOutstandingByChallan` walks **issues** only, so nothing anywhere finds a delivery or a
+bill by the vendor's number. It must stay strictly on the supplier side — our own issue
+challans are a separate paper and are never matched against these.
 - Whether repeating the number down five lines should be a single press, given the
   standing rule that nobody types an identifier from memory. Typing the same challan five
   times is exactly the kind of remembering that rule exists to prevent.
