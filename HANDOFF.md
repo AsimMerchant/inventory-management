@@ -94,6 +94,20 @@ the screen the balances work will live next to.
 
 Then **balances**, which needs planning with him before a line is written.
 
+**Priority changed on 3 September 2026, late in the day.** The stakeholders are moving the
+money to Tally *for now* and will stay there unless the ledger gets simpler. They are not
+hitting the product-picker problem this branch fixes, because those controls are on the
+ledger screens they have stopped opening — the desk's own picker was fixed in the released
+build. Meanwhile the register itself is a success: over a hundred product types are being
+run through it.
+
+So: **balances stops being urgent** — Tally answers "where do I stand". What decides
+whether the ledger survives is **simplification**, and the user has confirmed the
+two-screen split was the worst of it, which the merge has now removed. Further
+simplification comes after the work already in the pipeline, and should be planned by
+watching the person who gave up use the merged screen, not by guessing which of login,
+vocabulary or missing balances put them off.
+
 ### Supplier names move into the open file — decided 3 September 2026, NOT BUILT
 
 The user spotted the asymmetry himself: *"i think supplier name should also be plain since
