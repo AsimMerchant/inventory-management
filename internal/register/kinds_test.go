@@ -270,6 +270,61 @@ func TestObligationsStayWithRentOnly(t *testing.T) {
 	}
 }
 
+// TestReturnSettlesWhatIsOwedFirst is the number a supplier reads. Goods that
+// went back must come off what is owed, and goods that were never owed must
+// not.
+func TestReturnSettlesWhatIsOwedFirst(t *testing.T) {
+	build := func(t *testing.T) (*Register, *FinanceData, string) {
+		t.Helper()
+		r := stockFor()
+		ids := withKinds(t, r, "Donated")
+		r.Inwards = []Inward{
+			inward("INW-0001", "PRD-0001", 40, Rent, "Sharma Events", "2026-09-01"),
+			kindInward("INW-0002", "PRD-0001", 50, ids["Donated"], "Sharma Events", "2026-09-01"),
+		}
+		f, parties := partiesFor("Sharma Events")
+		return r, f, parties["Sharma Events"]
+	}
+
+	t.Run("sending back what was rented clears the debt", func(t *testing.T) {
+		r, f, party := build(t)
+		disposeSupplierReturn(t, r, f, party, "PRD-0001", 40, settleAt)
+		rows := SupplierObligations(r, f)
+		if len(rows) != 1 || rows[0].Returned != 40 || rows[0].Remaining != 0 {
+			t.Fatalf("after sending back 40 the supplier row is %+v", rows)
+		}
+	})
+
+	t.Run("the older donated delivery does not get in the way", func(t *testing.T) {
+		// The donated goods arrived first, so oldest-first alone would send
+		// them back and leave the rented ones sitting as a debt.
+		r := stockFor()
+		ids := withKinds(t, r, "Donated")
+		r.Inwards = []Inward{
+			kindInward("INW-0001", "PRD-0001", 50, ids["Donated"], "Sharma Events", "2026-09-01"),
+			inward("INW-0002", "PRD-0001", 40, Rent, "Sharma Events", "2026-09-02"),
+		}
+		f, parties := partiesFor("Sharma Events")
+		disposeSupplierReturn(t, r, f, parties["Sharma Events"], "PRD-0001", 40, settleAt)
+		rows := SupplierObligations(r, f)
+		if len(rows) != 1 || rows[0].Returned != 40 || rows[0].Remaining != 0 {
+			t.Fatalf("after sending back 40 the supplier row is %+v", rows)
+		}
+	})
+
+	t.Run("sending back what was given owes nothing either way", func(t *testing.T) {
+		r, f, party := build(t)
+		// Everything rented has already gone back, so this return can only
+		// draw on the donated stock.
+		disposeSupplierReturn(t, r, f, party, "PRD-0001", 40, settleAt)
+		disposeSupplierReturn(t, r, f, party, "PRD-0001", 30, settleAt)
+		rows := SupplierObligations(r, f)
+		if len(rows) != 1 || rows[0].Returned != 40 || rows[0].Remaining != 0 {
+			t.Fatalf("the donated return moved the debt: %+v", rows)
+		}
+	})
+}
+
 func TestOrderLineWithATypedKindPassesValidation(t *testing.T) {
 	f := financeSeed()
 	party, err := AddFinanceValue(f, FinanceParty, "Sharma Events", "FAC-0001", kindAt)

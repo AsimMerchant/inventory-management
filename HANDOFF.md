@@ -114,6 +114,17 @@ counts rent only. Donated goods may go back, but nobody is owed them, so they ar
 obligation. The return door being open and an obligation existing are two different
 things.
 
+**That asymmetry had a defect in it, found in review and fixed in the same commit.**
+Opening the return door to typed kinds also changed what a return *draws from*, and
+`SupplierObligations` reduced the debt by the whole return however it was sourced. So
+sending back 30 donated tents after the 40 rented ones had already gone left Sharma at
+minus 30, and an older donated delivery could soak up a return and leave the rented goods
+still shown as owed. Two changes: `eligibleInwards` now takes from the basis the door
+settles first — rent for a return, purchase for a sale — and `SupplierObligations` counts
+only the part of a return that landed on rented deliveries. For a register with no typed
+kinds both are exactly the old behaviour. Both are proved load-bearing: each was reverted
+in turn and the test for it fails.
+
 **Nothing validates that a `KindID` still exists.** `register.Validate` runs inside every
 write and `ValidateFinance` on every vault decrypt, so a missing word must never stop the
 file loading. An unresolvable kind displays as the plain word "Other".

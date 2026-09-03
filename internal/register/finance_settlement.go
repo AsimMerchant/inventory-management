@@ -276,14 +276,28 @@ func resolvedPartyID(f *FinanceData, id string) string {
 	return id
 }
 
-// eligibleInwards are the live inwards a settlement may draw on, oldest first:
-// received date, then when it was typed, then id. Which deliveries those are
-// is decided by allow: rent and every typed kind may go back, purchase and
-// every typed kind may be sold.
-func eligibleInwards(r *Register, f *FinanceData, productID string, allow func(Basis) bool, aliases map[string]bool) []Inward {
+// door is one way stock leaves the store. Allow says which deliveries it may
+// draw on — rent and every typed kind may go back, purchase and every typed
+// kind may be sold — and Settles is the basis it takes from first, so goods
+// sent back to a supplier come off what is owed before they touch what was
+// given.
+type door struct {
+	Allow   func(Basis) bool
+	Settles Basis
+}
+
+var (
+	returnDoor = door{Allow: CanGoBack, Settles: Rent}
+	saleDoor   = door{Allow: CanBeSold, Settles: Purchase}
+)
+
+// eligibleInwards are the live inwards a settlement may draw on: the ones this
+// door settles first, and within each group oldest first — received date, then
+// when it was typed, then id.
+func eligibleInwards(r *Register, f *FinanceData, productID string, d door, aliases map[string]bool) []Inward {
 	out := []Inward{}
 	for _, in := range LiveInwards(r) {
-		if in.ProductID != productID || !allow(in.Basis) {
+		if in.ProductID != productID || !d.Allow(in.Basis) {
 			continue
 		}
 		if aliases != nil {
@@ -296,6 +310,9 @@ func eligibleInwards(r *Register, f *FinanceData, productID string, allow func(B
 		out = append(out, in)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
+		if a, b := out[i].Basis == d.Settles, out[j].Basis == d.Settles; a != b {
+			return a
+		}
 		if out[i].ReceivedOn != out[j].ReceivedOn {
 			return out[i].ReceivedOn < out[j].ReceivedOn
 		}
@@ -341,11 +358,11 @@ func AllocatedFromInward(f *FinanceData, inwardID string) int {
 }
 
 // remaining is what is still drawable from each eligible inward, in order.
-func remaining(r *Register, f *FinanceData, productID string, allow func(Basis) bool,
+func remaining(r *Register, f *FinanceData, productID string, d door,
 	aliases map[string]bool, exceptKind, exceptID string) []DisposalAllocation {
 
 	out := []DisposalAllocation{}
-	for _, in := range eligibleInwards(r, f, productID, allow, aliases) {
+	for _, in := range eligibleInwards(r, f, productID, d, aliases) {
 		left := in.Quantity - allocatedFromInward(f, in.ID, exceptKind, exceptID)
 		if left > 0 {
 			out = append(out, DisposalAllocation{InwardID: in.ID, Quantity: left})
@@ -402,7 +419,7 @@ func SupplierReturnAvailable(r *Register, f *FinanceData, partyID, productID str
 }
 
 func supplierReturnAvailable(r *Register, f *FinanceData, _, productID, exceptKind, exceptID string) int {
-	rented := sumAllocations(remaining(r, f, productID, CanGoBack, nil, exceptKind, exceptID))
+	rented := sumAllocations(remaining(r, f, productID, returnDoor, nil, exceptKind, exceptID))
 	stock := onHandExcluding(r, f, productID, exceptKind, exceptID)
 	return maxZero(minInt(stock, rented))
 }
@@ -424,7 +441,7 @@ func SupplierSentRented(r *Register, f *FinanceData, party, productID string) in
 	if len(aliases) == 0 {
 		return 0
 	}
-	return maxZero(sumAllocations(remaining(r, f, productID, CanGoBack, aliases, "", "")))
+	return maxZero(sumAllocations(remaining(r, f, productID, returnDoor, aliases, "", "")))
 }
 
 // SupplierReturnAvailableByName is the same number for a party typed on the
@@ -445,7 +462,7 @@ func PurchasedAvailableToSell(r *Register, f *FinanceData, productID string) int
 }
 
 func purchasedAvailableToSell(r *Register, f *FinanceData, productID, exceptKind, exceptID string) int {
-	purchased := sumAllocations(remaining(r, f, productID, CanBeSold, nil, exceptKind, exceptID))
+	purchased := sumAllocations(remaining(r, f, productID, saleDoor, nil, exceptKind, exceptID))
 	stock := onHandExcluding(r, f, productID, exceptKind, exceptID)
 	return maxZero(minInt(stock, purchased))
 }
@@ -475,7 +492,7 @@ func allocateSupplierReturn(r *Register, f *FinanceData, partyID, productID stri
 	if quantity > supplierReturnAvailable(r, f, partyID, productID, exceptKind, exceptID) {
 		return nil, ErrNotEnoughStock
 	}
-	return take(remaining(r, f, productID, CanGoBack, nil, exceptKind, exceptID), quantity), nil
+	return take(remaining(r, f, productID, returnDoor, nil, exceptKind, exceptID), quantity), nil
 }
 
 // AllocateStockSale spreads a sale across the receipts that may be sold —
@@ -491,7 +508,7 @@ func allocateStockSale(r *Register, f *FinanceData, productID string, quantity i
 	if quantity > purchasedAvailableToSell(r, f, productID, exceptKind, exceptID) {
 		return nil, ErrNotEnoughStock
 	}
-	return take(remaining(r, f, productID, CanBeSold, nil, exceptKind, exceptID), quantity), nil
+	return take(remaining(r, f, productID, saleDoor, nil, exceptKind, exceptID), quantity), nil
 }
 
 func take(available []DisposalAllocation, quantity int) []DisposalAllocation {
@@ -571,8 +588,21 @@ func SupplierObligations(r *Register, f *FinanceData) []SupplierObligation {
 			continue
 		}
 		k := key{FoldKey(v.Value), s.Product.ProductID}
-		if row := byKey[k]; row != nil {
-			row.Returned += s.Quantity()
+		row := byKey[k]
+		if row == nil {
+			continue
+		}
+		// Only the part of the return that came off rented stock settles
+		// anything. Goods that were donated or borrowed may go back through
+		// the same door, but nobody was owed them, so sending them back
+		// cannot reduce what is. For a register with no typed kinds this is
+		// every source, exactly as before.
+		for _, a := range s.Sources {
+			for _, in := range r.Inwards {
+				if in.ID == a.InwardID && in.Basis == Rent {
+					row.Returned += a.Quantity
+				}
+			}
 		}
 	}
 

@@ -379,3 +379,60 @@ func TestSharedListsMergeTwoWordsIntoOne(t *testing.T) {
 		t.Error("the merged row was thrown away")
 	}
 }
+
+// TestCorrectingAMoneyEntryKeepsTheTypedKind drives the one path through the
+// new fields that the other tests do not: the correction screen of a money
+// entry that minted its own order.
+func TestCorrectingAMoneyEntryKeepsTheTypedKind(t *testing.T) {
+	e := newTestServer(t, register.WalkthroughT0(), tenFortyTwo)
+	admin, key, _ := financeAdmin(t, e)
+
+	money := moneyForm("out", "5000", "Sharma Events", "Advance", "Cash")
+	moneyLine(money, 0, 0, "PRD-0002", "40", "other")
+	money["newKind-0-0"] = []string{"Donated"}
+	if status, body := admin.post(t, "/finance/movements/new", money); status != 303 {
+		t.Fatalf("the money entry = %d: %s", status, body)
+	}
+	order := orders(t, e, key)[0]
+	if order.Lines[0].KindID != "AKD-0001" {
+		t.Fatalf("the order line saved as %+v", order.Lines[0])
+	}
+	moveID := movements(t, e, key)[0].ID
+
+	// The quantities are corrected on the order screen, so the correction
+	// form does not offer the product lines again.
+	status, form := admin.get(t, "/finance/movements/"+moveID+"/edit")
+	if status != 200 {
+		t.Fatalf("the correction form answered %d", status)
+	}
+	if strings.Contains(form, `name="qty-0-0" min="1" value="40"`) {
+		t.Error("the correction form offered the agreed quantity again")
+	}
+
+	// Correcting the amount leaves the order and its typed word exactly as
+	// they were.
+	fix := moneyForm("out", "5500", "Sharma Events", "Advance", "Cash")
+	fix.Set("orderId", order.ID)
+	if status, body := admin.post(t, "/finance/movements/"+moveID+"/edit", fix); status != 303 {
+		t.Fatalf("the correction = %d: %s", status, body)
+	}
+	after := orders(t, e, key)
+	if len(after) != 1 || after[0].Lines[0].KindID != "AKD-0001" || after[0].Lines[0].Basis != register.Other {
+		t.Fatalf("after the correction the orders are %+v", after)
+	}
+
+	// Typing products back in while naming the order is refused rather than
+	// silently minting a second one.
+	both := moneyForm("out", "5500", "Sharma Events", "Advance", "Cash")
+	both.Set("orderId", order.ID)
+	moneyLine(both, 0, 0, "PRD-0002", "40", "other")
+	both["kindId-0-0"] = []string{"AKD-0001"}
+	status, body := admin.post(t, "/finance/movements/"+moveID+"/edit", both)
+	if status != 200 || !strings.Contains(body, "Take the products off") {
+		t.Fatalf("the both-halves correction gave %d: %s", status, body)
+	}
+	if len(orders(t, e, key)) != 1 {
+		t.Error("a refused correction minted a second order")
+	}
+	reopenValid(t, e)
+}
