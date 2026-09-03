@@ -118,7 +118,26 @@ theirs. Neither is ever pre-filled from the other, neither overwrites the other,
 desk is never blocked or warned for entering a different one. This is the same rule the
 user already set for rent versus purchase: the ledger offers, the desk decides.
 
-**Therefore a payment cannot be tied to a delivery by matching challan numbers.** They are
+**One product can carry many supplier challans, and always could.** The user, 3 September
+2026: *"1 product can have more than 1 challan, more than 1 supplier/vendor challan."*
+This is already how the register behaves — chairs arrive from Sharma under `STH/4390`,
+again under `STH/4471`, again from another supplier, and the stock is one pooled number,
+which is his original decision that a chair is a chair. A challan is therefore never a
+property of a *product*; it belongs to one delivery, and on the ledger side to one line.
+
+**A live constraint decides the shape here.** `finance_validate.go:315-318` refuses an
+order that repeats one product on the same basis, and that check runs on every vault
+decrypt. So 300 chairs on rent under one challan and 200 on rent under another cannot sit
+in a single entry, and relaxing the rule later would make older readers refuse the file —
+the schema problem again.
+
+The answer needs no relaxing: **one money entry per challan.** Two challans, two entries.
+That is exactly what the desk already does, one delivery at a time, and the product may
+then appear under as many challans as reality requires, each in its own entry. Do not
+build the merged screen on an assumption of one line per product, and do not widen that
+validator to work around it.
+
+**A payment cannot be tied to a delivery by matching challan numbers.** They are
 allowed to differ, so equality is not a key. Any such linking has to work on product and
 supplier, with the challan as a strong hint a human can read, never as an identifier the
 program relies on.
