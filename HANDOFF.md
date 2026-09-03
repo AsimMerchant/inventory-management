@@ -2,7 +2,8 @@
 
 ## Current checkpoint — shared supplier/party list, 3 September 2026
 
-The active branch is `fix/product-pickers-at-scale`. Its earlier commits already contain
+The completed work is on `master` at `48e6632` and remains on the tested feature branch
+`fix/product-pickers-at-scale`. Its earlier commits already contain
 the protected financial release, the product-picker fixes, the merged money/order
 entry, and the third acquisition choice: Rent, Purchase, or a reusable custom Other
 word shared with the inward desk.
@@ -20,9 +21,8 @@ Implementation, migration/privacy tests, the final race run, plain-language revi
 focused real-browser acceptance are complete. The first independent release gate found
 two blocking edge cases; both now have reproducing tests and fixes, and all checks and
 browser passes were repeated afterwards. The fresh independent re-gate reports
-**READY** with no blockers. Merging the feature branch is the remaining integration
-step. The
-governing schema-5 contract is in specs 17, 18, 20 and 21.
+**READY** with no blockers. The feature branch was fast-forwarded into `master` and both
+remote refs were pushed. The governing schema-5 contract is in specs 17, 18, 20 and 21.
 
 ### Schema-5 browser and verification record
 

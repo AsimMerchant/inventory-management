@@ -17,7 +17,7 @@ anything user-visible.
 
 ## Current state — 3 September 2026
 
-Active work is on `fix/product-pickers-at-scale`. The committed build contains the
+Current work is merged to `master` at `48e6632`. The committed build contains the
 protected finance area, scalable product pickers, the merged money/order entry and the
 third acquisition choice (Rent, Purchase, or reusable custom Other). The schema-5
 slice moves supplier/payee names into one shared public party list so the
