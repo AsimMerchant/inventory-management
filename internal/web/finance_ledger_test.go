@@ -22,6 +22,19 @@ func moneyForm(direction, amount, party, purpose, mode string) url.Values {
 	}
 }
 
+// moneyLine puts one product line on a money form the way the screen submits
+// it. The picker's text box always arrives, with script or without, and is what
+// says the line exists; the id arrives from the hidden input or, with script
+// off, from the <noscript> select of the same name.
+func moneyLine(form url.Values, row, line int, productID, quantity, basis string) url.Values {
+	suffix := "-" + itoa(row) + "-" + itoa(line)
+	form["productName"+suffix] = []string{""}
+	form["product"+suffix] = []string{productID}
+	form["qty"+suffix] = []string{quantity}
+	form["basis"+suffix] = []string{basis}
+	return form
+}
+
 func movements(t *testing.T, e *env, key []byte) []register.MoneyMovement {
 	t.Helper()
 	var out []register.MoneyMovement
@@ -416,7 +429,8 @@ func TestStandaloneMovementAndProductAdjustment(t *testing.T) {
 	// A settlement in goods rather than cash is still an exact amount with a
 	// custom mode, and still moves no stock by itself.
 	adjust := moneyForm("in", "3000", "Sharma Events", "Damage settlement", "Product adjustment")
-	adjust["productIds-0"] = []string{chairs, tables}
+	moneyLine(adjust, 0, 0, chairs, "", "")
+	moneyLine(adjust, 0, 1, tables, "", "")
 	adjust.Set("remarks", "Twelve broken chairs kept against the rent")
 	if status, body := admin.post(t, "/finance/movements/new", adjust); status != 303 {
 		t.Fatalf("product adjustment = %d: %s", status, body)
@@ -585,7 +599,7 @@ func TestMovementCorrectionKeepsEveryOriginalValue(t *testing.T) {
 	tables := productIDNamed(t, e, "Round tables")
 
 	form := moneyForm("out", "5000", "Sharm Events", "Deposit", "Cash")
-	form["productIds-0"] = []string{chairs}
+	moneyLine(form, 0, 0, chairs, "", "")
 	form.Set("reference", "INV/88")
 	form.Set("remarks", "Paid at the gate")
 	id := saveMoney(t, e, admin, key, form)
@@ -594,7 +608,7 @@ func TestMovementCorrectionKeepsEveryOriginalValue(t *testing.T) {
 	// Correct every field the form holds at once.
 	edit := moneyForm("in", "6500.50", "Sharma Events", "Refund", "Bank transfer")
 	edit.Set("occurredAt", "2026-09-01T08:30")
-	edit["productIds-0"] = []string{tables}
+	moneyLine(edit, 0, 0, tables, "", "")
 	edit.Set("reference", "")
 	edit.Set("remarks", "Sent back the same evening")
 	if status, body := admin.post(t, "/finance/movements/"+id+"/edit", edit); status != 303 {

@@ -286,6 +286,11 @@ type pickerData struct {
 	// goes with it because that press writes to the register.
 	NewEndpoint string
 	CSRF        string
+	// IDField and TextField rename the two form fields, for a screen that
+	// draws the picker more than once and has to tell the copies apart. Empty
+	// means the ordinary productId and productName.
+	IDField   string
+	TextField string
 }
 
 // picker resolves a submitted productId against the list. A productId that

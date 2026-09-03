@@ -21,22 +21,48 @@
     {{template "value-picker.html" .Party}}
     {{template "value-picker.html" .Purpose}}
     {{template "value-picker.html" .Mode}}
+    {{$row := .Index}}
+    {{if not .Lines}}
     <div class="field">
-      <span class="lab">Related order</span>
+      <span class="lab">Products this money is for</span>
+      <p class="note">Leave this empty if the money is not for any product. Leave the quantity empty if no number was agreed.</p>
+    </div>
+    {{range .Products}}
+    <fieldset class="line">
+      {{template "picker.html" .Picker}}
+      <div class="field">
+        <span class="lab">Agreed quantity</span>
+        <input class="inp" type="number" name="qty-{{.Row}}-{{.Index}}" min="1" value="{{.Quantity}}" inputmode="numeric">
+      </div>
+      <div class="field">
+        <span class="lab">Rent or purchase</span>
+        <label><input type="radio" name="basis-{{.Row}}-{{.Index}}" value="rent"{{if eq .Basis "rent"}} checked{{end}}> Rented</label>
+        <label><input type="radio" name="basis-{{.Row}}-{{.Index}}" value="purchase"{{if eq .Basis "purchase"}} checked{{end}}> Bought</label>
+      </div>
+      {{if .Removable}}<button class="btn ghost" type="submit" name="removeLine" value="{{.Row}}-{{.Index}}">Take this product off</button>{{end}}
+    </fieldset>
+    {{end}}
+    <button class="btn ghost" type="submit" name="addLine" value="{{.Index}}">Add another product</button>
+    <div class="field">
+      <span class="lab">Agreed total (₹)</span>
+      <input class="inp" type="text" name="agreedTotal-{{.Index}}" value="{{.Agreed}}" inputmode="decimal" autocomplete="off">
+      <p class="note">The whole amount agreed for the products above, if one was agreed. It is not the amount paid today.</p>
+    </div>
+    {{end}}
+    <div class="field">
+      <span class="lab">Part of an order already recorded</span>
       <select class="inp" name="orderId">
-        <option value="">No order</option>
+        <option value="">No, not part of an earlier order</option>
         {{range .Orders}}<option value="{{.ID}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
       </select>
+      <p class="note">Use this for a second or later payment against goods already recorded here.</p>
     </div>
     {{if .Lines}}
     <div class="field">
       <span class="lab">Related products</span>
-      {{$row := .Index}}
       {{range .Lines}}<label><input type="checkbox" name="lineIds-{{$row}}" value="{{.ID}}"{{if .Selected}} checked{{end}}> {{.Label}}</label>{{end}}
       <p class="note">Choose none to cover the whole order.</p>
     </div>
-    {{else}}
-    {{template "multi-picker.html" .ProductBox}}
     {{end}}
     <div class="field">
       <span class="lab">Related stock return or sale</span>
@@ -59,5 +85,5 @@
   {{if not .Editing}}<button class="btn ghost" type="submit" name="addRow" value="yes">Add another amount</button>{{end}}
   <button class="btn" type="submit">{{.Submit}}</button>
 </form>
+<script src="/static/picker.js"></script>
 <script src="/static/value-picker.js"></script>
-<script src="/static/multi-picker.js"></script>

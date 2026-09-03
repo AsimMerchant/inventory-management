@@ -9,8 +9,8 @@
      {{if .CountInto}}data-count-into="{{.CountInto}}"{{end}}
      {{if .NewEndpoint}}data-new-endpoint="{{.NewEndpoint}}" data-csrf="{{.CSRF}}"{{end}}>
   <span class="lab">{{.Label}}</span>
-  <input class="inp" type="text" name="productName" autocomplete="off" value="{{.PickedName}}" data-picker-text>
-  <input type="hidden" name="productId" value="{{.PickedID}}" data-picker-id>
+  <input class="inp" type="text" name="{{if .TextField}}{{.TextField}}{{else}}productName{{end}}" autocomplete="off" value="{{.PickedName}}" data-picker-text>
+  <input type="hidden" name="{{if .IDField}}{{.IDField}}{{else}}productId{{end}}" value="{{.PickedID}}" data-picker-id>
   <div class="sug" hidden data-picker-list></div>
   {{if .OnlyPartyLabel}}
   {{/* Every product is offered by default, because goods are not always handed
@@ -19,7 +19,7 @@
   <label class="only"><input type="checkbox" data-picker-only> {{.OnlyPartyLabel}}</label>
   {{end}}
   <noscript>
-    <select class="inp" name="productId">
+    <select class="inp" name="{{if .IDField}}{{.IDField}}{{else}}productId{{end}}">
       <option value="">Pick the product from the list</option>
       {{range .Products}}<option value="{{.ID}}"{{if eq .ID $.PickedID}} selected{{end}}>{{.Label}}</option>{{end}}
     </select>

@@ -202,30 +202,32 @@ func TestMoneyProductsAreChosenOneAtATime(t *testing.T) {
 	if status != 200 {
 		t.Fatalf("the money form = %d", status)
 	}
-	if !strings.Contains(form, `data-multi data-field="productIds-0"`) {
+	if !strings.Contains(form, `name="product-0-0"`) {
 		t.Error("the money form has no type-to-find product control")
 	}
 	if !strings.Contains(form, `data-endpoint="/finance/api/products"`) {
 		t.Error("the control does not ask the protected product route")
 	}
-	if !strings.Contains(form, `src="/static/multi-picker.js"`) {
+	if !strings.Contains(form, `src="/static/picker.js"`) {
 		t.Error("the money form never loads the control's script")
 	}
-	// The old control must be gone from the page itself. It survives only
-	// inside <noscript>, where a keyboard convention is the only thing left.
-	visible := noscriptStripped(form)
-	if strings.Contains(visible, `name="productIds-0" multiple`) {
+	// The old control must be gone from the page itself, and out of the
+	// <noscript> fallback too: it was replaced, not hidden.
+	if strings.Contains(form, `name="productIds-0" multiple`) {
 		t.Error("the multi-select the user could not work out is still on screen")
 	}
 
 	// Several products on one entry still save, and all of them come back.
-	status, body := admin.post(t, "/finance/movements/new", url.Values{
+	entry := url.Values{
 		"direction-0": {"out"}, "amount": {"3000"},
 		"occurredAt": {"2026-09-03T11:00"},
 		"partyName":  {"Bala Transport"}, "purposeName": {"Freight"},
-		"modeName":     {"Cash"},
-		"productIds-0": {chairs, tents, drums},
-	})
+		"modeName":   {"Cash"},
+	}
+	for i, id := range []string{chairs, tents, drums} {
+		moneyLine(entry, 0, i, id, "", "")
+	}
+	status, body := admin.post(t, "/finance/movements/new", entry)
 	if status != 303 {
 		t.Fatalf("the money entry = %d: %s", status, body)
 	}
@@ -256,12 +258,15 @@ func TestMoneyProductsAreChosenOneAtATime(t *testing.T) {
 	if status != 200 {
 		t.Fatalf("the correction form = %d", status)
 	}
-	for _, name := range []string{"Chairs", "Tents", "Water drums (20L)"} {
-		if !strings.Contains(edit, `<span>`+name+`</span>`) {
+	for i, name := range []string{"Chairs", "Tents", "Water drums (20L)"} {
+		if !strings.Contains(edit, `value="`+name+`" data-picker-text`) {
 			t.Errorf("%q is not shown as a chosen product on the correction form", name)
 		}
+		if !strings.Contains(edit, `name="product-0-`+itoa(i)+`"`) {
+			t.Errorf("line %d has no product box of its own", i)
+		}
 	}
-	if strings.Count(edit, "chosen-off") < 3 {
+	if strings.Count(edit, `name="removeLine"`) < 3 {
 		t.Error("the chosen products cannot be taken off again")
 	}
 }
@@ -294,35 +299,37 @@ func TestSplitMoneyEntryKeepsEachRowsProducts(t *testing.T) {
 
 	// Adding a second amount redraws the page. The first row's chosen product
 	// has to come back with it.
-	status, page := admin.post(t, "/finance/movements/new", url.Values{
+	added := url.Values{
 		"direction-0": {"out"}, "amount": {"4000"},
 		"occurredAt": {"2026-09-03T11:00"},
 		"partyName":  {"Bala Transport"}, "purposeName": {"Freight"},
-		"modeName":     {"Cash"},
-		"productIds-0": {chairs},
-		"addRow":       {"yes"},
-	})
+		"modeName":   {"Cash"},
+		"addRow":     {"yes"},
+	}
+	moneyLine(added, 0, 0, chairs, "", "")
+	status, page := admin.post(t, "/finance/movements/new", added)
 	if status != 200 {
 		t.Fatalf("adding a second amount = %d", status)
 	}
-	if !strings.Contains(page, `data-multi data-field="productIds-1"`) {
+	if !strings.Contains(page, `name="product-1-0"`) {
 		t.Error("the second amount has no product control of its own")
 	}
-	if !strings.Contains(noscriptStripped(page), "<span>Chairs</span>") {
+	if !strings.Contains(noscriptStripped(page), `value="Chairs" data-picker-text`) {
 		t.Error("the first amount lost its product when the row was added")
 	}
 
 	// Saving both: each entry keeps only its own products.
-	status, body := admin.post(t, "/finance/movements/new", url.Values{
+	both := url.Values{
 		"direction-0": {"out"}, "direction-1": {"out"},
-		"amount":       {"4000", "1500"},
-		"occurredAt":   {"2026-09-03T11:00", "2026-09-03T11:05"},
-		"partyName":    {"Bala Transport", "Bala Transport"},
-		"purposeName":  {"Freight", "Unloading labour"},
-		"modeName":     {"Cash", "Cash"},
-		"productIds-0": {chairs},
-		"productIds-1": {tents},
-	})
+		"amount":      {"4000", "1500"},
+		"occurredAt":  {"2026-09-03T11:00", "2026-09-03T11:05"},
+		"partyName":   {"Bala Transport", "Bala Transport"},
+		"purposeName": {"Freight", "Unloading labour"},
+		"modeName":    {"Cash", "Cash"},
+	}
+	moneyLine(both, 0, 0, chairs, "", "")
+	moneyLine(both, 1, 0, tents, "", "")
+	status, body := admin.post(t, "/finance/movements/new", both)
 	if status != 303 {
 		t.Fatalf("the split entry = %d: %s", status, body)
 	}
@@ -355,13 +362,15 @@ func TestCorrectionCanTakeEveryProductOff(t *testing.T) {
 	chairs := newProduct(t, e, "Chairs")
 	tents := newProduct(t, e, "Tents")
 
-	if status, body := admin.post(t, "/finance/movements/new", url.Values{
+	seed := url.Values{
 		"direction-0": {"out"}, "amount": {"1500"},
 		"occurredAt": {"2026-09-03T11:00"},
 		"partyName":  {"Bala Transport"}, "purposeName": {"Freight"},
-		"modeName":     {"Cash"},
-		"productIds-0": {chairs, tents},
-	}); status != 303 {
+		"modeName":   {"Cash"},
+	}
+	moneyLine(seed, 0, 0, chairs, "", "")
+	moneyLine(seed, 0, 1, tents, "", "")
+	if status, body := admin.post(t, "/finance/movements/new", seed); status != 303 {
 		t.Fatalf("the entry = %d: %s", status, body)
 	}
 	id := ""

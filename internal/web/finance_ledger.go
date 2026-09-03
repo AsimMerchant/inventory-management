@@ -24,16 +24,32 @@ type moneyRow struct {
 	Party       valuePicker
 	Purpose     valuePicker
 	Mode        valuePicker
-	OrderID     string
-	LineIDs     []string
-	ProductIDs  []string
-	Settlement  string
-	Reference   string
-	Remarks     string
+	OrderID    string
+	LineIDs    []string
+	Settlement string
+	Reference  string
+	Remarks    string
+	// Products are the product lines this row agreed. A line with a quantity
+	// of 1 or more becomes an order line; the order itself is minted by the
+	// save, so nobody has to fill in a second screen.
+	Products    []moneyProductLine
+	Agreed      string
 	Orders      []moneyOrderChoice
 	Lines       []moneyLineChoice
-	ProductBox  multiPicker
 	Settlements []moneySettlementChoice
+	Removable   bool
+}
+
+// moneyProductLine is one product line of one money row, held as typed so a
+// refusal hands the whole page back untouched.
+type moneyProductLine struct {
+	ProductID   string
+	ProductName string
+	Quantity    string
+	Basis       string
+	Picker      pickerData
+	Row         int
+	Index       int
 	Removable   bool
 }
 
@@ -45,26 +61,6 @@ type moneyOrderChoice struct {
 type moneyLineChoice struct {
 	ID, Label string
 	Selected  bool
-}
-
-// multiPicker is the Related products control: several products, chosen one at
-// a time from a list that searches as you type.
-type multiPicker struct {
-	Label    string
-	Field    string
-	Endpoint string
-	// NewEndpoint, when set, lets somebody add a product that is not on the
-	// list yet, through one deliberate press. CSRF goes with it because that
-	// press writes to the register.
-	NewEndpoint string
-	CSRF        string
-	Chosen      []productChoice
-	All         []productChoice
-}
-
-type productChoice struct {
-	ID, Name string
-	Picked   bool
 }
 
 type moneySettlementChoice struct {
@@ -137,8 +133,9 @@ func (s *Server) readMoneyDraft(r *http.Request) moneyDraft {
 			Remarks:    register.CleanName(at(remarks, i)),
 			// Per-row multi-selects are named with the row index, because a
 			// repeated name cannot say which row a checked box belongs to.
-			LineIDs:    r.Form[rowField("lineIds", i)],
-			ProductIDs: r.Form[rowField("productIds", i)],
+			LineIDs:  r.Form[rowField("lineIds", i)],
+			Products: readMoneyProductLines(r, i),
+			Agreed:   strings.TrimSpace(firstValue(r, rowField("agreedTotal", i))),
 		}
 		row.Party.PickedID, row.Party.PickedText = at(partyIDs, i), register.CleanName(at(partyNames, i))
 		row.Purpose.PickedID, row.Purpose.PickedText = at(purposeIDs, i), register.CleanName(at(purposeNames, i))
@@ -161,6 +158,44 @@ func applyNoScriptValue(p *valuePicker, choice, typed string) {
 
 func rowField(name string, i int) string {
 	return name + "-" + itoa(i)
+}
+
+// lineField names a field that belongs to one product line of one money row.
+// Rows repeat and lines repeat inside them, so one index cannot say which box
+// a value came from.
+func lineField(name string, row, line int) string {
+	return name + "-" + itoa(row) + "-" + itoa(line)
+}
+
+// firstValue is the picker rule in one place: the picker submits a hidden
+// input and its <noscript> fallback submits a <select> of the same name, so
+// both arrive and whichever carries a value is the answer.
+func firstValue(r *http.Request, name string) string {
+	for _, v := range r.Form[name] {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+
+// readMoneyProductLines reads one row's product lines back as typed. The
+// picker's text box is always submitted, with script or without, so its
+// presence is what says a line exists at all.
+func readMoneyProductLines(r *http.Request, row int) []moneyProductLine {
+	var out []moneyProductLine
+	for j := 0; ; j++ {
+		if _, ok := r.Form[lineField("productName", row, j)]; !ok {
+			break
+		}
+		out = append(out, moneyProductLine{
+			ProductID:   firstValue(r, lineField("product", row, j)),
+			ProductName: register.CleanName(firstValue(r, lineField("productName", row, j))),
+			Quantity:    strings.TrimSpace(firstValue(r, lineField("qty", row, j))),
+			Basis:       firstValue(r, lineField("basis", row, j)),
+		})
+	}
+	return out
 }
 
 func itoa(i int) string {
@@ -214,27 +249,28 @@ func (s *Server) fillMoney(d *moneyDraft, r *http.Request) {
 				}
 			}
 			row.Settlements = settlementChoices(f, row.Settlement)
-			// Type to find a product, the same as every other screen. A money
-			// entry may cover several, so the chosen ones stay on screen where
-			// the person can check and remove them.
-			row.ProductBox = multiPicker{
-				Label: "Related products", Endpoint: "/finance/api/products",
-				Field:       rowField("productIds", i),
-				NewEndpoint: "/finance/products/new",
-				CSRF:        financeSessionOf(r).csrf,
+			// Type to find a product, the same as every other screen. Each
+			// line carries what was agreed for that product, so the money
+			// screen can mint the order without a second form.
+			if len(row.Products) == 0 {
+				row.Products = []moneyProductLine{{}}
 			}
-			picked := map[string]bool{}
-			for _, id := range row.ProductIDs {
-				picked[id] = true
-			}
-			for _, p := range reg.Products {
-				if p.Deleted != nil {
-					continue
+			all := matchProductsMode(reg, "", "all")
+			for j := range row.Products {
+				l := &row.Products[j]
+				l.Row, l.Index = i, j
+				l.Removable = len(row.Products) > 1
+				name := l.ProductName
+				if l.ProductID != "" {
+					if p, ok := register.ProductByID(reg, l.ProductID); ok {
+						name = p.Name
+					}
 				}
-				choice := productChoice{ID: p.ID, Name: p.Name, Picked: picked[p.ID]}
-				row.ProductBox.All = append(row.ProductBox.All, choice)
-				if choice.Picked {
-					row.ProductBox.Chosen = append(row.ProductBox.Chosen, choice)
+				l.Picker = pickerData{
+					Endpoint: "/finance/api/products", Label: "Product", Mode: "all",
+					PickedID: l.ProductID, PickedName: name, Products: all,
+					AllowNew: true, NewEndpoint: "/finance/products/new", CSRF: sess.csrf,
+					IDField: lineField("product", i, j), TextField: lineField("productName", i, j),
 				}
 			}
 		}
@@ -291,6 +327,9 @@ func (s *Server) financeMoneyNew(w http.ResponseWriter, r *http.Request) {
 	}
 
 	d := s.readMoneyDraft(r)
+	if handled := s.lineButtons(w, r, &d); handled {
+		return
+	}
 	if r.FormValue("addRow") != "" {
 		// Adding a row saves nothing. It copies the shared party, time, mode
 		// and reference down, because one settlement split by purpose repeats
@@ -358,6 +397,30 @@ func (s *Server) financeMoneyNew(w http.ResponseWriter, r *http.Request) {
 		q := "?saved=" + firstID + "&n=" + itoa(saved)
 		http.Redirect(w, r, "/finance/journal"+q, http.StatusSeeOther)
 	}
+}
+
+// lineButtons handles Add another product and Take this product off. Both
+// redraw the page from the draft that was just read back, so everything else
+// already typed survives the round trip.
+func (s *Server) lineButtons(w http.ResponseWriter, r *http.Request, d *moneyDraft) bool {
+	if at := r.FormValue("addLine"); at != "" {
+		if i := atoiSafe(at); i >= 0 && i < len(d.Rows) {
+			d.Rows[i].Products = append(d.Rows[i].Products, moneyProductLine{})
+		}
+		s.renderMoneyForm(w, r, *d)
+		return true
+	}
+	if at := r.FormValue("removeLine"); at != "" {
+		rowPart, linePart, ok := strings.Cut(at, "-")
+		i, j := atoiSafe(rowPart), atoiSafe(linePart)
+		if ok && i >= 0 && i < len(d.Rows) && j >= 0 && j < len(d.Rows[i].Products) && len(d.Rows[i].Products) > 1 {
+			lines := d.Rows[i].Products
+			d.Rows[i].Products = append(lines[:j], lines[j+1:]...)
+		}
+		s.renderMoneyForm(w, r, *d)
+		return true
+	}
+	return false
 }
 
 // nextMovementID numbers a row that is being appended alongside others in the
@@ -461,16 +524,101 @@ func buildMovement(reg *register.Register, f *register.FinanceData, row moneyRow
 	if len(row.LineIDs) != 0 {
 		return register.MoneyMovement{}, "Pick the order those products belong to."
 	}
-	seen := map[string]bool{}
-	for _, id := range row.ProductIDs {
-		p, ok := register.ProductByID(reg, id)
-		if !ok || seen[id] {
-			return register.MoneyMovement{}, "Pick the products from the list."
+
+	products, agreedLines, text := resolveMoneyLines(reg, row)
+	if text != "" {
+		return register.MoneyMovement{}, text
+	}
+	m.Products = products
+
+	var agreed *int64
+	if row.Agreed != "" {
+		if len(agreedLines) == 0 {
+			return register.MoneyMovement{}, "Type the agreed quantity of at least one product, or leave the agreed total empty."
 		}
-		seen[id] = true
-		m.Products = append(m.Products, register.FinanceProductRef{ProductID: p.ID, ProductName: p.Name})
+		paise, err := register.ParseRupees(row.Agreed)
+		if err != nil {
+			return register.MoneyMovement{}, register.MoneyRefusal
+		}
+		agreed = &paise
+	}
+	if len(agreedLines) == 0 {
+		return m, ""
+	}
+
+	// A quantity was agreed, so this money entry is also the record of that
+	// agreement. The order is written here rather than on a second screen.
+	order := register.FinanceOrder{
+		ID: f.NextID("ORD"), PartyID: partyID, Lines: numberOrderLines(f, agreedLines),
+		OrderedAt: occurredAt, Status: "open",
+		CreatedAt: now, CreatedByID: actorID,
+	}
+	if agreed != nil {
+		// Never "estimated": the money screen offers no such choice, and this
+		// is the only value an older reader already understands.
+		order.AgreedPaise, order.AgreedKind = agreed, "exact"
+	}
+	f.Orders = append(f.Orders, order)
+	f.Audit = append(f.Audit, financeAuditFor(f, actorID, now, "order_created", "order", order.ID,
+		"Order recorded with the money entry", "", orderSummary(f, order)))
+	m.OrderID = order.ID
+	for _, l := range order.Lines {
+		m.OrderLineIDs = append(m.OrderLineIDs, l.ID)
 	}
 	return m, ""
+}
+
+// resolveMoneyLines turns one row's typed product lines into the snapshots the
+// movement carries and, for the lines that name a quantity, the order lines
+// that quantity belongs on. A product with no quantity is still a product this
+// money was for; it just agrees nothing.
+func resolveMoneyLines(reg *register.Register, row moneyRow) ([]register.FinanceProductRef, []register.FinanceOrderLine, string) {
+	var products []register.FinanceProductRef
+	var lines []register.FinanceOrderLine
+	seen := map[string]bool{}
+	for _, l := range row.Products {
+		if l.ProductID == "" {
+			if l.ProductName == "" && l.Quantity == "" {
+				continue
+			}
+			return nil, nil, "Pick each product from the list."
+		}
+		p, ok := register.ProductByID(reg, l.ProductID)
+		if !ok || seen[l.ProductID] {
+			return nil, nil, "Pick each product from the list, and each one only once."
+		}
+		seen[l.ProductID] = true
+		products = append(products, register.FinanceProductRef{ProductID: p.ID, ProductName: p.Name})
+		if l.Quantity == "" {
+			continue
+		}
+		quantity, err := strconv.Atoi(l.Quantity)
+		if err != nil || quantity < 1 {
+			return nil, nil, "Type the agreed quantity as a whole number of 1 or more, or leave it empty."
+		}
+		basis := register.Basis(l.Basis)
+		if basis != register.Rent && basis != register.Purchase {
+			return nil, nil, "Say whether each product with an agreed quantity is rented or bought."
+		}
+		lines = append(lines, register.FinanceOrderLine{
+			ProductID: p.ID, ProductNameSnapshot: p.Name,
+			ExpectedQuantity: quantity, Basis: basis,
+		})
+	}
+	return products, lines, ""
+}
+
+// numberOrderLines gives each new line its ID. NextID counts the lines already
+// stored, so several new lines in one save each need their own number without
+// the store seeing them yet.
+func numberOrderLines(f *register.FinanceData, lines []register.FinanceOrderLine) []register.FinanceOrderLine {
+	base := atoiSafe(strings.TrimPrefix(f.NextID("OLN"), "OLN-"))
+	out := make([]register.FinanceOrderLine, len(lines))
+	for i, l := range lines {
+		l.ID = "OLN-" + pad4(base+i)
+		out[i] = l
+	}
+	return out
 }
 
 // movementSummary is the one line an audit row carries.
@@ -511,8 +659,16 @@ func (s *Server) draftFromMovement(r *http.Request, id string) (moneyDraft, bool
 		row.Party.PickedID = m.PartyID
 		row.Purpose.PickedID = m.PurposeID
 		row.Mode.PickedID = m.ModeID
-		for _, p := range m.Products {
-			row.ProductIDs = append(row.ProductIDs, p.ProductID)
+		// A movement that already points at an order is corrected through the
+		// order's own tick boxes. Only a movement with no order gets the
+		// product lines back, so a correction cannot mint a second order for
+		// goods that are already recorded.
+		if m.OrderID == "" {
+			for _, p := range m.Products {
+				row.Products = append(row.Products, moneyProductLine{
+					ProductID: p.ProductID, ProductName: p.ProductName,
+				})
+			}
 		}
 		d.Rows = []moneyRow{row}
 	})
@@ -546,6 +702,9 @@ func (s *Server) financeMoneyEdit(w http.ResponseWriter, r *http.Request) {
 	if len(d.Rows) != 1 {
 		d.Rows = d.Rows[:1]
 	}
+	if handled := s.lineButtons(w, r, &d); handled {
+		return
+	}
 
 	now := s.now()
 	refusal := ""
@@ -566,6 +725,9 @@ func (s *Server) financeMoneyEdit(w http.ResponseWriter, r *http.Request) {
 			return errMoneyRefused
 		}
 
+		// buildMovement may mint an order and its audit event. If the
+		// correction turns out to change nothing, those go back too.
+		ordersBefore, auditBefore := len(f.Orders), len(f.Audit)
 		built, text := buildMovement(reg, f, d.Rows[0], sess.accountID, now)
 		if text != "" {
 			refusal = text
@@ -580,6 +742,7 @@ func (s *Server) financeMoneyEdit(w http.ResponseWriter, r *http.Request) {
 
 		changes := movementChanges(f, before, after, sess.accountID, now)
 		if len(changes) == 0 {
+			f.Orders, f.Audit = f.Orders[:ordersBefore], f.Audit[:auditBefore]
 			return nil
 		}
 		after.Changes = append(append([]register.FinanceChange{}, before.Changes...), changes...)
