@@ -22,7 +22,6 @@
     {{template "value-picker.html" .Purpose}}
     {{template "value-picker.html" .Mode}}
     {{$row := .Index}}
-    {{if not .Lines}}
     <div class="field">
       <span class="lab">Products this money is for</span>
       <p class="note">Leave this empty if the money is not for any product. Leave the quantity empty if no number was agreed.</p>
@@ -48,7 +47,6 @@
       <input class="inp" type="text" name="agreedTotal-{{.Index}}" value="{{.Agreed}}" inputmode="decimal" autocomplete="off">
       <p class="note">The whole amount agreed for the products above, if one was agreed. It is not the amount paid today.</p>
     </div>
-    {{end}}
     <div class="field">
       <span class="lab">Part of an order already recorded</span>
       <select class="inp" name="orderId">

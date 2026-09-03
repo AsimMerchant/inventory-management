@@ -222,7 +222,7 @@ func TestMoneyProductsAreChosenOneAtATime(t *testing.T) {
 		"direction-0": {"out"}, "amount": {"3000"},
 		"occurredAt": {"2026-09-03T11:00"},
 		"partyName":  {"Bala Transport"}, "purposeName": {"Freight"},
-		"modeName":   {"Cash"},
+		"modeName": {"Cash"},
 	}
 	for i, id := range []string{chairs, tents, drums} {
 		moneyLine(entry, 0, i, id, "", "")
@@ -303,8 +303,8 @@ func TestSplitMoneyEntryKeepsEachRowsProducts(t *testing.T) {
 		"direction-0": {"out"}, "amount": {"4000"},
 		"occurredAt": {"2026-09-03T11:00"},
 		"partyName":  {"Bala Transport"}, "purposeName": {"Freight"},
-		"modeName":   {"Cash"},
-		"addRow":     {"yes"},
+		"modeName": {"Cash"},
+		"addRow":   {"yes"},
 	}
 	moneyLine(added, 0, 0, chairs, "", "")
 	status, page := admin.post(t, "/finance/movements/new", added)
@@ -366,7 +366,7 @@ func TestCorrectionCanTakeEveryProductOff(t *testing.T) {
 		"direction-0": {"out"}, "amount": {"1500"},
 		"occurredAt": {"2026-09-03T11:00"},
 		"partyName":  {"Bala Transport"}, "purposeName": {"Freight"},
-		"modeName":   {"Cash"},
+		"modeName": {"Cash"},
 	}
 	moneyLine(seed, 0, 0, chairs, "", "")
 	moneyLine(seed, 0, 1, tents, "", "")

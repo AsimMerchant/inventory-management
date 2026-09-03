@@ -17,13 +17,13 @@ var errMoneyRefused = errors.New("money refused")
 // moneyRow is one row of the Record money form, held exactly as typed so a
 // refusal hands the whole page back untouched.
 type moneyRow struct {
-	Index       int
-	Direction   string
-	Amount      string
-	OccurredAt  string
-	Party       valuePicker
-	Purpose     valuePicker
-	Mode        valuePicker
+	Index      int
+	Direction  string
+	Amount     string
+	OccurredAt string
+	Party      valuePicker
+	Purpose    valuePicker
+	Mode       valuePicker
 	OrderID    string
 	LineIDs    []string
 	Settlement string
@@ -489,6 +489,12 @@ func buildMovement(reg *register.Register, f *register.FinanceData, row moneyRow
 	}
 
 	if row.OrderID != "" {
+		// Both halves are on screen at once, so both can be filled in. Taking
+		// the order and quietly dropping the quantities and the agreed total
+		// would throw away money somebody typed.
+		if rowHasTypedProducts(row) || row.Agreed != "" {
+			return register.MoneyMovement{}, "Fill in the products above, or choose an order already recorded — not both."
+		}
 		order, ok := register.FinanceOrderByID(f, row.OrderID)
 		if !ok {
 			return register.MoneyMovement{}, "Pick the order from the list."
@@ -566,6 +572,17 @@ func buildMovement(reg *register.Register, f *register.FinanceData, row moneyRow
 		m.OrderLineIDs = append(m.OrderLineIDs, l.ID)
 	}
 	return m, ""
+}
+
+// rowHasTypedProducts says whether any product line on this row has anything
+// in it. An empty box is still submitted, so the number of lines says nothing.
+func rowHasTypedProducts(row moneyRow) bool {
+	for _, l := range row.Products {
+		if l.ProductID != "" || l.ProductName != "" || l.Quantity != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveMoneyLines turns one row's typed product lines into the snapshots the

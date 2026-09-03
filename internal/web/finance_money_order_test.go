@@ -164,10 +164,11 @@ func TestMoneyProductLinesAreRefusedInPlainWords(t *testing.T) {
 	chairsName, tablesName := "Chairs", "Round tables"
 	type line struct{ product, quantity, basis string }
 	for _, tc := range []struct {
-		name   string
-		lines  []line
-		agreed string
-		want   string
+		name      string
+		lines     []line
+		agreed    string
+		want      string
+		withOrder bool
 	}{
 		{
 			name:  "a quantity with no rent or purchase tick",
@@ -201,13 +202,40 @@ func TestMoneyProductLinesAreRefusedInPlainWords(t *testing.T) {
 			agreed: "about five thousand",
 			want:   register.MoneyRefusal,
 		},
+		{
+			// Both halves are on screen at once. Taking the order and dropping
+			// the typed quantity would lose what somebody agreed.
+			name:      "an order chosen and products typed as well",
+			withOrder: true,
+			lines:     []line{{chairsName, "500", "rent"}},
+			want:      "Fill in the products above, or choose an order already recorded — not both.",
+		},
+		{
+			name:      "an order chosen and an agreed total typed as well",
+			withOrder: true,
+			agreed:    "5000",
+			want:      "Fill in the products above, or choose an order already recorded — not both.",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newTestServer(t, register.WalkthroughT0(), orderNow)
 			admin, key, _ := financeAdmin(t, e)
+			existing := 0
+			if tc.withOrder {
+				// One order already recorded, the thing the dropdown is for.
+				seed := moneyForm("out", "1000", "Sharma Events", "Advance", "Cash")
+				moneyLine(seed, 0, 0, productIDNamed(t, e, tablesName), "40", "rent")
+				if status, body := admin.post(t, "/finance/movements/new", seed); status != 303 {
+					t.Fatalf("the seed entry = %d: %s", status, body)
+				}
+				existing = 1
+			}
 			before := mustReadFile(t, e.path)
 
 			form := moneyForm("out", "5000", "Sharma Events", "Advance", "Cash")
+			if tc.withOrder {
+				form.Set("orderId", orders(t, e, key)[0].ID)
+			}
 			for i, l := range tc.lines {
 				moneyLine(form, 0, i, productIDNamed(t, e, l.product), l.quantity, l.basis)
 			}
@@ -218,7 +246,7 @@ func TestMoneyProductLinesAreRefusedInPlainWords(t *testing.T) {
 			if status != 200 || !strings.Contains(body, tc.want) {
 				t.Fatalf("gave %d without %q", status, tc.want)
 			}
-			if len(movements(t, e, key)) != 0 || len(orders(t, e, key)) != 0 {
+			if len(movements(t, e, key)) != existing || len(orders(t, e, key)) != existing {
 				t.Error("a refused entry wrote something")
 			}
 			if string(mustReadFile(t, e.path)) != string(before) {
@@ -300,13 +328,25 @@ func TestCorrectingAnAutoOrderedEntryMakesNoSecondOrder(t *testing.T) {
 	if status != 200 {
 		t.Fatalf("the correction form = %d", status)
 	}
-	// It is corrected through the order's own tick boxes, so there is no
-	// second place to type a quantity for goods already recorded.
+	// It is corrected through the order's own tick boxes, and nothing is
+	// pre-filled into the product lines, so a correction cannot agree the same
+	// quantity twice.
 	if !strings.Contains(edit, `name="lineIds-0"`) {
 		t.Error("the correction form does not offer the order's products")
 	}
-	if strings.Contains(edit, `name="qty-0-0"`) {
-		t.Error("the correction form offers a second way to agree the same quantity")
+	if !strings.Contains(edit, `name="qty-0-0" min="1" value=""`) {
+		t.Error("the correction form pre-filled the product lines from the order")
+	}
+	// Typing into them anyway is refused rather than silently dropped.
+	both := moneyForm("out", "5000", "Sharma Events", "Advance", "Cash")
+	both.Set("orderId", orderID)
+	moneyLine(both, 0, 0, productIDNamed(t, e, "Round tables"), "40", "purchase")
+	if status, body := admin.post(t, "/finance/movements/"+id+"/edit", both); status != 200 ||
+		!strings.Contains(body, "not both") {
+		t.Errorf("an order plus typed products gave %d", status)
+	}
+	if all := orders(t, e, key); len(all) != 1 {
+		t.Fatalf("the refused correction left %d orders", len(all))
 	}
 
 	fix := moneyForm("out", "5500", "Sharma Events", "Advance", "Cash")
