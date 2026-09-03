@@ -1,6 +1,6 @@
 <h1>Orders</h1>
-<p><a href="/finance/orders/new">Record an order</a></p>
-{{if not .Orders}}<p>No orders recorded yet.</p>{{end}}
+<p class="note">Orders are recorded on <a href="/finance/movements/new">Record money</a>, together with the payment. These are the orders recorded so far.</p>
+{{if not .Orders}}<p>No orders recorded yet. One is written whenever you record money and say how many were agreed.</p>{{end}}
 <ul class="orders">
   {{range .Orders}}
   <li>

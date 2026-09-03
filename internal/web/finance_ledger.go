@@ -308,7 +308,7 @@ func (s *Server) renderMoneyForm(w http.ResponseWriter, r *http.Request, d money
 		d.Heading = "Record money"
 	}
 	if d.Submit == "" {
-		d.Submit = "Save transaction"
+		d.Submit = "Save"
 	}
 	if d.Action == "" {
 		d.Action = "/finance/movements/new"
@@ -493,7 +493,7 @@ func buildMovement(reg *register.Register, f *register.FinanceData, row moneyRow
 		// the order and quietly dropping the quantities and the agreed total
 		// would throw away money somebody typed.
 		if rowHasTypedProducts(row) || row.Agreed != "" {
-			return register.MoneyMovement{}, "Fill in the products above, or choose an order already recorded — not both."
+			return register.MoneyMovement{}, "You have typed products here and also picked an earlier order. Take the products off, or set the order box back to \"No, this is a new one\"."
 		}
 		order, ok := register.FinanceOrderByID(f, row.OrderID)
 		if !ok {
@@ -540,7 +540,7 @@ func buildMovement(reg *register.Register, f *register.FinanceData, row moneyRow
 	var agreed *int64
 	if row.Agreed != "" {
 		if len(agreedLines) == 0 {
-			return register.MoneyMovement{}, "Type the agreed quantity of at least one product, or leave the agreed total empty."
+			return register.MoneyMovement{}, "Type how many of each product, or clear the agreed total."
 		}
 		paise, err := register.ParseRupees(row.Agreed)
 		if err != nil {

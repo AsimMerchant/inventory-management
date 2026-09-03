@@ -173,8 +173,10 @@ body{
   font-weight:600;
   letter-spacing:.005em;
 }
-:root[data-theme="dark"] .btn{color:#0F1720}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn{color:#0F1720}}
+/* Dark ink on the accent-filled button only. A ghost button has no fill, so
+   giving it this colour paints near-black text on a near-black page. */
+:root[data-theme="dark"] .btn:not(.ghost){color:#0F1720}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn:not(.ghost){color:#0F1720}}
 .btn.ghost{background:transparent;color:var(--ink-soft);border:1px solid var(--rule)}
 .btnrow{display:flex;gap:.6rem;align-items:center;margin-top:1.1rem;flex-wrap:wrap}
 

@@ -194,7 +194,7 @@ func TestMoneyProductLinesAreRefusedInPlainWords(t *testing.T) {
 			name:   "an agreed total with nothing agreed",
 			lines:  []line{{tablesName, "", ""}},
 			agreed: "5000",
-			want:   "Type the agreed quantity of at least one product, or leave the agreed total empty.",
+			want:   "Type how many of each product, or clear the agreed total.",
 		},
 		{
 			name:   "an agreed total that is not money",
@@ -208,13 +208,13 @@ func TestMoneyProductLinesAreRefusedInPlainWords(t *testing.T) {
 			name:      "an order chosen and products typed as well",
 			withOrder: true,
 			lines:     []line{{chairsName, "500", "rent"}},
-			want:      "Fill in the products above, or choose an order already recorded — not both.",
+			want:      "Take the products off, or set the order box back",
 		},
 		{
 			name:      "an order chosen and an agreed total typed as well",
 			withOrder: true,
 			agreed:    "5000",
-			want:      "Fill in the products above, or choose an order already recorded — not both.",
+			want:      "Take the products off, or set the order box back",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -342,7 +342,7 @@ func TestCorrectingAnAutoOrderedEntryMakesNoSecondOrder(t *testing.T) {
 	both.Set("orderId", orderID)
 	moneyLine(both, 0, 0, productIDNamed(t, e, "Round tables"), "40", "purchase")
 	if status, body := admin.post(t, "/finance/movements/"+id+"/edit", both); status != 200 ||
-		!strings.Contains(body, "not both") {
+		!strings.Contains(body, "Take the products off") {
 		t.Errorf("an order plus typed products gave %d", status)
 	}
 	if all := orders(t, e, key); len(all) != 1 {
@@ -524,5 +524,29 @@ func TestAddingAndRemovingProductLinesKeepsWhatWasTyped(t *testing.T) {
 	if !strings.Contains(page, `value="Chairs" data-picker-text`) ||
 		!strings.Contains(page, `name="qty-0-0" min="1" value="500"`) {
 		t.Error("removing a line lost the line that was kept")
+	}
+}
+
+// The order screen is gone from the ledger's point of view: nothing offers to
+// record one, because recording money is how an order is now written. The
+// orders already recorded stay readable, and correcting one stays reachable
+// from the order itself.
+func TestNothingOffersToRecordAnOrderOnItsOwn(t *testing.T) {
+	e := newTestServer(t, register.WalkthroughT0(), orderNow)
+	admin, _, _ := financeAdmin(t, e)
+
+	for _, page := range []string{"/finance", "/finance/orders"} {
+		_, body := admin.get(t, page)
+		if strings.Contains(body, "Record an order") {
+			t.Errorf("%s still offers to record an order on its own", page)
+		}
+		if strings.Contains(body, `href="/finance/orders/new"`) {
+			t.Errorf("%s still links to the order form", page)
+		}
+	}
+
+	_, orders := admin.get(t, "/finance/orders")
+	if !strings.Contains(orders, `href="/finance/movements/new"`) {
+		t.Error("the orders page does not say where orders now come from")
 	}
 }

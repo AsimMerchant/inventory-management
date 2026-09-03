@@ -3,6 +3,7 @@ package web
 import (
 	"html"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -536,5 +537,23 @@ func emptyRegister() *register.Register {
 			ID: "STF-0001", Name: "Suresh Kumar", Mobile: "98450 22117",
 			CreatedAt: started,
 		}},
+	}
+}
+
+// A ghost button has no fill, so the dark-mode ink meant for the filled button
+// must never reach it: near-black text on a near-black page is unreadable and
+// the reader cannot tell what they are pressing.
+func TestDarkModeInkDoesNotReachGhostButtons(t *testing.T) {
+	css, err := os.ReadFile("static/app.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`:root[data-theme="dark"] .btn:not(.ghost){color:#0F1720}`,
+		`:root:not([data-theme="light"]) .btn:not(.ghost){color:#0F1720}`,
+	} {
+		if !strings.Contains(string(css), want) {
+			t.Errorf("the dark-mode button ink is not scoped away from ghost buttons: %s", want)
+		}
 	}
 }

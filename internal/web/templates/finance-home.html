@@ -1,13 +1,12 @@
 <h1>Financial ledger</h1>
 <p class="note">{{.Who}} · {{.Mobile}} · {{.Role}}</p>
-<p>Orders, money received or paid, and stock returned or sold are recorded separately.</p>
+<p>Money paid or received, and stock returned or sold, are recorded separately. What was agreed is recorded with the money.</p>
 <div class="tiles">
   <div class="tile"><span class="lab">Money paid</span><strong>{{.Totals.Paid}}</strong></div>
   <div class="tile"><span class="lab">Money received</span><strong>{{.Totals.Received}}</strong></div>
   <div class="tile"><span class="lab">Net paid</span><strong>{{.Totals.Net}}</strong></div>
 </div>
 <p>
-  <a href="/finance/orders/new">Record an order</a> ·
   <a href="/finance/movements/new">Record money</a> ·
   <a href="/finance/supplier-returns/new">Return rented goods</a> ·
   <a href="/finance/sales/new">Record a sale</a>
