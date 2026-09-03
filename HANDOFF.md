@@ -94,6 +94,38 @@ the screen the balances work will live next to.
 
 Then **balances**, which needs planning with him before a line is written.
 
+### Supplier names move into the open file — decided 3 September 2026, NOT BUILT
+
+The user spotted the asymmetry himself: *"i think supplier name should also be plain since
+inward person will also be entering it."* He is right, and the desk is the unprotected
+side.
+
+**Today the desk types the supplier as free text.** `Inward.Supplier` is a plain string
+filled from an ordinary text box on *Stuff came in*, with no list and no picker. So
+"Sharma Tent House", "Sharma tent house" and "Sharma Tents" become three suppliers on the
+Suppliers tab. Meanwhile the ledger keeps a tidy `FinanceParty` list of the same real
+names inside the encrypted vault. Two vocabularies for one supplier, and only the ledger's
+is protected from drift — the exact duplicate problem the reusable-value pattern exists to
+prevent.
+
+**Decided: move the whole party list into the plain `Register`,** beside products and the
+new acquisition kinds. The desk picks a supplier instead of typing it; the ledger offers
+the same list. One vocabulary, both sides, with the administrator rename / merge /
+safe-delete already built for it.
+
+**The exposure was put to him plainly and he accepted it.** The list is "supplier or other
+party", so it also holds people who are paid but never deliver — a labour contractor, a
+transporter. In the open, those names become visible on ordinary desk screens. His answer:
+*"go with the simple one, move the whole list, we want money portion protected, which is
+served."* Names carry no amount, no purpose and no payment mode; every figure stays in the
+vault. The alternative — keeping pure payees private and publishing only names used as a
+delivery supplier — was offered and rejected as more machinery than it is worth.
+
+Do after the acquisition-kinds work: both touch `Register`, `finance_values.go` and the
+inward screen. Migration is the open question to settle when it is built — existing
+`Inward.Supplier` strings have to become references to list entries, and two spellings
+already in a real file are two entries until somebody merges them.
+
 ### The main fields must be searchable everywhere — asked 3 September 2026, NOT BUILT
 
 The user, 3 September 2026: *"basically every field should be searchable everywhere, the
