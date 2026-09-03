@@ -97,11 +97,15 @@ says nothing about whether money moved. The screen must allow a money entry agai
 donated goods without treating the donation as a payment, and must allow an agreed
 quantity with no agreed amount at all.
 
+**The kinds list gets the same administrator maintenance as the other reusable
+values.** Decided by the user on 3 September 2026, asked and answered in plain terms: a
+typed kind rots the same way a typed supplier name does — `donatd` beside `donated`, and
+from then on deliveries split across both. So the kinds list gets the rename, merge and
+safe-delete-if-unused screen that supplier/payee, purpose and payment mode already have,
+built the same way rather than as a new mechanism.
+
 **Open, and explicitly his call, not to be assumed:**
 
-- Does the shared kinds list need the administrator rename / merge / safe-delete
-  maintenance the other reusable values have? The deferred note below says yes; it has
-  not been confirmed since the design changed shape.
 - What happens to the four orders already recorded in a real file, and to `FinanceOrder`
   in schema 3, if the order screen merges into the money screen.
 
