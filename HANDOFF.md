@@ -43,6 +43,40 @@ the screen the balances work will live next to.
 
 Then **balances**, which needs planning with him before a line is written.
 
+### Challan numbers belong on the ledger side too — asked 3 September 2026, NOT BUILT
+
+The user's ask, to be planned with him later, not built now. The same paper challan that
+the desk copies onto a delivery is often in the hands of the person who placed the order
+or paid the money. Today only the physical side records it — `Inward.ChallanNo` and
+`Issue.ChallanNo` — and the ledger has no challan field at all, so the two halves of the
+same piece of paper cannot be brought together.
+
+**The shape he proposed, and it matches how the desk already works.** One challan can
+cover five products. The desk does not record it once for five things; it records five
+deliveries, each carrying the same challan number typed again. So the merged money and
+order screen should do exactly the same: **the challan number sits on each product line,
+not once per entry.** Five lines under one challan repeat the number, five lines under
+five challans each carry their own. His words: *"if 5 products get delivered under same
+challan then inward guy will do the needful 1 by 1 for each product, same should be done
+on record money and order screen."*
+
+Keeping it per line rather than per entry is what makes the two sides comparable at all,
+since the desk's records are per product too.
+
+Worth deciding when this is planned, none of it assumed:
+
+- Whether typing a challan number the desk has already used should show what came in
+  under it — the register can already search challans, `FindOutstandingByChallan` in
+  `register/challan.go`, though today only across issues.
+- Whether repeating the number down five lines should be a single press, given the
+  standing rule that nobody types an identifier from memory. Typing the same challan five
+  times is exactly the kind of remembering that rule exists to prevent.
+- Whether a challan on the ledger side stays free text, as it is on the desk side, or
+  becomes something the two halves must agree on. Free text matches today's behaviour and
+  is the smaller change.
+
+Follows the merge and the third kind. Nothing here is started.
+
 ### The ledger cannot say where you stand — named 3 September 2026, NOT BUILT
 
 The user's words after being shown what an estimate does today: *"so we didnt actually
