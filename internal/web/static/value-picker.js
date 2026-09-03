@@ -38,7 +38,35 @@
       req.send();
     }
 
+    // A value typed into another row of this same form has not been saved
+    // yet, so the server cannot know about it. Offer it here anyway: one
+    // settlement split into four amounts often repeats the purpose, and being
+    // made to type it again — differently, by accident — is how a list rots.
+    function pending(q) {
+      var want = q.trim().toLowerCase();
+      var out = [];
+      var seen = {};
+      var all = document.querySelectorAll('[data-values][data-kind="' + kind + '"]');
+      for (var i = 0; i < all.length; i++) {
+        if (all[i] === box) continue;
+        var other = all[i].querySelector('[data-values-text]');
+        var otherID = all[i].querySelector('[data-values-id]');
+        if (!other || !otherID || otherID.value !== '') continue;
+        var v = other.value.trim();
+        var key = v.toLowerCase();
+        if (v === '' || seen[key]) continue;
+        if (want !== '' && key.indexOf(want) !== 0) continue;
+        seen[key] = true;
+        out.push({ id: '', value: v, label: v });
+      }
+      return out;
+    }
+
     function draw(found, q) {
+      var extra = pending(q);
+      for (var n = 0; n < extra.length; n++) {
+        if (!exact(found, extra[n].value)) found = found.concat([extra[n]]);
+      }
       rows = found;
       here = found.length ? 0 : -1;
       list.innerHTML = '';
