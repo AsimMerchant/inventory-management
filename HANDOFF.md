@@ -125,17 +125,22 @@ again under `STH/4471`, again from another supplier, and the stock is one pooled
 which is his original decision that a chair is a chair. A challan is therefore never a
 property of a *product*; it belongs to one delivery, and on the ledger side to one line.
 
-**A live constraint decides the shape here.** `finance_validate.go:315-318` refuses an
-order that repeats one product on the same basis, and that check runs on every vault
-decrypt. So 300 chairs on rent under one challan and 200 on rent under another cannot sit
-in a single entry, and relaxing the rule later would make older readers refuse the file —
-the schema problem again.
+**The screen already handles this, and an earlier note here overstated a constraint.**
+Corrected 3 September 2026 after the user pushed back and the code was read.
 
-The answer needs no relaxing: **one money entry per challan.** Two challans, two entries.
-That is exactly what the desk already does, one delivery at a time, and the product may
-then appear under as many challans as reality requires, each in its own entry. Do not
-build the merged screen on an assumption of one line per product, and do not widen that
-validator to work around it.
+*Record money* already has **Add another amount**, and `financeMoneyNew` builds one
+separate `MoneyMovement` per row (`web/finance_ledger.go:361-370`). So ₹5,000 for 30
+chairs and ₹6,000 for 30 more chairs, same supplier and same challan, go in together
+today as two rows in one submission. Under the merge each row creates its own order, so
+chairs appear once in each of two orders.
+
+`finance_validate.go:315-318` does refuse an order that repeats one product on the same
+basis, and that check runs on every vault decrypt — but with one order per row it is
+never reached. It bites only if a single row lists the same product twice among its own
+lines, and the natural answer there is a second row.
+
+So: do not build the merged screen on an assumption of one line per product, and do not
+widen that validator, but no special shape is needed either. The rows already do it.
 
 **A payment cannot be tied to a delivery by matching challan numbers.** They are
 allowed to differ, so equality is not a key. Any such linking has to work on product and
