@@ -43,6 +43,34 @@ the screen the balances work will live next to.
 
 Then **balances**, which needs planning with him before a line is written.
 
+### The main fields must be searchable everywhere — asked 3 September 2026, NOT BUILT
+
+The user, 3 September 2026: *"basically every field should be searchable everywhere, the
+main fields, like supplier, inward challan, issue challan, etc."* Same failure mode he
+already met in the product pickers: a screen that works with three rows and is useless
+with four hundred. To be planned with him, not built now.
+
+**What exists today is two search boxes in the entire program.** Challan on *Someone is
+returning* (`templates/return.html:11`) and challan on *Who did what*
+(`templates/log.html:24`). Nothing else. *Stock*, *Who is holding what*, *What came in*
+and *Suppliers* have no search at all — the reader scrolls. The typeahead on products and
+parties is a pick-list for filling in a form, not a way to find records.
+
+The main fields, as he named them: supplier, inward challan, issue challan, product,
+person. Findable wherever they appear, not only on the one screen that happens to have a
+box today.
+
+**The rule that constrains it**, from the correction above: the supplier's challan and our
+issue challan are different papers and are searched separately. "Searchable everywhere"
+never means one box that matches both numbers.
+
+Two things follow that are worth settling when this is planned:
+
+- Searching a delivery by the supplier's challan does not exist in any form today.
+  `FindOutstandingByChallan` walks issues only. It has to be written.
+- The read-only views were built to be read whole. Adding search to them is not one
+  change but four screens, and it should probably follow one pattern rather than four.
+
 ### Challan numbers belong on the ledger side too — asked 3 September 2026, NOT BUILT
 
 The user's ask, to be planned with him later, not built now. The same paper challan that
@@ -78,9 +106,11 @@ They are unrelated pieces of paper. A supplier challan `447` and one of our issu
 `447` have nothing to do with each other, so a search that returns both is wrong. Never
 match them, never search them together, never share a field.
 
-**The ledger's challan is the supplier's one.** Money is paid against the vendor's bill,
-so a money entry carries the vendor's number and ties to the delivery bearing the same
-number. Our issue book has no business in the ledger.
+**The ledger's challan is the supplier's one, and it is the same number the desk types.**
+Confirmed by the user on 3 September 2026. Not a new kind of challan: the vendor's bill
+number appears on *Stuff came in* and on the merged money screen, one per product line,
+and that is what ties the payment to the delivery. Our issue book has no business in the
+ledger.
 
 Worth deciding when this is planned, none of it assumed:
 
