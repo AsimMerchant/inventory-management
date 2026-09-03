@@ -27,6 +27,57 @@ times. The reviewed contracts are specs 17–21: protected vault/accounts, order
 reusable values, money/audit/printable journal, supplier returns and sales, and the
 integrated browser acceptance gate.
 
+### Step one of the merge is built and driven in a browser — 3 September 2026
+
+On branch `fix/product-pickers-at-scale`. **Deliberately additive: nothing was removed.**
+*Record an order* is still on the menu and still works. Step two, taking it off and making
+the order screens read-only, has not been done.
+
+*Record money* now carries product **lines**. Each line is the single-product typeahead,
+an **Agreed quantity** and **Rented / Bought**; once per money row there is an **Agreed
+total (₹)** with no estimate/exact choice. On save the screen mints the `FinanceOrder`
+itself and links the movement through `OrderID` and `OrderLineIDs` — the user's own idea,
+*"what if record money also did record an order"*. Nothing new is stored and
+`SchemaVersion` stays 3. `AgreedKind` is written as `exact` only when a total was typed;
+writing it unconditionally fails `validateOrders` and would stop the vault decrypting.
+
+The order dropdown was kept, reworded to *Part of an order already recorded* and demoted
+below the lines. It is how instalments work: a later payment points at the agreement
+already recorded instead of minting a second one. An order chosen **and** products typed
+is refused rather than silently merged.
+
+**Driven in a real browser against a real binary**, register seeded through the UI:
+
+- money with one line saved, order created, journal shows *Order: Sharma Tent House ·
+  Products: Chairs*, order reads *300 Chairs — rent · Agreed total ₹25,000.00*
+- two lines in one row produced one order carrying both
+- a brand-new product typed on the money screen was created and used in the same entry
+- the both-halves refusal appeared verbatim
+- instalment against the existing order minted no second order
+- **with JavaScript switched off**, the `<noscript>` selects saved product, quantity,
+  basis and agreed total, and the order was still created
+- no JavaScript errors on any screen
+
+**A pre-existing defect found and fixed in passing.** `FinanceLineIsReferenced` was a stub
+returning `false`, its comment still waiting for spec 19 — which shipped. So an order line
+a money entry pointed at was never locked: the order screen offered to remove it and the
+save died in `validateMovements` behind the misleading *"the register file could not be
+written"*. Rare before, normal now that every entry with a quantity mints an order.
+Implemented properly, voided movements excluded, and confirmed in the browser: the edit
+screen says *This product is already used by a ledger entry* and offers no remove button.
+
+**Known limitations of step one, not defects to hunt:**
+
+- Correcting an auto-ordered money entry does not offer the quantities again; the quantity
+  is corrected on the order screen. Typing into the lines is refused, not silently ignored.
+- `movementChanges` still labels corrections *Related order* and *Related products* while
+  the screen now says *Part of an order already recorded* and *Products this money is for*.
+- `templates/multi-picker.html` and `static/multi-picker.js` now have no consumer. Left in
+  place rather than deleted.
+- Coverage of `internal/register` measures 92.2% merged, 87.1% alone. HANDOFF's older
+  claim of 95.4% could not be reproduced and predates this work. **92.2% does not meet the
+  95% gate** and is recorded here rather than glossed.
+
 ### The agreed order of work, settled with the user on 3 September 2026
 
 Four things to clear, then one to plan. This order is his, and the reasoning is his:
