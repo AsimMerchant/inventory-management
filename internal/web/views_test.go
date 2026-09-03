@@ -151,6 +151,25 @@ func TestStockPills(t *testing.T) {
 	}
 }
 
+// A product created before its goods arrive must not claim it was bought.
+// Nobody has ticked rent or purchase yet, because there is no delivery to tick.
+func TestStockSaysNothingAboutBasisBeforeAnythingArrives(t *testing.T) {
+	reg := register.WalkthroughT0()
+	reg.Products = append(reg.Products, register.Product{
+		ID: "PRD-9001", Name: "Shamiana poles", CreatedAt: tenAM, CreatedBy: "Ramesh",
+	})
+	e := newTestServer(t, reg, tenAM)
+	_, body := e.get("/stock")
+
+	row := tableRow(t, body, "Shamiana poles")
+	if strings.Contains(row, "Purchase") || strings.Contains(row, "Rent") {
+		t.Errorf("a product with no deliveries claims a basis: %s", row)
+	}
+	if !strings.Contains(row, `<span class="pill none">Not received yet</span>`) {
+		t.Errorf("a product with no deliveries does not say so: %s", row)
+	}
+}
+
 func TestStockThreeButtons(t *testing.T) {
 	e := newTestServer(t, register.WalkthroughT0(), tenAM)
 	_, body := e.get("/stock")

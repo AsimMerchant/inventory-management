@@ -49,7 +49,12 @@ func (s *Server) stockView(w http.ResponseWriter, r *http.Request) {
 				CameIn: row.CameIn, Out: row.Out, OnHand: row.OnHand,
 				FixHref: "/product/" + row.ProductID + "/edit",
 			}
-			if row.Basis != register.Rent {
+			// Nothing has been delivered, so nobody has said yet whether this
+			// was rented or bought. Saying "Purchase" here is a guess the
+			// register has no business making.
+			if row.CameIn == 0 {
+				out.PillClass, out.PillWord = "pill none", "Not received yet"
+			} else if row.Basis != register.Rent {
 				out.PillClass, out.PillWord = "pill sale", "Purchase"
 			}
 			if row.OnHand > 0 {
