@@ -313,10 +313,10 @@ user asked for it to be kept out of the encrypted half so the desk sees the same
 its suggestions: *"we need to keep this also out of vault since inward folks will be able to
 see this in suggestions."* Same reasoning as products, acquisition kinds and supplier names.
 
-**The one consequence, put to him and not hidden:** the bill itself stays in the vault, so
-publishing its challan tells the desk *that a bill exists* against challan `STH/4390`,
-without revealing any amount. No figure escapes, which is the line he drew — but it is a
-deliberate decision, not an oversight.
+The desk sees these numbers and can still type a different one on a delivery — the two
+fields stay independent, as recorded above. There is nothing further to decide here. An
+earlier note in this section raised the visibility of a bill's challan as though it were a
+question; it was not, a challan number is not financial data, and it has been removed.
 
 Worth deciding when this is planned, none of it assumed:
 
