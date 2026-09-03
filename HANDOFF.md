@@ -352,11 +352,32 @@ two-screen split this whole day was spent removing.
 common case only by making the person add a second row, and his case is one event:
 *"day 1 at same fucking time i pay 5k i get bill of 20k, same exact time."*
 
-**His proposal, adopted: three amount boxes on one line.**
+**His proposal, adopted: three amount boxes on one line.** The whole screen, shown to him
+in plain text on 3 September 2026 and approved — *"so simple"*. This is the form. Build
+this, do not redesign it:
 
-    Sharma Tent House · 3 September · cash · challan STH/4390
-    Billed  20,000   ·   Paid  5,000   ·   Received  ____
-    500 chairs, on rent
+    Record something
+
+      Date and time      3 September 2026, 12:40 pm
+      Supplier           Sharma Tent House
+      Payment mode       Cash
+      Challan no.        STH/4390
+
+      What this is for
+        Product          Chairs
+        How many         500
+        How these came in   [On rent]  Bought   Some other way
+
+        + Add another product
+
+      Billed     20,000
+      Paid        5,000
+      Received        —
+
+      Reference          —
+      Remarks            —
+
+      + Add another amount            [ Save ]
 
 Fill in whichever applies. Bill only, advance with no bill, both at once, or a refund
 received. One save, and behind it two records are written. This is also what a hand-written
