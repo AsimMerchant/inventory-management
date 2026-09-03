@@ -80,6 +80,10 @@ func TestInward500ChairsRaisesOnHandTo890(t *testing.T) {
 	}
 	got := saved.Inwards[6]
 	want := register.WalkthroughT1().Inwards[6]
+	want.PartyID = got.PartyID
+	if got.PartyID == "" || register.InwardPartyName(saved, got) != "Sharma Tent House" {
+		t.Error("the delivery was not linked to the shared supplier")
+	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("the saved inward is\n%+v\nwant\n%+v", got, want)
 	}

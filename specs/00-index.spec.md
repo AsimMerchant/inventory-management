@@ -30,8 +30,8 @@ Each spec depends only on the ones above it.
 | 14 | `14-global-controls-and-log-product-picker.spec.md` | Dashboard/change-person controls everywhere; working select-only product autocomplete on the log | one focused day |
 | 15 | `15-product-rename-and-cascading-delete.spec.md` | Rename products; atomically tombstone a product and every related entry while retaining audit history | one focused day |
 | 16 | `16-issue-challan-and-return-search.spec.md` | Optional reusable issue challans; correction/log audit and partial challan search for returns | one focused day |
-| 17 | `17-protected-finance-vault-and-accounts.spec.md` | Schema-3 encrypted vault, individual accounts, admin setup/recovery, sessions and authorization | more than one focused day |
-| 18 | `18-financial-orders-and-reusable-values.spec.md` | Multi-product orders and mandatory reusable party/purpose/mode suggestions | one focused day |
+| 17 | `17-protected-finance-vault-and-accounts.spec.md` | Schema-5 public shared party names plus encrypted vault, individual accounts, admin setup/recovery, sessions and authorization | more than one focused day |
+| 18 | `18-financial-orders-and-reusable-values.spec.md` | Multi-product orders, shared public party suggestions and protected purpose/mode suggestions | one focused day |
 | 19 | `19-money-movements-audit-and-journal.spec.md` | Exact incoming/outgoing money, audited corrections/voids, filtered printable journal | more than one focused day |
 | 20 | `20-supplier-returns-and-stock-sales.spec.md` | Physical supplier returns/sales, pooled-stock limits and public neutral stock projection | more than one focused day |
 | 21 | `21-financial-ui-browser-acceptance.spec.md` | Protected UI integration, no-script path and real-browser/restart release acceptance | one focused day |
@@ -134,9 +134,12 @@ Every spec assumes these and none of them may be traded away:
 - Over-issue and over-return are refused.
 - A short return cannot be saved without a disposition and a remark.
 - Short items stay outstanding against the person. Nothing is ever written off.
-- Ordinary inventory routes contain no settlement, payment, amount or protected supplier
-  data. Specs 17–21 permit them only in the encrypted, authenticated financial area; a
-  neutral public disposal projection changes stock without exposing why or to whom.
+- Ordinary inventory routes contain no settlement, payment, amount or financial
+  party-link data. Schema 5 intentionally exposes the shared supplier/other-party IDs,
+  current names and aliases needed by the inward picker, but never why a name exists or
+  which financial record uses it. Specs 17–21 permit the protected facts only in the
+  encrypted, authenticated financial area; a neutral public disposal projection changes
+  stock without exposing why or to whom.
 - A wrong entry can be corrected or deleted, never silently: every correction keeps what
   it used to say, who changed it and when, and a deleted record stays in the file as a
   tombstone that counts towards nothing.
@@ -153,11 +156,14 @@ Every spec assumes these and none of them may be traded away:
   nothing is physically erased and the activity log remains complete.
 - An issue challan is optional free text, may be reused across products and recipient
   groups, and is never an internal ID or an allocation key.
-- `v1.1.1` writes schema 2. The financial feature writes schema 3, reads schema 1/2
-  without writing during open, migrates in memory, and writes schema 3 on the next
-  successful atomic save. Before deployment, back up the JSON and remove every older
-  executable: a schema-2 binary can otherwise fall back to a schema-2 backup and later
-  overwrite schema-3 fields.
+- `v1.1.1` writes schema 2. The first financial vault wrote schema 3, acquisition kinds
+  moved the file to schema 4, and the shared supplier/other-party list writes schema 5.
+  The current build reads schemas 1–5, migrates the public portion in memory without an
+  open-time write, and writes schema 5 on the next successful atomic save. A schema-4
+  encrypted party list joins the public list on the first authenticated financial write;
+  authenticated suggestions combine both lists before that write. Before deployment,
+  back up the JSON and remove every older executable: an older binary can otherwise fall
+  back to an older-schema backup and later overwrite newer fields.
 
 ## `v1.1.1` release group
 
@@ -169,12 +175,17 @@ acceptance scenario pass, followed by an independent `release_gate` result of `R
 
 ## Financial ledger release group
 
-Specs 17–21 ship together on `feature/financial-ledger`; no version number has been
-chosen. The group is incomplete until encryption/auth/order/money/settlement tests, the
-normal and no-script Browser-skill scenario, restart/raw-file inspection, plain-language
-review and independent `release_gate` all pass. This group explicitly supersedes the
-old whole-tree authentication/money/supplier-return prohibitions; it does not weaken
-their no-leak equivalents for ordinary routes.
+Specs 17–21 were originally developed together on `feature/financial-ledger` and later
+released in `v1.2.1`. The schema-5 shared-party follow-up is being completed on
+`fix/product-pickers-at-scale` and is not ready until its migration/privacy tests, normal
+and no-script browser scenario, restart/raw-file inspection, plain-language review and
+independent `release_gate` all pass. This group explicitly supersedes the old whole-tree
+authentication/money/supplier-return prohibitions; it does not weaken their no-leak
+equivalents for ordinary routes.
+
+The later billed/paid/received columns, supplier running-balance pages, supplier-challan
+fields and broad product/supplier/person/challan search remain planned work recorded in
+`HANDOFF.md`. They are not silently added to specs 17–21 by the schema-5 party migration.
 
 ## Whole-build verification
 
@@ -250,7 +261,7 @@ old items 3 and 16.
 | 5 | A product with both rent and purchase inwards shows `Rent` if any inward is rent. |
 | 7 | No product rename in `v1.0.x`. Superseded for `v1.1.1` by spec 15: rename keeps the product ID and records old/new, actor and time. |
 | 8 | Near-duplicate product names: confirmation step on a shared 4-character prefix. |
-| 9 | Supplier names stay free text with a case-fold guard, so `Sharma tent house` reuses `Sharma Tent House`. |
+| 9 | Originally supplier names were free text with case-fold reuse. Superseded by schema 5/specs 17–18: inward uses the shared party picker; exact folded text reuses one public party and distinct spellings remain separate until admin combine. |
 | 10 | No pluralisation logic. Rephrase any label that would read `1 chairs` rather than build a pluraliser. |
 | 11 | The `productWord` casing rule as derived in spec 07. |
 | 12 | The amber banner renders the real product name — `2 Round tables`, not `2 tables`. |

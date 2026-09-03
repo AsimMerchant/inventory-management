@@ -26,18 +26,18 @@ type SettlementDraft struct {
 }
 
 // resolveParty finds or creates the party inside the caller's transaction.
-func resolveParty(f *register.FinanceData, d SettlementDraft, actorID string, now time.Time) (register.FinanceReusableValue, error) {
+func resolveParty(reg *register.Register, d SettlementDraft) (register.Party, error) {
 	if d.PartyID != "" {
-		if v, ok := register.ResolveFinanceValue(f, d.PartyID); ok && v.Kind == register.FinanceParty {
-			return v, nil
+		if p, ok := register.ResolveParty(reg, d.PartyID); ok {
+			return p, nil
 		}
 	}
-	id, err := register.AddFinanceValue(f, register.FinanceParty, d.PartyText, actorID, now)
+	id, err := register.AddParty(reg, d.PartyText)
 	if err != nil {
-		return register.FinanceReusableValue{}, ErrSettlementRefused
+		return register.Party{}, ErrSettlementRefused
 	}
-	v, _ := register.FinanceValueByID(f, id)
-	return v, nil
+	p, _ := register.PartyByID(reg, id)
+	return p, nil
 }
 
 // RecordSettlement writes the protected settlement and its neutral public
@@ -51,7 +51,7 @@ func (s *Store) RecordSettlement(vaultKey []byte, actorID string, d SettlementDr
 		if !ok {
 			return ErrSettlementRefused
 		}
-		party, err := resolveParty(f, d, actorID, now)
+		party, err := resolveParty(reg, d)
 		if err != nil {
 			return err
 		}
@@ -84,7 +84,7 @@ func (s *Store) RecordSettlement(vaultKey []byte, actorID string, d SettlementDr
 				RecordedAt: now, RecordedByID: actorID,
 			})
 			f.Audit = append(f.Audit, FinanceAudit(f, actorID, now, "supplier_return_created",
-				"supplier_return", id, settlementSummary(party.Value, d.Quantity, p.Name), "", ""))
+				"supplier_return", id, settlementSummary(party.Name, d.Quantity, p.Name), "", ""))
 		} else {
 			id = f.NextID("SAL")
 			f.Sales = append(f.Sales, register.StockSale{
@@ -93,7 +93,7 @@ func (s *Store) RecordSettlement(vaultKey []byte, actorID string, d SettlementDr
 				RecordedAt: now, RecordedByID: actorID,
 			})
 			f.Audit = append(f.Audit, FinanceAudit(f, actorID, now, "sale_created",
-				"sale", id, settlementSummary(party.Value, d.Quantity, p.Name), "", ""))
+				"sale", id, settlementSummary(party.Name, d.Quantity, p.Name), "", ""))
 		}
 		return nil
 	})
@@ -116,7 +116,7 @@ var ErrNotEnough = fmt.Errorf("not enough stock")
 // rewrites the paired public removal, so the two halves never drift apart.
 func (s *Store) EditSettlement(vaultKey []byte, actorID, kind, id string, d SettlementDraft, now time.Time) error {
 	return s.UpdateFinance(vaultKey, func(reg *register.Register, f *register.FinanceData) error {
-		party, err := resolveParty(f, d, actorID, now)
+		party, err := resolveParty(reg, d)
 		if err != nil {
 			return err
 		}
@@ -169,7 +169,7 @@ func (s *Store) EditSettlement(vaultKey []byte, actorID, kind, id string, d Sett
 				reg.Disposals[i].Sources = sources
 			}
 		}
-		applySettlementEdit(f, kind, id, party.ID, sources, d, actorID, now)
+		applySettlementEdit(reg, f, kind, id, party.ID, sources, d, actorID, now)
 		return nil
 	})
 }
@@ -228,7 +228,7 @@ func (s *Store) VoidSettlement(vaultKey []byte, actorID, kind, id, reason string
 
 // applySettlementEdit writes the corrected values and records one audited
 // change per changed field, in the order each spec fixes.
-func applySettlementEdit(f *register.FinanceData, kind, id, partyID string,
+func applySettlementEdit(reg *register.Register, f *register.FinanceData, kind, id, partyID string,
 	sources []register.DisposalAllocation, d SettlementDraft, actorID string, now time.Time) {
 
 	change := func(field, label, from, to string) *register.FinanceChange {
@@ -257,7 +257,7 @@ func applySettlementEdit(f *register.FinanceData, kind, id, partyID string,
 			for _, c := range []*register.FinanceChange{
 				change("quantity", "How many", quantityText(x.Quantity(), x.Product.ProductName), quantityText(d.Quantity, x.Product.ProductName)),
 				change("returnedAt", "Date and time returned", timeText(x.ReturnedAt), timeText(d.At)),
-				change("party", "Supplier", register.FinanceValueText(f, x.PartyID), register.FinanceValueText(f, partyID)),
+				change("party", "Supplier", register.PartyText(reg, x.PartyID), register.PartyText(reg, partyID)),
 				change("reference", "Reference", blank(x.Reference), blank(d.Reference)),
 				change("remarks", "Remarks", blank(x.Remarks), blank(d.Remarks)),
 			} {
@@ -287,7 +287,7 @@ func applySettlementEdit(f *register.FinanceData, kind, id, partyID string,
 		for _, c := range []*register.FinanceChange{
 			change("quantity", "How many", quantityText(x.Quantity(), x.Product.ProductName), quantityText(d.Quantity, x.Product.ProductName)),
 			change("soldAt", "Date and time sold", timeText(x.SoldAt), timeText(d.At)),
-			change("party", "Buyer or other party", register.FinanceValueText(f, x.BuyerPartyID), register.FinanceValueText(f, partyID)),
+			change("party", "Buyer or other party", register.PartyText(reg, x.BuyerPartyID), register.PartyText(reg, partyID)),
 			change("reference", "Reference", blank(x.Reference), blank(d.Reference)),
 			change("remarks", "Remarks", blank(x.Remarks), blank(d.Remarks)),
 		} {

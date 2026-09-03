@@ -48,11 +48,9 @@
   </div>
 
   <div class="row2">
-    <div class="field">
-      <span class="lab">Came from</span>
-      <input class="inp" type="text" name="supplier" list="suppliers" autocomplete="off" value="{{.Supplier}}">
-      <datalist id="suppliers">{{range .Suppliers}}<option value="{{.}}"></option>{{end}}</datalist>
-      <div class="hint">Leave blank if you don't know.</div>
+    <div>
+      {{template "value-picker.html" .Party}}
+      <div class="hint">Pick the name if it is on the list. Leave blank if you don't know.</div>
     </div>
     <div class="field">
       <span class="lab">Challan no.</span>
@@ -74,4 +72,5 @@
 {{template "newproduct.html" .Picker}}
 
 <script src="/static/picker.js"></script>
+<script src="/static/value-picker.js"></script>
 <script src="/static/inward.js"></script>

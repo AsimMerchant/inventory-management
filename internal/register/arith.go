@@ -485,6 +485,7 @@ func TileCounts(r *Register, now time.Time) Tiles {
 // SupplierRow is one line of the suppliers record: what came in from whom.
 // There is no debt in this program, so there is no field that could hold one.
 type SupplierRow struct {
+	PartyID      string // the shared list entry, "" when the delivery names nobody
 	Supplier     string // "" means no supplier was recorded on those inwards
 	ProductID    string
 	ProductName  string
@@ -502,6 +503,7 @@ type SupplierRow struct {
 // is shown on every rent row for that product.
 func SupplierRows(r *Register) []SupplierRow {
 	type key struct {
+		party     string
 		supplier  string
 		productID string
 		basis     Basis
@@ -511,7 +513,13 @@ func SupplierRows(r *Register) []SupplierRow {
 	totals := map[key]int{}
 	var order []key
 	for _, in := range LiveInwards(r) {
+		// Two spellings of one supplier are one row when both point at the
+		// same list entry. A delivery with no entry — typed into the file by
+		// hand — keeps its own row under the text it carries.
 		k := key{supplier: in.Supplier, productID: in.ProductID, basis: in.Basis, kindID: in.KindID}
+		if p, ok := ResolveParty(r, in.PartyID); ok {
+			k.party, k.supplier = p.ID, p.Name
+		}
 		if k.basis != Other {
 			k.kindID = ""
 		}
@@ -534,6 +542,7 @@ func SupplierRows(r *Register) []SupplierRow {
 	rows := make([]SupplierRow, 0, len(order))
 	for _, k := range order {
 		row := SupplierRow{
+			PartyID:     k.party,
 			Supplier:    k.supplier,
 			ProductID:   k.productID,
 			ProductName: names[k.productID],

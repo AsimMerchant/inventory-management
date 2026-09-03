@@ -133,11 +133,9 @@ func (s *Server) fill(d *orderDraft, r *http.Request) {
 	if d.OrderedAt == "" {
 		d.OrderedAt = s.now().Format("2006-01-02T15:04")
 	}
-	_ = s.st.ReadFinance(sess.vaultKey, func(f *register.FinanceData) {
-		d.Party = pickerFor(f, register.FinanceParty, "Supplier or other party",
-			"partyId", "partyName", d.Party.PickedID, d.Party.PickedText, "")
-	})
-	s.st.Read(func(reg *register.Register) {
+	_ = s.st.ReadBoth(sess.vaultKey, func(reg *register.Register, _ *register.FinanceData) {
+		d.Party = partyPicker(reg, "Supplier or other party",
+			"partyId", "partyName", d.Party.PickedID, d.Party.PickedText)
 		kinds := register.LiveAcquisitionKinds(reg)
 		for i := range d.Lines {
 			l := &d.Lines[i]
@@ -223,8 +221,8 @@ func (s *Server) financeOrderNew(w http.ResponseWriter, r *http.Request) {
 
 	newID := ""
 	err := s.st.UpdateFinance(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) error {
-		partyID, err := resolveValue(f, register.FinanceParty, d.Party.PickedID, d.Party.PickedText, sess.accountID, now)
-		if err != nil {
+		partyID, _, err := resolvePartyID(reg, d.Party.PickedID, d.Party.PickedText)
+		if err != nil || partyID == "" {
 			refusal = "Say who this order is with."
 			return errOrderRefused
 		}
@@ -345,7 +343,7 @@ func buildLines(reg *register.Register, f *register.FinanceData, d orderDraft, a
 
 // orderSummary is the one-line description an audit row carries.
 func orderSummary(reg *register.Register, f *register.FinanceData, o register.FinanceOrder) string {
-	parts := []string{register.FinanceValueText(f, o.PartyID)}
+	parts := []string{register.PartyText(reg, o.PartyID)}
 	parts = append(parts, lineText(reg, o.Lines))
 	if o.AgreedPaise != nil {
 		parts = append(parts, register.FormatRupees(*o.AgreedPaise))
@@ -409,7 +407,7 @@ type orderLineView struct {
 // live rename is shown beside it rather than replacing it.
 func viewOrder(reg *register.Register, f *register.FinanceData, o register.FinanceOrder) orderView {
 	v := orderView{
-		ID: o.ID, Party: register.FinanceValueText(f, o.PartyID), Status: o.Status,
+		ID: o.ID, Party: register.PartyText(reg, o.PartyID), Status: o.Status,
 		Remarks: o.Remarks, OrderedAt: o.OrderedAt, CreatedAt: o.CreatedAt,
 		Changes: o.Changes, Cancelled: o.Status == "cancelled",
 	}
@@ -674,8 +672,8 @@ func (s *Server) financeOrderEdit(w http.ResponseWriter, r *http.Request) {
 		}
 		before := f.Orders[at]
 
-		partyID, err := resolveValue(f, register.FinanceParty, d.Party.PickedID, d.Party.PickedText, sess.accountID, now)
-		if err != nil {
+		partyID, _, err := resolvePartyID(reg, d.Party.PickedID, d.Party.PickedText)
+		if err != nil || partyID == "" {
 			refusal = "Say who this order is with."
 			return errOrderRefused
 		}
@@ -757,7 +755,7 @@ func orderChanges(reg *register.Register, f *register.FinanceData, before, after
 		})
 	}
 	add("party", "Supplier or other party",
-		register.FinanceValueText(f, before.PartyID), register.FinanceValueText(f, after.PartyID))
+		register.PartyText(reg, before.PartyID), register.PartyText(reg, after.PartyID))
 	add("products", "Products ordered", lineText(reg, before.Lines), lineText(reg, after.Lines))
 	add("agreedTotal", "Agreed total", totalText(before.AgreedPaise), totalText(after.AgreedPaise))
 	add("agreedKind", "Estimate or exact", kindText(before.AgreedKind), kindText(after.AgreedKind))
@@ -799,14 +797,14 @@ func (s *Server) draftFromOrder(r *http.Request, id string) (orderDraft, bool) {
 		Action: "/finance/orders/" + id + "/edit",
 	}
 	found := false
-	_ = s.st.ReadFinance(sess.vaultKey, func(f *register.FinanceData) {
+	_ = s.st.ReadBoth(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) {
 		o, ok := register.FinanceOrderByID(f, id)
 		if !ok {
 			return
 		}
 		found = true
 		d.Party.PickedID = o.PartyID
-		d.Party.PickedText = register.FinanceValueText(f, o.PartyID)
+		d.Party.PickedText = register.PartyText(reg, o.PartyID)
 		for _, l := range o.Lines {
 			d.Lines = append(d.Lines, orderLine{
 				ProductID: l.ProductID, ProductName: l.ProductNameSnapshot,

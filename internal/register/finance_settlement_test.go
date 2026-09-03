@@ -36,11 +36,12 @@ func inward(id, productID string, quantity int, basis Basis, supplier, receivedO
 }
 
 // partiesFor makes the finance side with one party per name given.
-func partiesFor(names ...string) (*FinanceData, map[string]string) {
+func partiesFor(r *Register, names ...string) (*FinanceData, map[string]string) {
 	f := financeSeed()
+	LinkInwardParties(r)
 	ids := map[string]string{}
 	for _, n := range names {
-		id, err := AddFinanceValue(f, FinanceParty, n, "FAC-0001", settleAt)
+		id, err := AddParty(r, n)
 		if err != nil {
 			panic(err)
 		}
@@ -104,7 +105,7 @@ func TestOnHandSubtractsPublicDisposalsWithoutFinanceUnlock(t *testing.T) {
 		inward("INW-0001", "PRD-0001", 100, Rent, "Sharma Events", "2026-09-01"),
 		inward("INW-0002", "PRD-0002", 60, Purchase, "Gupta Traders", "2026-09-01"),
 	)
-	f, ids := partiesFor("Sharma Events", "Gupta Traders")
+	f, ids := partiesFor(r, "Sharma Events", "Gupta Traders")
 
 	if got := OnHand(r, "PRD-0001"); got != 100 {
 		t.Fatalf("before any disposal Tents are %d", got)
@@ -146,7 +147,7 @@ func TestSupplierReturnLimitedByOnHandAndSupplierRentalReceipts(t *testing.T) {
 		IssuedAt: settleAt, PersonInchargeName: "Suresh Kumar",
 		PersonInchargeMobile: "98450 22117", RecordedAt: settleAt,
 	})
-	f, ids := partiesFor("Sharma Events", "Gupta Traders")
+	f, ids := partiesFor(r, "Sharma Events", "Gupta Traders")
 
 	if got := OnHand(r, "PRD-0001"); got != 60 {
 		t.Fatalf("on hand is %d, want 60", got)
@@ -188,7 +189,7 @@ func TestSupplierReturnAllocatesOldestEligibleInwards(t *testing.T) {
 		inward("INW-0004", "PRD-0001", 40, Rent, "", "2026-09-01"),
 		inward("INW-0005", "PRD-0001", 25, Rent, "Gupta Traders", "2026-09-01"),
 	)
-	f, ids := partiesFor("Sharma Events", "Gupta Traders")
+	f, ids := partiesFor(r, "Sharma Events", "Gupta Traders")
 
 	sources, err := AllocateSupplierReturn(r, f, ids["Sharma Events"], "PRD-0001", 90)
 	if err != nil {
@@ -210,13 +211,10 @@ func TestSupplierReturnAllocatesOldestEligibleInwards(t *testing.T) {
 	}
 
 	// Correcting the party's spelling keeps the old inwards attributed to it.
-	for i := range f.ReusableValues {
-		if f.ReusableValues[i].ID == ids["Sharma Events"] {
-			f.ReusableValues[i].Changes = append(f.ReusableValues[i].Changes, FinanceChange{
-				At: settleAt, ByAccountID: "FAC-0001", ByName: "Asha Patel", ByMobile: "9820011111",
-				Field: "value", Label: "Party", From: "Sharma Events", To: "Sharma Tent House",
-			})
-			f.ReusableValues[i].Value = "Sharma Tent House"
+	for i := range r.Parties {
+		if r.Parties[i].ID == ids["Sharma Events"] {
+			r.Parties[i].PreviousNames = append(r.Parties[i].PreviousNames, "Sharma Events")
+			r.Parties[i].Name = "Sharma Tent House"
 		}
 	}
 	after, err := AllocateSupplierReturn(r, f, ids["Sharma Events"], "PRD-0001", 90)
@@ -228,13 +226,13 @@ func TestSupplierReturnAllocatesOldestEligibleInwards(t *testing.T) {
 	}
 
 	// A merged-away spelling still resolves to the surviving party.
-	old, err := AddFinanceValue(f, FinanceParty, "Sharma Tents", "FAC-0001", settleAt)
+	old, err := AddParty(r, "Sharma Tents")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := range f.ReusableValues {
-		if f.ReusableValues[i].ID == old {
-			f.ReusableValues[i].MergedIntoID = ids["Sharma Events"]
+	for i := range r.Parties {
+		if r.Parties[i].ID == old {
+			r.Parties[i].MergedIntoID = ids["Sharma Events"]
 		}
 	}
 	// What one party sent still resolves through renames and merges. That
@@ -265,7 +263,7 @@ func TestSaleLimitedByOnHandAndPurchasedReceipts(t *testing.T) {
 		IssuedAt: settleAt, PersonInchargeName: "Suresh Kumar",
 		PersonInchargeMobile: "98450 22117", RecordedAt: settleAt,
 	})
-	f, ids := partiesFor("Patel Decorators")
+	f, ids := partiesFor(r, "Patel Decorators")
 
 	if got := OnHand(r, "PRD-0002"); got != 60 {
 		t.Fatalf("on hand is %d, want 60", got)
@@ -298,7 +296,7 @@ func TestSaleLimitedByOnHandAndPurchasedReceipts(t *testing.T) {
 
 func TestSupplierObligationUsesActualReceiptsNotOrderOrMoney(t *testing.T) {
 	r := stockFor()
-	f, ids := partiesFor("Sharma Events")
+	f, ids := partiesFor(r, "Sharma Events")
 
 	// An order and an advance payment change nothing: this counts goods.
 	f.Orders = append(f.Orders, FinanceOrder{
@@ -355,9 +353,25 @@ func TestSupplierObligationUsesActualReceiptsNotOrderOrMoney(t *testing.T) {
 	}
 }
 
+func TestSupplierObligationCreditsTheSourceSupplierNotReturnRecipient(t *testing.T) {
+	r := stockFor(inward("INW-0001", "PRD-0001", 10, Rent, "Sharma Events", "2026-09-02"))
+	f, ids := partiesFor(r, "Sharma Events", "Transporter")
+
+	disposeSupplierReturn(t, r, f, ids["Transporter"], "PRD-0001", 10, settleAt)
+	rows := SupplierObligations(r, f)
+	if len(rows) != 1 {
+		t.Fatalf("obligations are %+v, want one source-supplier row", rows)
+	}
+	row := rows[0]
+	if row.PartyID != ids["Sharma Events"] || row.PartyName != "Sharma Events" ||
+		row.ProductID != "PRD-0001" || row.Received != 10 || row.Returned != 10 || row.Remaining != 0 {
+		t.Fatalf("source supplier obligation is %+v", row)
+	}
+}
+
 func TestValidatePairingRefusesEveryOrphanAndMismatch(t *testing.T) {
 	r := stockFor(inward("INW-0001", "PRD-0001", 100, Rent, "Sharma Events", "2026-09-01"))
-	f, ids := partiesFor("Sharma Events")
+	f, ids := partiesFor(r, "Sharma Events")
 	disposeSupplierReturn(t, r, f, ids["Sharma Events"], "PRD-0001", 30, settleAt)
 	if err := ValidatePairing(r, f); err != nil {
 		t.Fatalf("a sound pairing was refused: %v", err)
@@ -397,7 +411,7 @@ func TestValidatePairingRefusesEveryOrphanAndMismatch(t *testing.T) {
 		},
 	} {
 		r := stockFor(inward("INW-0001", "PRD-0001", 100, Rent, "Sharma Events", "2026-09-01"))
-		f, ids := partiesFor("Sharma Events")
+		f, ids := partiesFor(r, "Sharma Events")
 		disposeSupplierReturn(t, r, f, ids["Sharma Events"], "PRD-0001", 30, settleAt)
 		breakIt(r, f)
 		if err := ValidatePairing(r, f); err == nil {
@@ -411,7 +425,7 @@ func TestSettlementRowsAreNewestFirstWhicheverKind(t *testing.T) {
 		inward("INW-0001", "PRD-0001", 100, Rent, "Sharma Events", "2026-09-01"),
 		inward("INW-0002", "PRD-0002", 100, Purchase, "Gupta Traders", "2026-09-01"),
 	)
-	f, ids := partiesFor("Sharma Events", "Patel Decorators")
+	f, ids := partiesFor(r, "Sharma Events", "Patel Decorators")
 	disposeSupplierReturn(t, r, f, ids["Sharma Events"], "PRD-0001", 10, settleAt)
 	disposeSale(t, r, f, ids["Patel Decorators"], "PRD-0002", 20, settleAt.Add(time.Hour))
 

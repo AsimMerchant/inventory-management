@@ -234,48 +234,6 @@ func SettlementRows(r *Register, f *FinanceData) []SettlementRow {
 	return out
 }
 
-// PartyAliases is every spelling that has ever meant this party: its current
-// value, every wording it was corrected from, and the same for every value
-// merged into it. An inward typed before a rename must still match.
-func PartyAliases(f *FinanceData, partyID string) map[string]bool {
-	out := map[string]bool{}
-	var walk func(id string, depth int)
-	walk = func(id string, depth int) {
-		if depth > len(f.ReusableValues)+1 {
-			return
-		}
-		v, ok := FinanceValueByID(f, id)
-		if !ok {
-			return
-		}
-		if key := FoldKey(v.Value); key != "" {
-			out[key] = true
-		}
-		for _, c := range v.Changes {
-			if c.Field == "value" {
-				if key := FoldKey(c.From); key != "" {
-					out[key] = true
-				}
-			}
-		}
-		// Anything merged into this one carried its own history here.
-		for _, other := range f.ReusableValues {
-			if other.MergedIntoID == id {
-				walk(other.ID, depth+1)
-			}
-		}
-	}
-	walk(resolvedPartyID(f, partyID), 0)
-	return out
-}
-
-func resolvedPartyID(f *FinanceData, id string) string {
-	if v, ok := ResolveFinanceValue(f, id); ok {
-		return v.ID
-	}
-	return id
-}
-
 // door is one way stock leaves the store. Allow says which deliveries it may
 // draw on — rent and every typed kind may go back, purchase and every typed
 // kind may be sold — and Settles is the basis it takes from first, so goods
@@ -294,18 +252,14 @@ var (
 // eligibleInwards are the live inwards a settlement may draw on: the ones this
 // door settles first, and within each group oldest first — received date, then
 // when it was typed, then id.
-func eligibleInwards(r *Register, f *FinanceData, productID string, d door, aliases map[string]bool) []Inward {
+func eligibleInwards(r *Register, f *FinanceData, productID string, d door, party *partyFilter) []Inward {
 	out := []Inward{}
 	for _, in := range LiveInwards(r) {
 		if in.ProductID != productID || !d.Allow(in.Basis) {
 			continue
 		}
-		if aliases != nil {
-			key := FoldKey(in.Supplier)
-			// A blank supplier belongs to nobody and can never be returned.
-			if key == "" || !aliases[key] {
-				continue
-			}
+		if party != nil && !party.matches(r, in) {
+			continue
 		}
 		out = append(out, in)
 	}
@@ -359,10 +313,10 @@ func AllocatedFromInward(f *FinanceData, inwardID string) int {
 
 // remaining is what is still drawable from each eligible inward, in order.
 func remaining(r *Register, f *FinanceData, productID string, d door,
-	aliases map[string]bool, exceptKind, exceptID string) []DisposalAllocation {
+	party *partyFilter, exceptKind, exceptID string) []DisposalAllocation {
 
 	out := []DisposalAllocation{}
-	for _, in := range eligibleInwards(r, f, productID, d, aliases) {
+	for _, in := range eligibleInwards(r, f, productID, d, party) {
 		left := in.Quantity - allocatedFromInward(f, in.ID, exceptKind, exceptID)
 		if left > 0 {
 			out = append(out, DisposalAllocation{InwardID: in.ID, Quantity: left})
@@ -430,18 +384,43 @@ func supplierReturnAvailable(r *Register, f *FinanceData, _, productID, exceptKi
 // exists so a long product list can be narrowed to one supplier's goods on
 // request. It limits nothing: what may leave the store is SupplierReturnAvailable.
 func SupplierSentRented(r *Register, f *FinanceData, party, productID string) int {
-	aliases := map[string]bool{}
-	if v, ok := ResolveFinanceValue(f, party); ok {
-		aliases = PartyAliases(f, v.ID)
-	} else if v, ok := FindFinanceValueByText(f, FinanceParty, party); ok {
-		aliases = PartyAliases(f, v.ID)
-	} else if key := FoldKey(party); key != "" {
-		aliases = map[string]bool{key: true}
-	}
-	if len(aliases) == 0 {
+	filter := newPartyFilter(r, party)
+	if filter == nil {
 		return 0
 	}
-	return maxZero(sumAllocations(remaining(r, f, productID, returnDoor, aliases, "", "")))
+	return maxZero(sumAllocations(remaining(r, f, productID, returnDoor, filter, "", "")))
+}
+
+// partyFilter narrows deliveries to one party. A delivery matches by the list
+// entry it points at, and a delivery that has none — a row typed into the file
+// by hand — still matches by any name that party has ever been called.
+type partyFilter struct {
+	id      string
+	aliases map[string]bool
+}
+
+// newPartyFilter reads either an ID off a picker or a name typed on a screen,
+// and returns nil when neither says anything.
+func newPartyFilter(r *Register, party string) *partyFilter {
+	if p, ok := ResolveParty(r, party); ok {
+		return &partyFilter{id: p.ID, aliases: PartyAliases(r, p.ID)}
+	}
+	if p, ok := FindPartyByText(r, party); ok {
+		return &partyFilter{id: p.ID, aliases: PartyAliases(r, p.ID)}
+	}
+	if key := FoldKey(party); key != "" {
+		return &partyFilter{aliases: map[string]bool{key: true}}
+	}
+	return nil
+}
+
+func (pf *partyFilter) matches(r *Register, in Inward) bool {
+	if pf.id != "" && in.PartyID != "" {
+		return ResolvedPartyID(r, in.PartyID) == pf.id
+	}
+	// A blank supplier belongs to nobody and can never be returned.
+	key := FoldKey(in.Supplier)
+	return key != "" && pf.aliases[key]
 }
 
 // SupplierReturnAvailableByName is the same number for a party typed on the
@@ -543,25 +522,33 @@ func SupplierObligations(r *Register, f *FinanceData) []SupplierObligation {
 	type key struct{ party, product string }
 	byKey := map[key]*SupplierObligation{}
 
-	// Which folded supplier name belongs to which known party.
-	owner := map[string]FinanceReusableValue{}
-	for _, v := range LiveFinanceValues(f, FinanceParty) {
-		for alias := range PartyAliases(f, v.ID) {
-			owner[alias] = v
+	// Which folded name belongs to which list entry, for a delivery typed
+	// into the file by hand with no entry on it.
+	owner := map[string]Party{}
+	for _, p := range LiveParties(r) {
+		for alias := range PartyAliases(r, p.ID) {
+			owner[alias] = p
 		}
+	}
+	obligationKey := func(in Inward) (key, partyID, partyName string) {
+		key, partyName = FoldKey(in.Supplier), CleanName(in.Supplier)
+		if p, ok := ResolveParty(r, in.PartyID); ok {
+			partyID, partyName = p.ID, p.Name
+			key = FoldKey(p.Name)
+		} else if p, ok := owner[key]; ok {
+			partyID, partyName = p.ID, p.Name
+			key = FoldKey(p.Name)
+		}
+		return key, partyID, partyName
 	}
 
 	for _, in := range LiveInwards(r) {
 		if in.Basis != Rent {
 			continue
 		}
-		fold := FoldKey(in.Supplier)
+		fold, partyID, partyName := obligationKey(in)
 		if fold == "" {
 			continue
-		}
-		partyID, partyName := "", CleanName(in.Supplier)
-		if v, ok := owner[fold]; ok {
-			partyID, partyName = v.ID, v.Value
 		}
 		k := key{fold, in.ProductID}
 		row := byKey[k]
@@ -583,15 +570,6 @@ func SupplierObligations(r *Register, f *FinanceData) []SupplierObligation {
 		if !s.Live() {
 			continue
 		}
-		v, ok := ResolveFinanceValue(f, s.PartyID)
-		if !ok {
-			continue
-		}
-		k := key{FoldKey(v.Value), s.Product.ProductID}
-		row := byKey[k]
-		if row == nil {
-			continue
-		}
 		// Only the part of the return that came off rented stock settles
 		// anything. Goods that were donated or borrowed may go back through
 		// the same door, but nobody was owed them, so sending them back
@@ -600,7 +578,10 @@ func SupplierObligations(r *Register, f *FinanceData) []SupplierObligation {
 		for _, a := range s.Sources {
 			for _, in := range r.Inwards {
 				if in.ID == a.InwardID && in.Basis == Rent {
-					row.Returned += a.Quantity
+					fold, _, _ := obligationKey(in)
+					if row := byKey[key{fold, in.ProductID}]; row != nil {
+						row.Returned += a.Quantity
+					}
 				}
 			}
 		}

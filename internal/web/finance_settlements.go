@@ -73,8 +73,7 @@ func (s *Server) fillSettlement(d *settlementDraft, r *http.Request) {
 			label = "Buyer or other party"
 		}
 		d.PartyLabel = label
-		d.Party = pickerFor(f, register.FinanceParty, label,
-			"partyId", "partyName", d.Party.PickedID, d.Party.PickedText, "")
+		d.Party = partyPicker(reg, label, "partyId", "partyName", d.Party.PickedID, d.Party.PickedText)
 
 		// Type to find the product, like every other screen. The suggestions
 		// carry how many may still go back or be sold, because that number is
@@ -300,7 +299,7 @@ func (s *Server) renderSettlements(w http.ResponseWriter, r *http.Request, probl
 		for _, row := range register.SettlementRows(reg, f) {
 			v := settlementView{
 				Kind: row.Kind, KindLabel: settlementKindLabel(row.Kind), ID: row.ID,
-				Party:   register.FinanceValueText(f, row.PartyID),
+				Party:   register.PartyText(reg, row.PartyID),
 				Product: row.Product.ProductName, Quantity: row.Quantity,
 				At: row.At, RecordedAt: row.RecordedAt,
 				Reference: row.Reference, Remarks: row.Remarks,

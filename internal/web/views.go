@@ -307,7 +307,7 @@ func (s *Server) inwardsView(w http.ResponseWriter, r *http.Request) {
 				At: in.RecordedAt, ID: in.ID, ReceivedOn: in.ReceivedOn,
 				ProductName: names[in.ProductID], Quantity: in.Quantity,
 				PillClass: "pill rent", PillWord: "Rent",
-				Supplier: in.Supplier, ChallanNo: in.ChallanNo, ReceivedBy: in.ReceivedBy,
+				Supplier: register.InwardPartyName(reg, in), ChallanNo: in.ChallanNo, ReceivedBy: in.ReceivedBy,
 				Changes: changesOn[in.ID], FixHref: "/entry/" + in.ID + "/edit",
 			}
 			if in.Basis != register.Rent {

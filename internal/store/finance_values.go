@@ -166,6 +166,8 @@ func (s *Store) ReadBoth(vaultKey []byte, fn func(*register.Register, *register.
 	if err != nil {
 		return err
 	}
-	fn(deepCopy(s.reg), deepCopyFinance(data))
+	regCopy, dataCopy := deepCopy(s.reg), deepCopyFinance(data)
+	importVaultParties(regCopy, dataCopy)
+	fn(regCopy, dataCopy)
 	return nil
 }

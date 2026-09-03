@@ -230,8 +230,8 @@ func (s *Server) fillMoney(d *moneyDraft, r *http.Request) {
 			if row.Direction == "" {
 				row.Direction = string(register.MoneyOut)
 			}
-			row.Party = pickerFor(f, register.FinanceParty, "Supplier or other party",
-				"partyId", "partyName", row.Party.PickedID, row.Party.PickedText, "")
+			row.Party = partyPicker(reg, "Supplier or other party",
+				"partyId", "partyName", row.Party.PickedID, row.Party.PickedText)
 			row.Purpose = pickerFor(f, register.FinancePurpose, "Purpose",
 				"purposeId", "purposeName", row.Purpose.PickedID, row.Purpose.PickedText, "")
 			row.Mode = pickerFor(f, register.FinanceMode, "Payment mode",
@@ -241,7 +241,7 @@ func (s *Server) fillMoney(d *moneyDraft, r *http.Request) {
 			for _, o := range register.SortedFinanceOrders(f) {
 				row.Orders = append(row.Orders, moneyOrderChoice{
 					ID: o.ID, Selected: o.ID == row.OrderID,
-					Label: register.FinanceValueText(f, o.PartyID) + " · " + lineText(reg, o.Lines),
+					Label: register.PartyText(reg, o.PartyID) + " · " + lineText(reg, o.Lines),
 				})
 			}
 			row.Lines = []moneyLineChoice{}
@@ -253,7 +253,7 @@ func (s *Server) fillMoney(d *moneyDraft, r *http.Request) {
 					})
 				}
 			}
-			row.Settlements = settlementChoices(f, row.Settlement)
+			row.Settlements = settlementChoices(reg, f, row.Settlement)
 			// Type to find a product, the same as every other screen. Each
 			// line carries what was agreed for that product, so the money
 			// screen can mint the order without a second form.
@@ -284,17 +284,17 @@ func (s *Server) fillMoney(d *moneyDraft, r *http.Request) {
 	})
 }
 
-func settlementChoices(f *register.FinanceData, selected string) []moneySettlementChoice {
+func settlementChoices(reg *register.Register, f *register.FinanceData, selected string) []moneySettlementChoice {
 	var out []moneySettlementChoice
 	for _, x := range f.SupplierReturns {
 		value := "supplier_return:" + x.ID
 		out = append(out, moneySettlementChoice{Value: value, Selected: value == selected,
-			Label: "Supplier return " + x.ID + " — " + strconv.Itoa(x.Quantity()) + " " + x.Product.ProductName + " — " + register.FinanceValueText(f, x.PartyID)})
+			Label: "Supplier return " + x.ID + " — " + strconv.Itoa(x.Quantity()) + " " + x.Product.ProductName + " — " + register.PartyText(reg, x.PartyID)})
 	}
 	for _, x := range f.Sales {
 		value := "sale:" + x.ID
 		out = append(out, moneySettlementChoice{Value: value, Selected: value == selected,
-			Label: "Sale " + x.ID + " — " + strconv.Itoa(x.Quantity()) + " " + x.Product.ProductName + " — " + register.FinanceValueText(f, x.BuyerPartyID)})
+			Label: "Sale " + x.ID + " — " + strconv.Itoa(x.Quantity()) + " " + x.Product.ProductName + " — " + register.PartyText(reg, x.BuyerPartyID)})
 	}
 	return out
 }
@@ -382,7 +382,7 @@ func (s *Server) financeMoneyNew(w http.ResponseWriter, r *http.Request) {
 		f.Movements = append(f.Movements, built...)
 		for _, m := range built {
 			f.Audit = append(f.Audit, financeAuditFor(f, sess.accountID, now, "movement_created", "movement", m.ID,
-				movementSummary(f, m), "", ""))
+				movementSummary(reg, f, m), "", ""))
 		}
 		// Every total the ledger shows must still add up after this write.
 		if _, err := register.TotalMoney(f, nil); err != nil {
@@ -468,8 +468,8 @@ func buildMovement(reg *register.Register, f *register.FinanceData, row moneyRow
 		return register.MoneyMovement{}, "Pick the date and time of the transaction."
 	}
 
-	partyID, err := resolveValue(f, register.FinanceParty, row.Party.PickedID, row.Party.PickedText, actorID, now)
-	if err != nil {
+	partyID, _, err := resolvePartyID(reg, row.Party.PickedID, row.Party.PickedText)
+	if err != nil || partyID == "" {
 		return register.MoneyMovement{}, "Say who the money went to or came from."
 	}
 	purposeID, err := resolveValue(f, register.FinancePurpose, row.Purpose.PickedID, row.Purpose.PickedText, actorID, now)
@@ -679,11 +679,11 @@ func numberOrderLines(f *register.FinanceData, lines []register.FinanceOrderLine
 }
 
 // movementSummary is the one line an audit row carries.
-func movementSummary(f *register.FinanceData, m register.MoneyMovement) string {
+func movementSummary(reg *register.Register, f *register.FinanceData, m register.MoneyMovement) string {
 	parts := []string{
 		register.DirectionText(m.Direction),
 		register.FormatRupees(m.AmountPaise),
-		register.FinanceValueText(f, m.PartyID),
+		register.PartyText(reg, m.PartyID),
 		register.FinanceValueText(f, m.PurposeID),
 		register.FinanceValueText(f, m.ModeID),
 	}
@@ -797,7 +797,7 @@ func (s *Server) financeMoneyEdit(w http.ResponseWriter, r *http.Request) {
 		after.Settlements = built.Settlements
 		after.Reference, after.Remarks = built.Reference, built.Remarks
 
-		changes := movementChanges(f, before, after, sess.accountID, now)
+		changes := movementChanges(reg, f, before, after, sess.accountID, now)
 		if len(changes) == 0 {
 			f.Orders, f.Audit = f.Orders[:ordersBefore], f.Audit[:auditBefore]
 			return nil
@@ -805,7 +805,7 @@ func (s *Server) financeMoneyEdit(w http.ResponseWriter, r *http.Request) {
 		after.Changes = append(append([]register.FinanceChange{}, before.Changes...), changes...)
 		f.Movements[at] = after
 		f.Audit = append(f.Audit, financeAuditFor(f, sess.accountID, now, "movement_edited", "movement", id,
-			"Transaction corrected", movementSummary(f, before), movementSummary(f, after)))
+			"Transaction corrected", movementSummary(reg, f, before), movementSummary(reg, f, after)))
 		if _, err := register.TotalMoney(f, nil); err != nil {
 			refusal = register.ErrMoneyOverflow.Error()
 			return errMoneyRefused
@@ -827,7 +827,7 @@ func (s *Server) financeMoneyEdit(w http.ResponseWriter, r *http.Request) {
 
 // movementChanges records one change per changed field, in the order the spec
 // fixes. Submitting the same values again records nothing and saves nothing.
-func movementChanges(f *register.FinanceData, before, after register.MoneyMovement, actorID string, at time.Time) []register.FinanceChange {
+func movementChanges(reg *register.Register, f *register.FinanceData, before, after register.MoneyMovement, actorID string, at time.Time) []register.FinanceChange {
 	var out []register.FinanceChange
 	var name, mobile string
 	for _, a := range f.Accounts {
@@ -850,10 +850,10 @@ func movementChanges(f *register.FinanceData, before, after register.MoneyMoveme
 	add("occurredAt", "Date and time",
 		before.OccurredAt.Format("2 January 2006 · 3:04 pm"), after.OccurredAt.Format("2 January 2006 · 3:04 pm"))
 	add("party", "Supplier or other party",
-		register.FinanceValueText(f, before.PartyID), register.FinanceValueText(f, after.PartyID))
-	add("order", "Related order", orderRefText(f, before), orderRefText(f, after))
+		register.PartyText(reg, before.PartyID), register.PartyText(reg, after.PartyID))
+	add("order", "Related order", orderRefText(reg, f, before), orderRefText(reg, f, after))
 	add("products", "Related products", productRefText(before.Products), productRefText(after.Products))
-	add("settlements", "Related stock return or sale", settlementRefText(f, before.Settlements), settlementRefText(f, after.Settlements))
+	add("settlements", "Related stock return or sale", settlementRefText(reg, f, before.Settlements), settlementRefText(reg, f, after.Settlements))
 	add("purpose", "Purpose",
 		register.FinanceValueText(f, before.PurposeID), register.FinanceValueText(f, after.PurposeID))
 	add("mode", "Payment mode",
@@ -881,11 +881,11 @@ func financeSettlementExists(f *register.FinanceData, kind, id string) bool {
 	return false
 }
 
-func settlementRefText(f *register.FinanceData, refs []register.FinanceSettlementRef) string {
+func settlementRefText(reg *register.Register, f *register.FinanceData, refs []register.FinanceSettlementRef) string {
 	if len(refs) == 0 {
 		return "Blank"
 	}
-	choices := settlementChoices(f, "")
+	choices := settlementChoices(reg, f, "")
 	var out []string
 	for _, ref := range refs {
 		value := ref.Kind + ":" + ref.ID
@@ -900,7 +900,7 @@ func settlementRefText(f *register.FinanceData, refs []register.FinanceSettlemen
 	return strings.Join(out, "; ")
 }
 
-func orderRefText(f *register.FinanceData, m register.MoneyMovement) string {
+func orderRefText(reg *register.Register, f *register.FinanceData, m register.MoneyMovement) string {
 	if m.OrderID == "" {
 		return "Blank"
 	}
@@ -909,9 +909,9 @@ func orderRefText(f *register.FinanceData, m register.MoneyMovement) string {
 		return m.OrderID
 	}
 	if len(m.OrderLineIDs) == 0 {
-		return register.FinanceValueText(f, o.PartyID) + " · Whole order"
+		return register.PartyText(reg, o.PartyID) + " · Whole order"
 	}
-	return register.FinanceValueText(f, o.PartyID)
+	return register.PartyText(reg, o.PartyID)
 }
 
 // productRefText uses the snapshots, so a correction records what the row said
@@ -965,7 +965,7 @@ func (s *Server) financeMoneyVoid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	refusal := ""
-	err := s.st.UpdateFinance(sess.vaultKey, func(_ *register.Register, f *register.FinanceData) error {
+	err := s.st.UpdateFinance(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) error {
 		for i := range f.Movements {
 			if f.Movements[i].ID != id {
 				continue
@@ -984,7 +984,7 @@ func (s *Server) financeMoneyVoid(w http.ResponseWriter, r *http.Request) {
 				At: now, ByAccountID: sess.accountID, ByName: name, ByMobile: mobile, Reason: reason,
 			}
 			f.Audit = append(f.Audit, financeAuditFor(f, sess.accountID, now, "movement_voided", "movement", id,
-				reason, movementSummary(f, f.Movements[i]), "Voided"))
+				reason, movementSummary(reg, f, f.Movements[i]), "Voided"))
 			return nil
 		}
 		refusal = "That transaction is not on the list."

@@ -28,6 +28,40 @@ func TestAuthenticatedFinanceProductPickerWorksBeforeInventoryShift(t *testing.T
 	}
 }
 
+func TestLegacyVaultPartyAppearsInServerRenderedOrderForm(t *testing.T) {
+	e := newTestServer(t, register.WalkthroughT0(), orderNow)
+	admin, key, adminID := financeAdmin(t, e)
+
+	partyID := ""
+	if err := e.st.UpdateFinance(key, func(_ *register.Register, f *register.FinanceData) error {
+		var err error
+		partyID, err = register.AddFinanceValue(f, register.FinanceParty, "Sharma Events", adminID, orderNow)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.Update(func(r *register.Register) error {
+		r.SchemaVersion = 4
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	publicBefore := 0
+	e.st.Read(func(r *register.Register) { publicBefore = len(r.Parties) })
+
+	status, body := admin.get(t, "/finance/orders/new")
+	if status != http.StatusOK {
+		t.Fatalf("legacy order form = %d: %s", status, body)
+	}
+	assertContains(t, body, `<option value="`+partyID+`">Sharma Events</option>`)
+	e.st.Read(func(r *register.Register) {
+		_, imported := register.PartyByID(r, partyID)
+		if r.SchemaVersion != 4 || len(r.Parties) != publicBefore || imported {
+			t.Errorf("read-only form migrated the legacy file: schema=%d parties=%+v", r.SchemaVersion, r.Parties)
+		}
+	})
+}
+
 func TestBrowserShapedOrderKeepsIndependentBasisPerLine(t *testing.T) {
 	e := newTestServer(t, register.WalkthroughT0(), orderNow)
 	admin, key, _ := financeAdmin(t, e)
@@ -157,14 +191,12 @@ func TestOrderWithMultipleProductsAndMixedBasis(t *testing.T) {
 	}
 
 	// One party, created as part of the save.
-	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
-		parties := register.LiveFinanceValues(f, register.FinanceParty)
-		if len(parties) != 1 || parties[0].Value != "Sharma Events" || parties[0].ID != o.PartyID {
-			t.Errorf("parties are %+v", parties)
+	e.st.Read(func(reg *register.Register) {
+		party, ok := register.FindPartyByText(reg, "Sharma Events")
+		if !ok || party.ID != o.PartyID {
+			t.Errorf("party is %+v, found=%v", party, ok)
 		}
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 
 	// An order is intent. Nothing physical moved.
 	if got := onHand(e); !sameStock(before, got) {
@@ -193,7 +225,7 @@ func TestOrderWithMultipleProductsAndMixedBasis(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw := string(mustReadFile(t, e.path))
-	for _, secret := range []string{"Sharma Events", "2500000", "ORD-0001"} {
+	for _, secret := range []string{"2500000", "ORD-0001"} {
 		if strings.Contains(raw, secret) {
 			t.Errorf("%q is readable in the register file", secret)
 		}
@@ -394,16 +426,17 @@ func TestOrderConcurrentNewValueResolutionDoesNotDuplicate(t *testing.T) {
 		t.Fatalf("neither order saved: %v", codes)
 	}
 
+	var party register.Party
+	e.st.Read(func(reg *register.Register) { party, _ = register.FindPartyByText(reg, "Sharma Events") })
 	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
-		parties := register.LiveFinanceValues(f, register.FinanceParty)
-		if len(parties) != 1 {
-			t.Fatalf("%d parties for one supplier: %+v", len(parties), parties)
+		if party.ID == "" {
+			t.Fatal("the shared supplier was not created")
 		}
 		if len(f.Orders) != saved {
 			t.Fatalf("%d orders stored for %d saves", len(f.Orders), saved)
 		}
 		for _, o := range f.Orders {
-			if o.PartyID != parties[0].ID {
+			if o.PartyID != party.ID {
 				t.Errorf("%s points at %s, not the one party", o.ID, o.PartyID)
 			}
 		}

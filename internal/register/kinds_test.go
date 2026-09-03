@@ -209,7 +209,7 @@ func TestTypedKindsGoOutOfBothDoors(t *testing.T) {
 			inward("INW-0002", "PRD-0002", 25, Purchase, "Gupta Traders", "2026-09-01"),
 			kindInward("INW-0003", "PRD-0001", 50, ids["Donated"], "Sharma Events", "2026-09-01"),
 		}
-		f, parties := partiesFor("Sharma Events", "Gupta Traders")
+		f, parties := partiesFor(r, "Sharma Events", "Gupta Traders")
 		return r, f, parties["Sharma Events"]
 	}
 
@@ -263,7 +263,7 @@ func TestObligationsStayWithRentOnly(t *testing.T) {
 		inward("INW-0001", "PRD-0001", 40, Rent, "Sharma Events", "2026-09-01"),
 		kindInward("INW-0002", "PRD-0001", 50, ids["Donated"], "Sharma Events", "2026-09-01"),
 	}
-	f, _ := partiesFor("Sharma Events")
+	f, _ := partiesFor(r, "Sharma Events")
 	rows := SupplierObligations(r, f)
 	if len(rows) != 1 || rows[0].Received != 40 {
 		t.Fatalf("obligations = %+v, want the 40 rented tents only", rows)
@@ -282,7 +282,7 @@ func TestReturnSettlesWhatIsOwedFirst(t *testing.T) {
 			inward("INW-0001", "PRD-0001", 40, Rent, "Sharma Events", "2026-09-01"),
 			kindInward("INW-0002", "PRD-0001", 50, ids["Donated"], "Sharma Events", "2026-09-01"),
 		}
-		f, parties := partiesFor("Sharma Events")
+		f, parties := partiesFor(r, "Sharma Events")
 		return r, f, parties["Sharma Events"]
 	}
 
@@ -304,7 +304,7 @@ func TestReturnSettlesWhatIsOwedFirst(t *testing.T) {
 			kindInward("INW-0001", "PRD-0001", 50, ids["Donated"], "Sharma Events", "2026-09-01"),
 			inward("INW-0002", "PRD-0001", 40, Rent, "Sharma Events", "2026-09-02"),
 		}
-		f, parties := partiesFor("Sharma Events")
+		f, parties := partiesFor(r, "Sharma Events")
 		disposeSupplierReturn(t, r, f, parties["Sharma Events"], "PRD-0001", 40, settleAt)
 		rows := SupplierObligations(r, f)
 		if len(rows) != 1 || rows[0].Returned != 40 || rows[0].Remaining != 0 {

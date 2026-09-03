@@ -79,7 +79,6 @@ func TestFinancialRouteTableAndSecurityHeaders(t *testing.T) {
 		"/finance/journal/print", "/finance/audit", "/finance/settlements",
 		"/finance/obligations", "/finance/movements/new", "/finance/accounts",
 		"/finance/lists", "/finance/supplier-returns/new", "/finance/sales/new",
-		"/finance/api/values?kind=party",
 	}
 	wantHeaders := map[string]string{
 		"Cache-Control":           "no-store",
@@ -260,7 +259,6 @@ func TestFinancialFormsWorkServerRenderedWithoutJavaScript(t *testing.T) {
 
 	// The whole run below is plain form posts and GET links: no script at all.
 	receive(t, e, tables, 100, "rent", "Sharma Events", "2026-09-03")
-
 	orderID := saveOrder(t, e, admin, key, orderForm("Sharma Events", tables, "100", "rent"))
 	moveID := saveMoney(t, e, admin, key, moneyForm("out", "5000", "Sharma Events", "Deposit", "Cash"))
 	if status, _ := admin.post(t, "/finance/movements/"+moveID+"/edit",
@@ -310,6 +308,8 @@ func TestFinancialRefusalsPreserveNonSecretInputOnly(t *testing.T) {
 	admin, key, _ := financeAdmin(t, e)
 	tables := productIDNamed(t, e, "Round tables")
 	receive(t, e, tables, 100, "rent", "Sharma Events", "2026-09-03")
+	partiesBefore := 0
+	e.st.Read(func(reg *register.Register) { partiesBefore = len(reg.Parties) })
 
 	// A money row refused for a bad amount keeps everything else typed.
 	bad := moneyForm("out", "not money", "Sharma Events", "Freight", "Cash")
@@ -330,12 +330,14 @@ func TestFinancialRefusalsPreserveNonSecretInputOnly(t *testing.T) {
 		if len(f.Movements) != 0 {
 			t.Error("a refused row was written")
 		}
-		if len(register.LiveFinanceValues(f, register.FinanceParty)) != 0 {
-			t.Error("a refused row left an orphan party")
-		}
 	}); err != nil {
 		t.Fatal(err)
 	}
+	e.st.Read(func(reg *register.Register) {
+		if len(reg.Parties) != partiesBefore {
+			t.Error("a refused row left an orphan party")
+		}
+	})
 
 	// A supplier return refused for too many keeps the typed values.
 	tooMuch := settleForm("Sharma Events", tables, 500, "2026-09-03T15:00")
@@ -382,7 +384,7 @@ func TestFinancialRefusalsPreserveNonSecretInputOnly(t *testing.T) {
 
 func TestOrdinaryInventoryExperienceRemainsUnchanged(t *testing.T) {
 	pages := []string{"/stock", "/out", "/inwards", "/suppliers", "/log?day=all",
-		"/inward/new", "/issue/new", "/return/new", "/shift"}
+		"/issue/new", "/return/new", "/shift"}
 
 	// The same register, once with no vault at all and once with a populated
 	// one that nobody has opened.
@@ -405,6 +407,10 @@ func TestOrdinaryInventoryExperienceRemainsUnchanged(t *testing.T) {
 			t.Errorf("%s changed once a vault existed:\n--- before ---\n%s\n--- after ---\n%s",
 				path, before[path], body)
 		}
+	}
+	_, inward := withVault.get("/inward/new")
+	if !strings.Contains(inward, "Sharma Events") || strings.Contains(inward, "₹") || strings.Contains(inward, "Deposit") {
+		t.Error("the inward screen did not share only the open party name")
 	}
 }
 
@@ -563,13 +569,11 @@ func TestSupplierReturnListsProductsAfterChoosingSupplier(t *testing.T) {
 		t.Error("opening the form wrote to the register")
 	}
 	// And nothing was created as a side effect of drawing the page.
-	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
-		if len(register.LiveFinanceValues(f, register.FinanceParty)) != 0 {
+	e.st.Read(func(reg *register.Register) {
+		if _, ok := register.FindPartyByText(reg, "Supplier not yet protected"); ok {
 			t.Error("drawing the form created a party")
 		}
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 
 	// The same request then saves.
 	status, body = admin.post(t, "/finance/supplier-returns/new", url.Values{

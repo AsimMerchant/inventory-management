@@ -35,10 +35,11 @@ func entryName(reg *register.Register, recordID string) string {
 			continue
 		}
 		what := strconv.Itoa(in.Quantity) + " " + productWord(names[in.ProductID])
-		if in.Supplier == "" {
+		name := register.InwardPartyName(reg, in)
+		if name == "" {
 			return what + " that came in"
 		}
-		return what + " from " + in.Supplier
+		return what + " from " + name
 	}
 	for _, is := range reg.Issues {
 		if is.ID == recordID {
@@ -163,7 +164,7 @@ type editData struct {
 	KindID     string                     // the kind picked off the list, when the basis is "other"
 	NewKind    string                     // a kind typed for the first time
 	Kinds      []register.AcquisitionKind // the shared list of typed kinds
-	Supplier   string
+	Party      valuePicker                // the shared supplier and other-party list
 	ChallanNo  string
 	ReceivedBy string
 
@@ -212,7 +213,11 @@ func editForm(reg *register.Register, id string) (editData, bool) {
 			d.ReceivedOn = in.ReceivedOn
 			d.Basis = string(in.Basis)
 			d.KindID, d.Kinds = in.KindID, register.LiveAcquisitionKinds(reg)
-			d.Supplier, d.ChallanNo, d.ReceivedBy = in.Supplier, in.ChallanNo, in.ReceivedBy
+			// The name the delivery was saved with is shown when the list
+			// entry it points at has gone, so a correction screen never comes
+			// up blank on a supplier the delivery clearly names.
+			d.Party = partyPicker(reg, "Came from", "partyId", "partyName", in.PartyID, register.InwardPartyName(reg, in))
+			d.ChallanNo, d.ReceivedBy = in.ChallanNo, in.ReceivedBy
 			d.Subheading = entryName(reg, id) + ", received " + shortdateOf(in.ReceivedOn)
 			d.Changes = changeLines(in.Changes, d.Word)
 			d.finish(in.Deleted)
@@ -442,7 +447,12 @@ func (d *editData) readForm(r *http.Request) {
 		if d.Basis != string(register.Other) {
 			d.KindID, d.NewKind = "", ""
 		}
-		d.Supplier = register.CleanName(get("supplier", d.Supplier))
+		if _, ok := r.Form["partyName"]; ok {
+			d.Party.PickedID, d.Party.PickedText = readPartyPicker(r, "partyId", "partyName")
+		} else if _, ok := r.Form["supplier"]; ok {
+			d.Party.PickedID = ""
+			d.Party.PickedText = register.CleanName(r.FormValue("supplier"))
+		}
 		d.ChallanNo = get("challanNo", d.ChallanNo)
 	case "issue":
 		d.ChallanNo = register.CleanName(get("challanNo", d.ChallanNo))
@@ -561,14 +571,20 @@ func applyEdit(reg *register.Register, d editData, by string, now time.Time) ([]
 					return nil, "Pick how these came in from the list, or type a new word for it."
 				}
 			}
+			// A supplier typed for the first time joins the shared list in
+			// the same write as the correction that uses it.
+			partyID, supplier, partyErr := resolvePartyID(reg, d.Party.PickedID, d.Party.PickedText)
+			if partyErr != nil {
+				return nil, "Pick the supplier from the list, or type a new name."
+			}
 			note("quantity", "How many", strconv.Itoa(in.Quantity), strconv.Itoa(qty))
 			note("dateReceived", "Date received", shortdateOf(in.ReceivedOn), shortdateOf(d.ReceivedOn))
 			note("basis", "How it came in", register.BasisWord(reg, in.Basis, in.KindID), register.BasisWord(reg, register.Basis(d.Basis), kindID))
-			note("supplier", "Came from", in.Supplier, d.Supplier)
+			note("supplier", "Came from", register.InwardPartyName(reg, *in), supplier)
 			note("challan", "Challan no.", in.ChallanNo, d.ChallanNo)
 			in.Quantity, in.ReceivedOn = qty, d.ReceivedOn
 			in.Basis, in.KindID = register.Basis(d.Basis), kindID
-			in.Supplier, in.ChallanNo = d.Supplier, d.ChallanNo
+			in.PartyID, in.Supplier, in.ChallanNo = partyID, supplier, d.ChallanNo
 		}
 	case "issue":
 		issuedAt, _ := time.ParseInLocation(stampLayout, d.IssuedAt, time.Local)
@@ -893,7 +909,8 @@ func disposalGuard(reg *register.Register, was register.Inward, id string) strin
 		// The typed kind counts as part of the basis here: goods already
 		// drawn on as donated must not become rented or bought underneath a
 		// removal that has happened.
-		if in.Basis != was.Basis || in.KindID != was.KindID || register.FoldKey(in.Supplier) != register.FoldKey(was.Supplier) {
+		if in.Basis != was.Basis || in.KindID != was.KindID || in.PartyID != was.PartyID ||
+			register.FoldKey(in.Supplier) != register.FoldKey(was.Supplier) {
 			return register.ErrStrandedDisposal
 		}
 		if in.Quantity < allocated {

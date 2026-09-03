@@ -89,7 +89,7 @@ func LogEntries(r *Register) []LogEntry {
 		e := LogEntry{
 			At: in.RecordedAt, Kind: LogCameIn, RecordID: in.ID, RecordTab: "/inwards",
 			Who: in.RecordedBy, ProductID: in.ProductID, ProductName: names[in.ProductID],
-			Quantity: in.Quantity, Supplier: in.Supplier, ReceivedBy: in.ReceivedBy,
+			Quantity: in.Quantity, Supplier: InwardPartyName(r, in), ReceivedBy: in.ReceivedBy,
 			ReceivedOn: in.ReceivedOn, ChallanNo: in.ChallanNo,
 		}
 		out = append(out, fill(r, e, in.Deleted, mobiles))

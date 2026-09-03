@@ -26,7 +26,9 @@ on-hand stock correct and preserving protected financial history.
   leave the store, with an optional tick that narrows it to one supplier's goods.
 - Financial detail remains encrypted under spec 17, but ordinary stock arithmetic must
   work after restart without a login. A minimal non-financial disposal projection is
-  therefore stored in the public register; supplier/buyer/money remain encrypted.
+  therefore stored in the public register. Supplier/buyer party IDs, current names and
+  aliases are the intentionally public shared vocabulary; the fact that a party is the
+  supplier/buyer on a settlement and all money remain encrypted.
 
 ## Contract
 
@@ -72,7 +74,7 @@ amount, purpose, mode, order, remarks, void reason or financial actor. `Inactive
 says only that the neutral stock subtraction no longer applies; it cannot reveal whether
 that happened through a protected void or public product cascade. It is sufficient for
 stock arithmetic and save-time inward guards, and remains human-readable inventory data.
-`NextID("DSP")` scans this slice. Schema-1/2 migration normalizes it to `[]`.
+`NextID("DSP")` scans this slice. Schema migration normalizes it to `[]`.
 
 Add in `internal/register/arith.go`:
 
@@ -94,8 +96,9 @@ live inward's quantity; or negative on-hand. An inward quantity correction/delet
 therefore refused if it would strand an allocation, with:
 `Some of this stock has already left the store. Fix that return or sale first.`
 While any active disposal allocates an inward, ordinary correction also refuses changing
-that inward's `Basis` or `Supplier` with the same neutral sentence, because the public
-route cannot decrypt whether the protected allocation is a sale or supplier return.
+that inward's `Basis` or `PartyID`/supplier snapshot with the same neutral sentence,
+because the public route cannot decrypt whether the protected allocation is a sale or
+supplier return.
 Increasing quantity, or decreasing it no lower than its allocated total, remains valid.
 
 Spec 15's `DeleteProductCascade` also sets `InactiveAt` on every live disposal for the product in
@@ -156,21 +159,25 @@ inside encrypted audit/change/void records as spec 19.
 #### Source availability and pooled-stock rule
 
 Supplier returns allocate oldest eligible inward first (`ReceivedOn`, then
-`RecordedAt`, then ID). Eligible means live, same live ProductID, `Basis == rent`, and
-the inward's `FoldKey(Supplier)` equals the selected party's current folded name or any
-of that party's prior rename/merge source names. Blank supplier never matches. Subtract
-all allocations of live supplier returns from each inward. Exact availability is:
+`RecordedAt`, then ID), with `Basis == rent` before `Basis == other`. Eligible means
+live, same live ProductID and `Basis == rent || Basis == other`; the selected party
+records who takes the goods and does not limit which inward can fund the return.
+Subtract allocations from both live supplier returns and live sales before computing
+what remains. Exact availability is:
 
 ```text
-supplier available = sum remaining eligible inward quantities
-allowed return     = min(OnHand before this disposal, supplier available)
+returnable available = sum remaining eligible inward quantities
+allowed return       = min(OnHand before this disposal, returnable available)
 ```
 
-Party aliases belonging to two live parties make the source ambiguous and validation
-refuses list rename/merge until one party is merged; no inward may be counted twice.
+The optional `Show only this supplier's goods` picker filter uses resolved public
+`PartyID` and all `PartyAliases`; a legacy inward without `PartyID` may match its cleaned
+supplier snapshot. This filter changes suggestions only, never the save-time return cap.
 
-Sales allocate oldest live `Basis == purchase` inward for the product first, regardless
-of supplier. Subtract allocations of live sales. Exact availability is:
+Sales allocate oldest eligible inward first, with `Basis == purchase` before
+`Basis == other`, regardless of supplier. Eligible means live, same live ProductID and
+`Basis == purchase || Basis == other`; subtract allocations from both live sales and
+live supplier returns. Exact availability is:
 
 ```text
 purchased available = sum remaining purchased inward quantities
@@ -179,9 +186,9 @@ allowed sale         = min(OnHand before this disposal, purchased available)
 
 This is attribution, not lot tracking for desk issues. When 390 rented and 310 purchased
 Chairs are pooled, chairs returned by people replenish the shared on-hand pool; a
-supplier return still cannot exceed that supplier's unreturned rented receipts, and a
-sale cannot exceed unsold purchased receipts. The program cannot know which physical
-chair is which and makes no stronger claim.
+supplier return cannot exceed all unreturned returnable receipts, and a sale cannot
+exceed all unsold saleable receipts. The program cannot know which physical chair is
+which and makes no stronger claim.
 
 Add pure register functions that read no clock/I/O:
 
@@ -193,7 +200,7 @@ func AllocateStockSale(*Register, *FinanceData, productID string, quantity int) 
 func SupplierObligations(*Register, *FinanceData) []SupplierObligation
 
 type SupplierObligation struct {
-    PartyID    string // empty until an existing finance party matches
+    PartyID    string // resolved public party ID; empty only for malformed hand-edited legacy data
     PartyName  string
     ProductID  string
     ProductName string
@@ -203,22 +210,22 @@ type SupplierObligation struct {
 }
 ```
 
-`SupplierObligation` groups actual live rented inwards by resolved party/product and
-reports `Received`, `Returned`, `Remaining`; orders and deposits do not affect it. A
-historical nonblank inward supplier with no finance-party match still produces a row
-under its cleaned stored name with empty `PartyID`. On the protected return form the
-authorized user may deliberately add that exact party through the mandatory typeahead;
-the save transaction creates it, then re-resolves and allocates the matching sources.
-An unmatched name is never auto-created by a GET.
+`SupplierObligation` groups actual live rented inwards by resolved public party/product
+and reports `Received`, `Returned`, `Remaining`; orders and deposits do not affect it.
+Schema-5 load links every normal historical nonblank inward supplier to the shared list.
+A malformed hand-edited inward with no valid `PartyID` still produces a row under its
+cleaned stored snapshot; no GET creates a party.
 
 #### Recording a supplier return
 
 `GET, POST /finance/supplier-returns/new` heading `Return rented goods` contains
-mandatory protected party typeahead labelled `Supplier`, select-only live `Product`,
+mandatory shared public party typeahead labelled `Supplier`, select-only live `Product`,
 read-only `Available to return`, `How many`, `Date and time returned`, optional
-`Reference`, `Remarks`, and button `Save supplier return`. The product suggestions show
-only products with positive supplier availability after a party is selected. No field
-asks for an inward/order/internal ID.
+`Reference`, `Remarks`, and button `Save supplier return`. Before a party is selected,
+the product suggestions show every product with positive global returnable availability.
+The optional `Show only this supplier's goods` control narrows suggestions but does not
+change `Available to return` or the save-time cap. No field asks for an
+inward/order/internal ID.
 
 POST resolves and allocates again inside one `UpdateFinance`. Zero/non-whole number
 refuses `Type how many were returned to the supplier.` Above allowed refuses
@@ -315,7 +322,7 @@ supplier obligations. Both are protected for every financial user.
 exactly `Supplier`, `Product`, `Received`, `Returned to supplier`, `Still to return`.
 Rows with `Remaining == 0` remain visible as completed history and render `All
 returned`; unmatched public supplier names remain visible under `Supplier` without an
-action until a protected party is deliberately added.
+action until the malformed legacy inward is corrected to a valid shared party.
 
 `InventoryDisposal` never contributes a row to the ordinary `Who did what` log. That
 public log must not infer or render settlement kind, financial actor or void reason from
@@ -351,13 +358,15 @@ the projection. Full settlement history appears only in protected Financial acti
 to supplier and sell 20 purchased Chairs; reopen without login and ordinary Stock/issue
 guards show exactly 70 fewer Tents/20 fewer Chairs with no protected detail.
 
-`TestSupplierReturnLimitedByOnHandAndSupplierRentalReceipts` — Sharma sent 100 rented
-Tents and Gupta 40; with only 60 globally on hand, Sharma allowed is 60; after returning
-50, Sharma allows 10 while Gupta also allows only the shared 10. No source is doubled.
+`TestSupplierReturnLimitedByOnHandAndSupplierRentalReceipts` — Sharma sent 100 rented Tents
+and Gupta 40; with only 60 globally on hand, either selected recipient allows 60; after
+returning 50, either allows only the shared 10. The party records who took the goods and
+no source is doubled.
 
 `TestSupplierReturnAllocatesOldestEligibleInwards` — Sharma's 70 then 30 partial
-receipts allocate 70/20 for a return of 90; purchase, blank-supplier and Gupta inwards
-are untouched; party rename retains source attribution.
+receipts plus an older blank-supplier rental allocate 70/20 for a return of 90,
+regardless of the selected recipient; purchase is untouched. Party rename/merge still
+drives only the optional supplier narrowing filter.
 
 `TestSaleLimitedByOnHandAndPurchasedReceipts` — 100 purchased and 50 rented Chairs with
 60 globally on hand permits at most 60 sold; after 40 sold only 60 purchased basis
@@ -406,9 +415,10 @@ correction succeeds.
 removal count; cascade removes product/entries/disposal from working arithmetic while
 protected return/sale/audit and product-name snapshot remain after restart.
 
-`TestInventoryDisposalContainsNoFinancialDetail` — raw schema-3 public JSON projection
-has only contracted fields and cannot distinguish sale from supplier return; protected
-party/kind/reference/remarks are absent as plaintext.
+`TestInventoryDisposalContainsNoFinancialDetail` — raw schema-5 public disposal has only
+contracted fields and cannot distinguish sale from supplier return; the shared party
+name/ID may exist elsewhere in public `parties`, but no disposal-to-party link,
+settlement kind/reference/remarks or amount is plaintext.
 
 `TestSupplierObligationUsesActualReceiptsNotOrderOrMoney` — order 100 Tents + advance
 creates zero obligation; receive 70 rented from Sharma creates 70; return 20 makes 50;
@@ -420,7 +430,7 @@ refund/deposit movement changes nothing.
 2. Supplier return and sale enforce both global on-hand and attributed-basis caps inside
    the store lock; concurrent requests cannot overspend stock.
 3. Public disposal and protected settlement are atomically paired and validated, while
-   public JSON leaks no settlement kind/party/money.
+   public JSON leaks no settlement kind, disposal-to-party link or money.
 4. Money and physical events never auto-create each other and can occur in either order.
 5. Inward correction/deletion and product cascade preserve allocation integrity/history.
 
@@ -444,7 +454,3 @@ CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /tmp/register.exe .
    basis. The two caps prevent returning/selling more than was actually received under
    that attribution, while the authorized person remains responsible for choosing the
    correct supplier/action.
-2. If inventory staff leave `Came from` blank or type a name that matches no protected
-   party/alias, those rented receipts cannot be returned to that supplier until the
-   inward supplier is corrected. Finance suggestions deliberately cannot leak into the
-   ordinary inward form.

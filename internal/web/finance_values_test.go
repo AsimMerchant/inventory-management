@@ -94,9 +94,146 @@ func valueIDByText(t *testing.T, e *env, key []byte, kind register.FinanceValueK
 	return id
 }
 
+func partyIDByText(t *testing.T, e *env, text string) string {
+	t.Helper()
+	id := ""
+	e.st.Read(func(r *register.Register) {
+		if p, ok := register.FindPartyByText(r, text); ok {
+			id = p.ID
+		}
+	})
+	if id == "" {
+		t.Fatalf("no party called %q", text)
+	}
+	return id
+}
+
+func partyText(t *testing.T, e *env, id string) string {
+	t.Helper()
+	text := ""
+	e.st.Read(func(r *register.Register) { text = register.PartyText(r, id) })
+	return text
+}
+
+func TestSharedPartyRouteHonorsBothAccessPathsAndNoLeakBoundary(t *testing.T) {
+	reg := emptyRegister()
+	reg.OnDutyStaffID = ""
+	reg.ShiftStartedAt = nil
+	e := newTestServer(t, reg, financeNow)
+	admin, key, adminID := financeAdmin(t, e)
+
+	// Reproduce a legacy protected party after the transaction's import step,
+	// so it exists only in the encrypted reusable-value list until the next
+	// successful financial write.
+	partyID := ""
+	if err := e.st.UpdateFinance(key, func(_ *register.Register, f *register.FinanceData) error {
+		var err error
+		partyID, err = register.AddFinanceValue(f, register.FinanceParty, "Sharma Events", adminID, financeNow)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	e.st.Read(func(r *register.Register) {
+		if len(r.Parties) != 0 || r.OnDutyStaffID != "" || r.ShiftStartedAt != nil {
+			t.Fatalf("legacy setup changed the public desk: %+v", r.Parties)
+		}
+	})
+
+	checkResponse := func(body string) {
+		t.Helper()
+		var rows []map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(body), &rows); err != nil {
+			t.Fatalf("party suggestions are not JSON: %v (%s)", err, body)
+		}
+		if len(rows) != 1 {
+			t.Fatalf("party suggestions=%s", body)
+		}
+		allowed := map[string]bool{"id": true, "value": true, "label": true}
+		for field := range rows[0] {
+			if !allowed[field] {
+				t.Errorf("party response leaked field %q", field)
+			}
+		}
+		if len(rows[0]) != len(allowed) {
+			t.Errorf("party response fields=%v, want exactly id/value/label", rows[0])
+		}
+		var id, value, label string
+		_ = json.Unmarshal(rows[0]["id"], &id)
+		_ = json.Unmarshal(rows[0]["value"], &value)
+		_ = json.Unmarshal(rows[0]["label"], &label)
+		if id != partyID || value != "Sharma Events" || label != "Sharma Events" {
+			t.Errorf("party suggestion=%s", body)
+		}
+	}
+
+	status, body := admin.get(t, "/api/parties?q=sharma")
+	if status != http.StatusOK {
+		t.Fatalf("authenticated party route=%d: %s", status, body)
+	}
+	checkResponse(body)
+	// ReadBoth is read-only: neither the migration nor an inventory shift was
+	// persisted merely because an authenticated picker was drawn.
+	e.st.Read(func(r *register.Register) {
+		if len(r.Parties) != 0 || r.OnDutyStaffID != "" || r.ShiftStartedAt != nil {
+			t.Error("authenticated shared-party read changed public state")
+		}
+	})
+	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
+		if v, ok := register.FinanceValueByID(f, partyID); !ok || v.Kind != register.FinanceParty {
+			t.Error("authenticated shared-party read removed the protected legacy row")
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, _ := e.get("/api/parties?q=sharma")
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/shift" {
+		t.Errorf("off-duty anonymous party route=%d location=%q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+
+	if err := e.st.UpdateFinance(key, func(*register.Register, *register.FinanceData) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	e.st.Read(func(r *register.Register) {
+		if p, ok := register.PartyByID(r, partyID); !ok || p.Name != "Sharma Events" {
+			t.Errorf("persistent migration produced %+v", p)
+		}
+	})
+	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
+		if _, ok := register.FinanceValueByID(f, partyID); ok {
+			t.Error("persistent migration left the protected party duplicate")
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	started := financeNow.Add(time.Hour)
+	if err := e.st.Update(func(r *register.Register) error {
+		r.OnDutyStaffID = "STF-0001"
+		r.ShiftStartedAt = &started
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	resp, body = e.get("/api/parties?q=sharma")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("on-duty anonymous party route=%d: %s", resp.StatusCode, body)
+	}
+	checkResponse(body)
+	resp, body = e.get("/inward/new")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("on-duty inward form=%d: %s", resp.StatusCode, body)
+	}
+	assertContains(t, body, `value="`+partyID+`"`)
+	assertContains(t, body, "Sharma Events")
+}
+
 func suggestValues(t *testing.T, tc *testClient, kind, q string) []string {
 	t.Helper()
-	status, body := tc.get(t, "/finance/api/values?kind="+kind+"&q="+url.QueryEscape(q))
+	path := "/finance/api/values?kind=" + kind + "&q=" + url.QueryEscape(q)
+	if kind == "party" {
+		path = "/api/parties?q=" + url.QueryEscape(q)
+	}
+	status, body := tc.get(t, path)
 	if status != 200 {
 		t.Fatalf("suggestions for %q = %d", q, status)
 	}
@@ -175,16 +312,20 @@ func TestAdminRenamesMergesAndDeletesReusableTypos(t *testing.T) {
 	e := newTestServer(t, nil, financeNow)
 	admin, key, adminID := financeAdmin(t, e)
 
-	if err := e.st.UpdateFinance(key, func(_ *register.Register, f *register.FinanceData) error {
+	if err := e.st.UpdateFinance(key, func(reg *register.Register, f *register.FinanceData) error {
 		for kind, texts := range map[register.FinanceValueKind][]string{
 			register.FinancePurpose: {"Frieght"},
 			register.FinanceMode:    {"Online payment"},
-			register.FinanceParty:   {"Sharm Events", "Sharma Events"},
 		} {
 			for _, text := range texts {
 				if _, err := register.AddFinanceValue(f, kind, text, adminID, financeNow); err != nil {
 					return err
 				}
+			}
+		}
+		for _, text := range []string{"Sharm Events", "Sharma Events"} {
+			if _, err := register.AddParty(reg, text); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -218,10 +359,10 @@ func TestAdminRenamesMergesAndDeletesReusableTypos(t *testing.T) {
 	}
 
 	// Delete a typo nothing points at.
-	sharm := valueIDByText(t, e, key, register.FinanceParty, "Sharm Events")
+	sharm := partyIDByText(t, e, "Sharm Events")
 	beforeConfirm = mustReadFile(t, e.path)
 	if status, body := admin.post(t, "/finance/lists/"+sharm+"/delete", nil); status != 200 ||
-		!strings.Contains(body, "Delete unused party “Sharm Events”?") || !strings.Contains(body, "Yes, delete this unused value") {
+		!strings.Contains(body, "Delete unused supplier or other party “Sharm Events”?") || !strings.Contains(body, "Yes, delete this unused value") {
 		t.Fatalf("delete confirmation=%d %s", status, body)
 	}
 	if string(beforeConfirm) != string(mustReadFile(t, e.path)) {
@@ -250,10 +391,6 @@ func TestAdminRenamesMergesAndDeletesReusableTypos(t *testing.T) {
 		if got := register.FinanceValueText(f, online); got != "Bank transfer" {
 			t.Errorf("merged value reads %q", got)
 		}
-		if _, ok := register.FinanceValueByID(f, sharm); ok {
-			t.Error("the unused typo was not removed")
-		}
-
 		kinds := map[string]bool{}
 		for _, a := range f.Audit {
 			kinds[a.Kind] = true
@@ -261,7 +398,7 @@ func TestAdminRenamesMergesAndDeletesReusableTypos(t *testing.T) {
 				t.Errorf("audit actor is %+v", a)
 			}
 		}
-		for _, want := range []string{"value_renamed", "value_merged", "value_deleted"} {
+		for _, want := range []string{"value_renamed", "value_merged", "party_deleted"} {
 			if !kinds[want] {
 				t.Errorf("no %s audit event", want)
 			}
@@ -269,6 +406,11 @@ func TestAdminRenamesMergesAndDeletesReusableTypos(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	e.st.Read(func(reg *register.Register) {
+		if _, ok := register.PartyByID(reg, sharm); ok {
+			t.Error("the unused typo was not removed")
+		}
+	})
 
 	// A value something points at is never erased. Bank transfer is now a merge
 	// target, so it is in use even though no order names it.
@@ -288,20 +430,20 @@ func TestAdminRenamesMergesAndDeletesReusableTypos(t *testing.T) {
 func TestFinancialUserCannotManageReusableValues(t *testing.T) {
 	e := newTestServer(t, nil, financeNow)
 	_, key, adminID := financeAdmin(t, e)
-	user, userID := financeUser(t, e, key, adminID, "Rohan Das", "9900134562", "rohan pass")
+	user, _ := financeUser(t, e, key, adminID, "Rohan Das", "9900134562", "rohan pass")
 
 	// An ordinary financial user sees and reuses the suggestions.
 	if got := suggestValues(t, user, "mode", "ca"); strings.Join(got, ",") != "Card,Cash" {
 		t.Fatalf("user was suggested %v", got)
 	}
 	// And may add a value as part of recording something.
-	if err := e.st.UpdateFinance(key, func(_ *register.Register, f *register.FinanceData) error {
-		_, err := register.AddFinanceValue(f, register.FinanceParty, "Sharma Events", userID, financeNow)
+	if err := e.st.UpdateFinance(key, func(reg *register.Register, f *register.FinanceData) error {
+		_, err := register.AddParty(reg, "Sharma Events")
 		return err
 	}); err != nil {
 		t.Fatal(err)
 	}
-	sharma := valueIDByText(t, e, key, register.FinanceParty, "Sharma Events")
+	sharma := partyIDByText(t, e, "Sharma Events")
 
 	// But every list-management route is refused and writes nothing.
 	before := mustReadFile(t, e.path)
@@ -320,18 +462,14 @@ func TestFinancialUserCannotManageReusableValues(t *testing.T) {
 	if string(mustReadFile(t, e.path)) != string(before) {
 		t.Fatal("a refused list action changed the register file")
 	}
-	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
-		if got := register.FinanceValueText(f, sharma); got != "Sharma Events" {
-			t.Errorf("the value now reads %q", got)
-		}
-	}); err != nil {
-		t.Fatal(err)
+	if got := partyText(t, e, sharma); got != "Sharma Events" {
+		t.Errorf("the value now reads %q", got)
 	}
 }
 
 func TestFinanceSuggestionOrderingSelectionAndNoScript(t *testing.T) {
 	e := newTestServer(t, register.WalkthroughT0(), orderNow)
-	admin, key, adminID := financeAdmin(t, e)
+	admin, key, _ := financeAdmin(t, e)
 
 	// Ten parties, so the eight-row cap and the ordering both have to bite.
 	parties := []string{
@@ -339,9 +477,9 @@ func TestFinanceSuggestionOrderingSelectionAndNoScript(t *testing.T) {
 		"Sharma Catering", "Sharma Decorators", "Sharma Transport", "Sharma Chairs",
 		"New Sharma Supplies", "Anand Sharma & Sons",
 	}
-	if err := e.st.UpdateFinance(key, func(_ *register.Register, f *register.FinanceData) error {
+	if err := e.st.UpdateFinance(key, func(reg *register.Register, f *register.FinanceData) error {
 		for _, p := range parties {
-			if _, err := register.AddFinanceValue(f, register.FinanceParty, p, adminID, orderNow); err != nil {
+			if _, err := register.AddParty(reg, p); err != nil {
 				return err
 			}
 		}
@@ -393,7 +531,7 @@ func TestFinanceSuggestionOrderingSelectionAndNoScript(t *testing.T) {
 	chairs := productIDNamed(t, e, "Chairs")
 
 	// The server-only path: an existing value chosen by ID, with no typed text.
-	sharma := valueIDByText(t, e, key, register.FinanceParty, "Sharma Events")
+	sharma := partyIDByText(t, e, "Sharma Events")
 	form := orderForm("", chairs, "10", "rent")
 	form.Set("partyId", sharma)
 	if status, body := admin.post(t, "/finance/orders/new", form); status != 303 {
@@ -403,21 +541,19 @@ func TestFinanceSuggestionOrderingSelectionAndNoScript(t *testing.T) {
 	// The server-only path: a genuinely new value typed with no ID, created as
 	// part of the save. Freight and Product adjustment are the spec's examples.
 	before := 0
-	_ = e.st.ReadFinance(key, func(f *register.FinanceData) { before = len(f.ReusableValues) })
+	e.st.Read(func(reg *register.Register) { before = len(reg.Parties) })
 	typed := orderForm("Freight Movers", chairs, "10", "rent")
 	if status, body := admin.post(t, "/finance/orders/new", typed); status != 303 {
 		t.Fatalf("typing a new party = %d: %s", status, body)
 	}
-	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
-		if len(f.ReusableValues) != before+1 {
+	e.st.Read(func(reg *register.Register) {
+		if len(reg.Parties) != before+1 {
 			t.Errorf("the new party did not appear on the shared list")
 		}
-		if _, ok := register.FindFinanceValueByText(f, register.FinanceParty, "Freight Movers"); !ok {
+		if _, ok := register.FindPartyByText(reg, "Freight Movers"); !ok {
 			t.Error("Freight Movers was not created")
 		}
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 
 	// A stale or unknown ID falls back to the typed text rather than filing the
 	// order against the wrong party.
@@ -426,13 +562,14 @@ func TestFinanceSuggestionOrderingSelectionAndNoScript(t *testing.T) {
 	if status, body := admin.post(t, "/finance/orders/new", stale); status != 303 {
 		t.Fatalf("a stale id = %d: %s", status, body)
 	}
+	lastPartyID := ""
 	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
-		last := f.Orders[len(f.Orders)-1]
-		if got := register.FinanceValueText(f, last.PartyID); got != "Product adjustment" {
-			t.Errorf("the order was filed against %q", got)
-		}
+		lastPartyID = f.Orders[len(f.Orders)-1].PartyID
 	}); err != nil {
 		t.Fatal(err)
+	}
+	if got := partyText(t, e, lastPartyID); got != "Product adjustment" {
+		t.Errorf("the order was filed against %q", got)
 	}
 
 	// Neither an ID nor text is refused: the party is mandatory.

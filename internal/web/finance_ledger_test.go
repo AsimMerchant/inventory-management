@@ -120,7 +120,7 @@ func TestMoneyMovementStoresExactPaiseAndAuthenticatedActor(t *testing.T) {
 
 	// Nothing readable in the file.
 	raw := string(mustReadFile(t, e.path))
-	for _, secret := range []string{"Sharma Events", "500000", "Deposit", "MOV-0001"} {
+	for _, secret := range []string{"500000", "Deposit", "MOV-0001"} {
 		if strings.Contains(raw, secret) {
 			t.Errorf("%q is readable in the register file", secret)
 		}
@@ -222,10 +222,12 @@ func TestMovementReusableSuggestionsAreMandatory(t *testing.T) {
 		}
 	}
 	// A refusal leaves no half-created suggestion behind.
-	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
-		if len(register.LiveFinanceValues(f, register.FinanceParty)) != 0 {
+	e.st.Read(func(reg *register.Register) {
+		if _, ok := register.FindPartyByText(reg, "Sharma Events"); ok {
 			t.Error("a refused row created a party")
 		}
+	})
+	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
 		if len(register.LiveFinanceValues(f, register.FinancePurpose)) != 0 {
 			t.Error("a refused row created a purpose")
 		}
@@ -242,7 +244,7 @@ func TestMovementReusableSuggestionsAreMandatory(t *testing.T) {
 	if status, body := admin.post(t, "/finance/movements/new", form); status != 303 {
 		t.Fatalf("save = %d: %s", status, body)
 	}
-	if got := suggestValues(t, user, "party", "sharma"); strings.Join(got, ",") != "Sharma Events" {
+	if got := suggestValues(t, user, "party", "sharma"); strings.Join(got, ",") != "Sharma Events,Sharma Tent House" {
 		t.Errorf("the other user is suggested parties %v", got)
 	}
 	if got := suggestValues(t, user, "purpose", "unl"); strings.Join(got, ",") != "Unloading labour" {
@@ -296,7 +298,7 @@ func TestMovementMayCoverWholeOrderOrSeveralProducts(t *testing.T) {
 	if len(m.Products) != 1 || m.Products[0].ProductName != "Chairs" {
 		t.Errorf("the part-order snapshots are %+v", m.Products)
 	}
-	if got := register.FinanceValueText(mustFinance(t, e, key), m.PartyID); got != "Freight Movers" {
+	if got := partyText(t, e, m.PartyID); got != "Freight Movers" {
 		t.Errorf("the payee is %q", got)
 	}
 
@@ -386,11 +388,9 @@ func TestNoScriptMoneyUsesChosenValuesAndTypedNewPurpose(t *testing.T) {
 		t.Fatalf("seed movement = %d: %s", status, body)
 	}
 	f := mustFinance(t, e, key)
-	var partyID, modeID string
+	partyID := partyIDByText(t, e, "Sharma Events")
+	var modeID string
 	for _, v := range f.ReusableValues {
-		if v.Kind == register.FinanceParty && v.Value == "Sharma Events" {
-			partyID = v.ID
-		}
 		if v.Kind == register.FinanceMode && v.Value == "Cash" {
 			modeID = v.ID
 		}
@@ -404,7 +404,7 @@ func TestNoScriptMoneyUsesChosenValuesAndTypedNewPurpose(t *testing.T) {
 		t.Fatalf("no-script-shaped movement = %d: %s", status, body)
 	}
 	got := movements(t, e, key)
-	if len(got) != 2 || register.FinanceValueText(mustFinance(t, e, key), got[1].PartyID) != "Sharma Events" || register.FinanceValueText(mustFinance(t, e, key), got[1].PurposeID) != "No-script custom purpose" {
+	if len(got) != 2 || partyText(t, e, got[1].PartyID) != "Sharma Events" || register.FinanceValueText(mustFinance(t, e, key), got[1].PurposeID) != "No-script custom purpose" {
 		t.Fatalf("no-script values = %+v", got)
 	}
 }
@@ -543,10 +543,12 @@ func TestConcurrentMovementPostsKeepAllRowsAndTotals(t *testing.T) {
 		t.Errorf("paid total is %d, want %d", got.PaidPaise, rows*50000)
 	}
 	// One party, one purpose, whatever the ordering of the twenty posts.
-	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
-		if n := len(register.LiveFinanceValues(f, register.FinanceParty)); n != 1 {
+	e.st.Read(func(reg *register.Register) {
+		if n := len(register.LiveParties(reg)); n != 3 {
 			t.Errorf("%d parties for one payee", n)
 		}
+	})
+	if err := e.st.ReadFinance(key, func(f *register.FinanceData) {
 		if n := len(register.LiveFinanceValues(f, register.FinancePurpose)); n != 1 {
 			t.Errorf("%d purposes for one purpose", n)
 		}
@@ -986,9 +988,9 @@ func TestFinancialAuditVisibleButImmutable(t *testing.T) {
 	// One of each kind of event: account, list, order and money.
 	orderID := saveOrder(t, e, admin, key, orderForm("Sharma Events", chairs, "100", "rent"))
 	moveID := saveMoney(t, e, admin, key, moneyForm("out", "5000", "Sharma Events", "Deposit", "Cash"))
-	sharma := valueIDByText(t, e, key, register.FinanceParty, "Sharma Events")
+	sharma := partyIDByText(t, e, "Sharma Events")
 	if status, _ := admin.post(t, "/finance/lists/"+sharma+"/rename",
-		url.Values{"value": {"Sharma Tent House"}}); status != 303 {
+		url.Values{"value": {"Sharma Event Hire"}}); status != 303 {
 		t.Fatal("the rename was refused")
 	}
 
@@ -999,7 +1001,7 @@ func TestFinancialAuditVisibleButImmutable(t *testing.T) {
 			t.Fatalf("%s got %d from the activity list", who, status)
 		}
 		for _, want := range []string{
-			"Authorized account created", "Shared value corrected",
+			"Authorized account created", "Supplier or other party corrected",
 			"Order recorded", "Money recorded",
 			"Asha Mehta", "9886140023", orderID, moveID,
 		} {

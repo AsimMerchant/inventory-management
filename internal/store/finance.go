@@ -319,6 +319,10 @@ func (s *Store) UpdateFinance(vaultKey []byte, fn func(*register.Register, *regi
 	work := deepCopy(s.reg)
 	envelope := deepCopy(s.reg).Finance
 	workData := deepCopyFinance(data)
+	// The party list moved out of the vault. This is the write that makes the
+	// move permanent, and it happens before the callback so the callback sees
+	// one list rather than two.
+	importVaultParties(work, workData)
 	if err := fn(work, workData); err != nil {
 		return err
 	}
@@ -330,6 +334,9 @@ func (s *Store) UpdateFinance(vaultKey []byte, fn func(*register.Register, *regi
 		return fmt.Errorf("inventory validation failed")
 	}
 	if err := register.ValidateFinance(workData); err != nil {
+		return err
+	}
+	if err := register.ValidatePartyReferences(work, workData); err != nil {
 		return err
 	}
 	// The one invariant that spans both halves of the file: a live settlement
@@ -792,6 +799,7 @@ func (s *Store) financeTransaction(vaultKey []byte, mutate func(*register.Financ
 	}
 	work := deepCopy(s.reg)
 	workData := deepCopyFinance(data)
+	importVaultParties(work, workData)
 	if err := mutate(work.Finance, workData); err != nil {
 		return err
 	}
@@ -803,6 +811,9 @@ func (s *Store) publishFinance(work *register.Register, data *register.FinanceDa
 		return fmt.Errorf("inventory validation failed")
 	}
 	if err := register.ValidateFinance(data); err != nil {
+		return err
+	}
+	if err := register.ValidatePartyReferences(work, data); err != nil {
 		return err
 	}
 	if err := register.ValidatePairing(work, data); err != nil {

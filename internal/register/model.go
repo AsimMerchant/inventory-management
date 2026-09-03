@@ -9,7 +9,7 @@ import (
 )
 
 // SchemaVersion is the only file version this program reads or writes.
-const SchemaVersion = 4
+const SchemaVersion = 5
 
 // Register is everything the store desk remembers.
 type Register struct {
@@ -33,7 +33,14 @@ type Register struct {
 	// never logged in, so a list it has to read cannot live in the vault. A
 	// word like "donated" is not financial data.
 	AcquisitionKinds []AcquisitionKind `json:"acquisitionKinds,omitempty"`
-	Finance          *FinanceEnvelope  `json:"finance,omitempty"`
+	// Parties is the shared list of suppliers and other parties, in the open
+	// for the same reason: the desk picks a supplier off it and is never
+	// logged in. It used to live inside the vault, where the desk could not
+	// read it, so the two halves of the program kept two spellings of one
+	// supplier. A name carries no amount, no purpose and no payment mode:
+	// every figure stays in the vault.
+	Parties []Party          `json:"parties,omitempty"`
+	Finance *FinanceEnvelope `json:"finance,omitempty"`
 }
 
 // InventoryDisposal is one lot of stock that left the store for good.
@@ -108,15 +115,20 @@ const (
 // Inward is one delivery into the store. It is not a lot: issues and returns
 // never point at an inward record.
 type Inward struct {
-	ID         string    `json:"id"`         // "INW-0001"
-	ProductID  string    `json:"productId"`  //
-	Quantity   int       `json:"quantity"`   // >= 1
-	ReceivedOn string    `json:"receivedOn"` // "2026-09-03", date only, editable
-	Basis      Basis     `json:"basis"`
-	KindID     string    `json:"kindId,omitempty"` // AKD-0001, only when Basis is Other
-	Supplier   string    `json:"supplier"`         // "" allowed
-	ChallanNo  string    `json:"challanNo"`        // "" allowed
-	ReceivedBy string    `json:"receivedBy"`       // "" allowed; defaults to on-duty name
+	ID         string `json:"id"`         // "INW-0001"
+	ProductID  string `json:"productId"`  //
+	Quantity   int    `json:"quantity"`   // >= 1
+	ReceivedOn string `json:"receivedOn"` // "2026-09-03", date only, editable
+	Basis      Basis  `json:"basis"`
+	KindID     string `json:"kindId,omitempty"` // AKD-0001, only when Basis is Other
+	// PartyID is the shared list entry these goods came from. Supplier is the
+	// name as it stood when the delivery was saved: history, and what makes
+	// the file readable by hand. A rename changes what the screens show
+	// through PartyID and never rewrites Supplier.
+	PartyID    string    `json:"partyId,omitempty"` // PRT-0001 or PTY-0001
+	Supplier   string    `json:"supplier"`          // "" allowed
+	ChallanNo  string    `json:"challanNo"`         // "" allowed
+	ReceivedBy string    `json:"receivedBy"`        // "" allowed; defaults to on-duty name
 	RecordedAt time.Time `json:"recordedAt"`
 	RecordedBy string    `json:"recordedBy"`
 	Changes    []Change  `json:"changes,omitempty"`

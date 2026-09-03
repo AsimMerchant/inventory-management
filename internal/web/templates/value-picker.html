@@ -3,7 +3,7 @@
      has dealt with before is not a mistake. So the last row adds the value as
      part of saving the record, in the same write, and the server does the same
      resolution again whatever the browser did. */}}
-<div class="field" data-values data-kind="{{.Kind}}">
+<div class="field" data-values data-kind="{{.Kind}}" data-url="{{.URL}}">
   <span class="lab">{{.Label}}</span>
   <input class="inp" type="text" name="{{.TextField}}" autocomplete="off" value="{{.PickedText}}" data-values-text>
   <input type="hidden" name="{{.IDField}}" value="{{.PickedID}}" data-values-id>

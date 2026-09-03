@@ -21,23 +21,35 @@ type valueSuggestion struct {
 	Label string `json:"label"`
 }
 
+// valueOption is one row of the no-script fallback list. The party list lives
+// in the open register and the other three in the vault, and the template draws
+// them all the same way.
+type valueOption struct {
+	ID    string
+	Value string
+}
+
 // valuePicker is what the shared value-picker template needs. One form may hold
-// several of these, so every field name is carried rather than assumed.
+// several of these, so every field name is carried rather than assumed. URL is
+// the endpoint the typeahead asks: the vault's for a purpose or a payment mode,
+// the open one for a party, because the delivery desk is never logged in.
 type valuePicker struct {
 	Kind       string
+	URL        string
 	Label      string
 	IDField    string
 	TextField  string
 	PickedID   string
 	PickedText string
 	AddLabel   string
-	Values     []register.FinanceReusableValue
+	Values     []valueOption
 }
 
+// valueKind names one of the vault's two remaining lists. "party" is not one
+// of them any more: suppliers and other parties are in the open register, and
+// are asked for through /api/parties, so the desk can pick from the same list.
 func valueKind(s string) (register.FinanceValueKind, bool) {
 	switch register.FinanceValueKind(s) {
-	case register.FinanceParty:
-		return register.FinanceParty, true
 	case register.FinancePurpose:
 		return register.FinancePurpose, true
 	case register.FinanceMode:
@@ -209,10 +221,15 @@ func pickerFor(data *register.FinanceData, kind register.FinanceValueKind, label
 	if pickedID != "" && pickedText == "" {
 		pickedText = register.FinanceValueText(data, pickedID)
 	}
+	options := []valueOption{}
+	for _, v := range register.LiveFinanceValues(data, kind) {
+		options = append(options, valueOption{ID: v.ID, Value: v.Value})
+	}
 	return valuePicker{
-		Kind: string(kind), Label: label, IDField: idField, TextField: textField,
+		Kind: string(kind), URL: "/finance/api/values?kind=" + string(kind),
+		Label: label, IDField: idField, TextField: textField,
 		PickedID: pickedID, PickedText: pickedText, AddLabel: addLabel,
-		Values: register.LiveFinanceValues(data, kind),
+		Values: options,
 	}
 }
 
@@ -271,6 +288,20 @@ func (s *Server) renderLists(w http.ResponseWriter, r *http.Request, problem, no
 			return rows
 		}
 		kinds := []listRow{}
+		parties := []listRow{}
+		liveParties := register.LiveParties(reg)
+		for _, p := range liveParties {
+			others := []listTarget{}
+			for _, other := range liveParties {
+				if other.ID != p.ID {
+					others = append(others, listTarget{ID: other.ID, Value: other.Name})
+				}
+			}
+			parties = append(parties, listRow{
+				ID: p.ID, Kind: "party", Value: p.Name, KindLabel: "Supplier or other party",
+				Used: register.PartyIsUsed(reg, f, p.ID), Targets: others,
+			})
+		}
 		liveKinds := register.LiveAcquisitionKinds(reg)
 		for _, k := range liveKinds {
 			others := []listTarget{}
@@ -287,7 +318,7 @@ func (s *Server) renderLists(w http.ResponseWriter, r *http.Request, problem, no
 			})
 		}
 		data.Sections = []listSection{
-			{"Suppliers and other parties", fill(register.FinanceParty)},
+			{"Suppliers and other parties", parties},
 			{"Purposes", fill(register.FinancePurpose)},
 			{"Payment modes", fill(register.FinanceMode)},
 			{"Ways goods came in, besides rent and purchase", kinds},
@@ -320,6 +351,10 @@ func (s *Server) financeListAction(w http.ResponseWriter, r *http.Request) {
 	// about the screen differs.
 	if strings.HasPrefix(id, "AKD-") {
 		s.kindListAction(w, r, id, action, now)
+		return
+	}
+	if register.IsPartyID(id) {
+		s.partyListAction(w, r, id, action, now)
 		return
 	}
 	if (action == "merge" || action == "delete") && r.FormValue("confirm") != "yes" {
@@ -378,6 +413,73 @@ func (s *Server) financeListAction(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, register.ErrValueUsed):
 		s.renderLists(w, r, register.ErrValueUsed.Error(), "")
+	case errors.Is(err, store.ErrNotAdmin):
+		w.WriteHeader(http.StatusForbidden)
+	case err != nil:
+		s.renderLists(w, r, err.Error(), "")
+	default:
+		http.Redirect(w, r, "/finance/lists?"+url.Values{"done": {notice}}.Encode(), http.StatusSeeOther)
+	}
+}
+
+// partyListAction manages the shared open supplier/payee vocabulary. It has
+// the same two-step destructive controls as the encrypted reusable lists.
+func (s *Server) partyListAction(w http.ResponseWriter, r *http.Request, id, action string, now time.Time) {
+	sess := financeSessionOf(r)
+	if (action == "merge" || action == "delete") && r.FormValue("confirm") != "yes" {
+		var source, target register.Party
+		var sourceOK, targetOK, sourceUsed bool
+		_ = s.st.ReadBoth(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) {
+			source, sourceOK = register.PartyByID(reg, id)
+			sourceUsed = register.PartyIsUsed(reg, f, id)
+			if action == "merge" {
+				target, targetOK = register.PartyByID(reg, r.FormValue("target"))
+			}
+		})
+		if !sourceOK || source.MergedIntoID != "" || (action == "merge" && (!targetOK || target.MergedIntoID != "" || target.ID == source.ID)) {
+			s.renderLists(w, r, "Pick two different values from the same list.", "")
+			return
+		}
+		if action == "delete" && sourceUsed {
+			s.renderLists(w, r, register.ErrPartyUsed.Error(), "")
+			return
+		}
+		if action == "merge" {
+			s.renderFinanceConfirm(w, r, financeConfirmData{
+				Heading: "Combine " + source.Name + " into " + target.Name + "?",
+				Warning: "Every delivery and financial record that currently shows " + source.Name + " will show " + target.Name + ". The activity history will keep both earlier names.",
+				Action:  "/finance/lists/" + id + "/merge", Button: "Yes, combine these values",
+				Target: target.ID, ConfirmedTarget: target.ID,
+			})
+			return
+		}
+		s.renderFinanceConfirm(w, r, financeConfirmData{
+			Heading: "Delete unused supplier or other party “" + source.Name + "”?",
+			Warning: "It will be removed from future suggestions. This is allowed only because no delivery and no financial record uses it.",
+			Action:  "/finance/lists/" + id + "/delete", Button: "Yes, delete this unused value",
+		})
+		return
+	}
+
+	var err error
+	var notice string
+	switch action {
+	case "rename":
+		err = s.st.RenameParty(sess.vaultKey, sess.accountID, id, r.FormValue("value"), now)
+		notice = "Wording corrected."
+	case "merge":
+		err = s.st.MergeParty(sess.vaultKey, sess.accountID, id, r.FormValue("target"), now)
+		notice = "The two entries are now one."
+	case "delete":
+		err = s.st.DeleteParty(sess.vaultKey, sess.accountID, id, now)
+		notice = "Removed."
+	default:
+		s.financeNotFound(w, r)
+		return
+	}
+	switch {
+	case errors.Is(err, register.ErrPartyUsed):
+		s.renderLists(w, r, register.ErrPartyUsed.Error(), "")
 	case errors.Is(err, store.ErrNotAdmin):
 		w.WriteHeader(http.StatusForbidden)
 	case err != nil:

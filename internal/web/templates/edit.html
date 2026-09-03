@@ -77,10 +77,7 @@
     </div>
   </div>
   <div class="row2">
-    <div class="field">
-      <span class="lab">Came from</span>
-      <input class="inp" type="text" name="supplier" autocomplete="off" value="{{.Supplier}}">
-    </div>
+    {{template "value-picker.html" .Party}}
     <div class="field">
       <span class="lab">Challan no.</span>
       <input class="inp" type="text" name="challanNo" autocomplete="off" value="{{.ChallanNo}}">
@@ -203,3 +200,5 @@
   </form>
 </details>
 {{end}}
+
+<script src="/static/value-picker.js"></script>

@@ -1,5 +1,5 @@
 <h1>Shared lists</h1>
-<p>These suggestions appear for every authorized person while they record financial details. Rename a spelling and every current record that used it shows the new wording; Financial activity keeps the earlier wording.</p>
+<p>Supplier names and ways goods came in also appear on delivery screens; purposes and payment modes appear only in financial details. Renaming an entry changes current records, while Financial activity keeps the earlier wording.</p>
 {{if .Error}}<div class="banner bad">{{.Error}}</div>{{end}}
 {{if .Notice}}<div class="banner ok">{{.Notice}}</div>{{end}}
 
@@ -25,7 +25,7 @@
     </form>
     {{end}}
     {{if .Used}}
-    <p class="note">In use. Correct the wording or merge it.</p>
+    <p class="note">In use. Rename it or combine it with another entry.</p>
     {{else}}
     <form method="post" action="/finance/lists/{{.ID}}/delete">
       <input type="hidden" name="csrf" value="{{$.CSRF}}">

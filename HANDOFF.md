@@ -1,6 +1,101 @@
 # Handoff
 
-## Active work — financial ledger (started 2 September 2026)
+## Current checkpoint — shared supplier/party list, 3 September 2026
+
+The active branch is `fix/product-pickers-at-scale`. Its earlier commits already contain
+the protected financial release, the product-picker fixes, the merged money/order
+entry, and the third acquisition choice: Rent, Purchase, or a reusable custom Other
+word shared with the inward desk.
+
+The current schema-5 slice moves supplier/payee names into one public `Register.Parties`
+vocabulary used by both the unauthenticated inward desk and authenticated finance
+screens. Public party rows contain only stable IDs, current/previous names and merge
+targets. Amounts, purposes, payment modes, account names/mobiles, timestamps, audit
+provenance and every link between a party and a financial record remain encrypted.
+Schema-4 encrypted `FinanceParty` rows migrate atomically on the first successful
+financial write without changing existing `PTY-*` references; combined authenticated
+reads provide the same suggestions before that write.
+
+Implementation, migration/privacy tests, the final race run, plain-language review and
+focused real-browser acceptance are complete. The first independent release gate found
+two blocking edge cases; both now have reproducing tests and fixes, and all checks and
+browser passes were repeated afterwards. The fresh independent re-gate reports
+**READY** with no blockers. Merging the feature branch is the remaining integration
+step. The
+governing schema-5 contract is in specs 17, 18, 20 and 21.
+
+### Schema-5 browser and verification record
+
+Built from committed HEAD `a558ebc` plus the uncommitted shared-party diff into a fresh
+`mktemp -d`; native binary discovered `http://127.0.0.1:8766`. Playwright drove Chrome
+for Testing 151.0.7922.34 headlessly. The focused run made 17 explicit assertions and
+the restart run made 3 more:
+
+- first administrator setup and recovery confirmation, encrypted outgoing payment,
+  explicit logout and absence of the amount on the logged-out screen;
+- supplier `Sharma Events` created by the protected payment and selected from the
+  unauthenticated inward typeahead; 10 Tents recorded as custom kind `Borrowed`;
+- administrator rename to `Sharma Event Hire`, immediately reflected at the desk;
+- a separate JavaScript-disabled context selected the existing product, custom kind and
+  renamed party from server-rendered controls and recorded another 2 Tents;
+- `/api/parties` exposed exactly `id`, `label`, `value`; its response and the screen
+  exposed no financial actor;
+- raw schema-5 JSON contained the deliberately public party/kind but none of the
+  distinctive amount, purpose, mode, reference, remark, account mobile or account name;
+  each public party contained only the contracted four possible keys and `finance` was
+  an encrypted envelope;
+- after stopping and restarting the exact binary/directory, the public suggestion was
+  present before login and the protected journal unlocked with the renamed party,
+  amount and purpose intact.
+
+Result before and after the gate fixes: **PASS**, zero application console errors and
+zero failed/external application requests. The scratch Playwright scripts remain only
+under `/tmp`, as spec 21 requires.
+
+The first independent gate returned **NEEDS WORK** on two cases the initial focused
+suite missed:
+
+- the separate order form populated its no-JavaScript party select with a public-only
+  read, so a schema-4 vault-only party appeared through the JavaScript API but not in
+  the server-rendered fallback before first write;
+- a return to somebody other than the original supplier reduced the selected
+  recipient's obligation instead of crediting each rented source inward's supplier.
+
+`TestLegacyVaultPartyAppearsInServerRenderedOrderForm` and
+`TestSupplierObligationCreditsTheSourceSupplierNotReturnRecipient` reproduced those
+failures. The order form now uses one read-only combined read, and obligation returns
+are attributed from each allocation's source inward. Both focused regressions pass
+under race. The gate also found spec 21's `rg --exclude` option was invalid for ripgrep;
+the command now uses the supported equivalent `--glob '!**/*_test.go'`.
+
+Final primary verification after all code and wording changes:
+
+- `git diff --check`: passed.
+- Post-fix `go test ./... -race -count=1`: passed — root 1.017s, register 1.078s,
+  store 43.316s, web 302.197s.
+- `go vet ./...`: passed.
+- `CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /tmp/register.exe .`:
+  passed; `file` reports PE32+ Windows x86-64.
+- spec 18/21 dependency, loopback-bind, external-URL, float, forbidden financial word,
+  inward-finance-field, weak-crypto and package-boundary greps: no forbidden match.
+
+Fresh independent re-gate: **READY**. It independently reran `go test ./... -race
+-count=1` (root 1.019s, register 1.081s, store 74.328s, web 519.424s), all spec 17–21
+named selections, vet, the Windows PE32+ cross-build, negative greps and a native
+loopback smoke. It directly reviewed both gate fixes and the migration/privacy/atomic
+save paths. No blocker remains. Real Windows 11 double-click/browser/printing and
+deployment-folder permissions remain the usual final stakeholder-machine checks.
+
+The old spec-03 95% register-package coverage target remains pre-existing debt:
+current coverage is 85.4%, and the gate independently measured the archived clean HEAD
+at exactly the same 85.4%, so this schema-5 slice did not reduce it.
+
+After this slice, the planned ledger simplification remains separate: the routine
+recording screen gains the approved Billed/Paid/Received columns; supplier running
+balances, supplier-challan work and broad search are still pending. Returns, sales,
+journal/printing, corrections and administration remain appropriate separate screens.
+
+## Historical financial-ledger foundation (started 2 September 2026)
 
 Work is in progress on branch `feature/financial-ledger`, based on released `v1.1.1`
 commit `f619ab7`. No Go implementation existed at the initial checkpoint. The clean
@@ -171,19 +266,15 @@ simplification comes after the work already in the pipeline, and should be plann
 watching the person who gave up use the merged screen, not by guessing which of login,
 vocabulary or missing balances put them off.
 
-### Supplier names move into the open file — decided 3 September 2026, NOT BUILT
+### Supplier names move into the open file — built, final gate pending
 
 The user spotted the asymmetry himself: *"i think supplier name should also be plain since
 inward person will also be entering it."* He is right, and the desk is the unprotected
 side.
 
-**Today the desk types the supplier as free text.** `Inward.Supplier` is a plain string
-filled from an ordinary text box on *Stuff came in*, with no list and no picker. So
-"Sharma Tent House", "Sharma tent house" and "Sharma Tents" become three suppliers on the
-Suppliers tab. Meanwhile the ledger keeps a tidy `FinanceParty` list of the same real
-names inside the encrypted vault. Two vocabularies for one supplier, and only the ledger's
-is protected from drift — the exact duplicate problem the reusable-value pattern exists to
-prevent.
+The former state had two vocabularies: the desk typed `Inward.Supplier` as free text,
+while finance kept `FinanceParty` values inside the vault. That allowed one supplier to
+drift into several spellings and prevented the desk from using the ledger's suggestions.
 
 **Decided: move the whole party list into the plain `Register`,** beside products and the
 new acquisition kinds. The desk picks a supplier instead of typing it; the ledger offers
@@ -198,10 +289,14 @@ served."* Names carry no amount, no purpose and no payment mode; every figure st
 vault. The alternative — keeping pure payees private and publishing only names used as a
 delivery supplier — was offered and rejected as more machinery than it is worth.
 
-Do after the acquisition-kinds work: both touch `Register`, `finance_values.go` and the
-inward screen. Migration is the open question to settle when it is built — existing
-`Inward.Supplier` strings have to become references to list entries, and two spellings
-already in a real file are two entries until somebody merges them.
+**Built contract.** Schema 5 adds `Register.Parties` and `Inward.PartyID`; the existing
+`Inward.Supplier` remains a readable historical snapshot. Old inward strings are linked
+in memory on open. Old encrypted parties migrate on the first successful authenticated
+write, retain their `PTY-*` IDs and finance references, and preserve earlier names as
+names-only aliases. Two genuinely different spellings remain separate until an
+administrator combines them. Admin rename/combine/delete-unused actions keep actor and
+time only in encrypted financial audit. A cached pre-upgrade inward form posting the old
+`supplier` field remains accepted so replacing the executable cannot discard desk input.
 
 ### The main fields must be searchable everywhere — asked 3 September 2026, NOT BUILT
 
@@ -509,7 +604,11 @@ Not to be confused with a bigger idea raised and deliberately deferred the same 
 column showing what the ledger *expects* to arrive. That one leads straight to
 partial-receipt tracking and is its own piece of work, worth doing after the merge lands.
 
-### Design the user dictated on 3 September 2026 — NOT BUILT, no code written
+### Historical merged-entry design — first stage built; three-column stage pending
+
+This section records the design as it was agreed. The combined product/order entry and
+the third acquisition choice are now built. Replacing the remaining direction/amount
+entry with the approved Billed/Paid/Received columns is still pending.
 
 Recorded verbatim in intent at the user's request after an evening in which the split
 between *Record an order* and *Record money* was the thing that finally lost him. He had
@@ -1174,6 +1273,12 @@ complete both tests.**
 
 Continuation details are also kept in `.agent-handoff/latest.md` after each milestone,
 but that file is gitignored: never make it the only record of anything.
+
+## Archived v1.1.1 handoff (historical)
+
+The remainder is the earlier inventory-release handoff retained for provenance. Its
+status, schema and next-step statements are superseded by the current checkpoint at the
+top of this file; its architecture and historical defect notes remain useful.
 
 You are picking up a build in progress. This file tells you what exists, what is left,
 how to check the work is sound, and which mistakes are easy to make here.

@@ -62,8 +62,8 @@ func TestFirstSaveAfterMigrationWritesCurrentSchemaAtomically(t *testing.T) {
 		t.Fatal("backup is not exact schema-1 source")
 	}
 	main, _ := os.ReadFile(path)
-	if !bytes.Contains(main, []byte(`"schemaVersion": 4`)) {
-		t.Fatal("main is not schema 4")
+	if !bytes.Contains(main, []byte(`"schemaVersion": 5`)) {
+		t.Fatal("main is not schema 5")
 	}
 	if _, _, err := Open(path); err != nil {
 		t.Fatalf("reopen: %v", err)
@@ -71,7 +71,7 @@ func TestFirstSaveAfterMigrationWritesCurrentSchemaAtomically(t *testing.T) {
 }
 
 func TestUnknownSchemaStillRefused(t *testing.T) {
-	for _, version := range []string{"0", "5"} {
+	for _, version := range []string{"0", "6"} {
 		t.Run(version, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), FileName)
 			data := []byte(`{"schemaVersion":` + version + `,"products":[],"staff":[],"inwards":[],"issues":[],"returns":[]}`)

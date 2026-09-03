@@ -7,13 +7,34 @@ non-technical staff on **one Windows 11 laptop**, no installer, no dependencies.
 
 | What | Where |
 |---|---|
-| Approved design, with screen mockups | https://claude.ai/code/artifact/bfcf8682-3b0b-4933-b2e9-a7348d482457 |
+| Approved design, with screen mockups | `design/store-register.html` |
 | Build specs | `specs/*.spec.md` — `00-index.spec.md` first |
-| Agent definitions | `.claude/agents/` — four, all in use |
+| Codex project instructions and agents | `AGENTS.md`, `.codex/agents/` |
 | Original photos of the handwritten book | `IMG-20260831-WA0000.jpg`, `IMG-20260831-WA0001.jpg` — the blank column headings, no entries |
 
-The artifact is the source of truth for screens and wording. Read it before changing
+The checked-in design is the source of truth for screens and wording. Read it before changing
 anything user-visible.
+
+## Current state — 3 September 2026
+
+Active work is on `fix/product-pickers-at-scale`. The committed build contains the
+protected finance area, scalable product pickers, the merged money/order entry and the
+third acquisition choice (Rent, Purchase, or reusable custom Other). The schema-5
+slice moves supplier/payee names into one shared public party list so the
+unauthenticated inward desk and authenticated finance screens use the same suggestions.
+
+Only party IDs, current/previous names and merge targets are public. Money, purpose,
+payment mode, financial links, account identity/mobile, timestamps and audit provenance
+remain encrypted. The schema-4 to schema-5 migration preserves existing finance IDs and
+history. This slice has passed the full race suite, Playwright in normal and
+JavaScript-disabled modes plus restart/raw-file checks, plain-language review, vet,
+the Windows cross-build and a fresh independent release gate. The gate verdict is
+`READY`; `HANDOFF.md` is the detailed current record.
+
+Next planned work is the already agreed ledger simplification: the routine recording
+screen will support Billed/Paid/Received together. Supplier running balances, supplier
+challans and broad search remain separate pending work; the whole ledger is not being
+collapsed into literally one form.
 
 ## What it does
 
@@ -51,15 +72,16 @@ browser, all state in one human-readable file beside the executable.
 - **A person is name + mobile together.** One search field accepts either. An exact
   name match shows the existing people with their mobiles to pick from — offered, never
   enforced.
-- **No passwords, no authentication anywhere.** The shift screen puts a name on entries.
+- **Ordinary inventory has no login.** The shift screen puts a name on desk entries;
+  only the protected financial area uses individual mobile/password accounts.
 - **Over-issue and over-return are refused.** Partial returns are first-class.
 - **A short return requires a remark** plus "still expected back" or "won't come back".
   Nothing is ever written off automatically.
-- **No settlement, no payment, no money anywhere in the program.**
-- **Nothing about returning goods to suppliers.** The user: *"we care about I got 500
-  chairs, I issued 500, i want 500 at end of event, thats it — there are other people
-  who handle this going back to supplier."* The Suppliers tab is a plain record of what
-  came in from whom.
+- **Ordinary inventory exposes no settlement, payment or money.** Those facts exist only
+  inside the authenticated encrypted financial area.
+- **The inventory desk stops when issued goods return to its pool.** Authorized financial
+  users separately record supplier returns, sales and related money; ordinary inventory
+  never infers those outcomes.
 - **Entries can be corrected or deleted**, keeping a visible note of what changed and
   who changed it. Corrections that would make the register impossible are refused.
 - **Code signing was considered and rejected** — costs money, and the SmartScreen
@@ -81,7 +103,7 @@ screen would make someone remember something, that is a design bug, not a wordin
 - Use Read/Write/Edit for file work, Bash for commands.
 - Keep messages short.
 
-## State as of 1 September 2026
+## Historical state through 2 September 2026
 
 ### Work begun 2 September 2026
 
@@ -104,11 +126,11 @@ with its two-step destructive actions. Every screen has been through
 `plain_language_reviewer`, and the whole scenario has been driven in a real browser
 against a real binary, including a pass with JavaScript switched off.
 
-**The file format is now schema 3, and that matters more than anything else here.**
-The new build reads schema 1, 2 and 3, so upgrading is safe. `v1.1.1` reads only 1 and
-2 and does *not* refuse a schema-3 file cleanly: it treats the mismatch as damage, sets
-the real data aside as `store-register.json.corrupt-<timestamp>`, falls back to `.bak`
-and shows pre-upgrade data behind the ordinary damage banner. Same trap as the
+**The first financial build used schema 3; the current work uses schema 5.**
+The current build reads schemas 1 through 5, so upgrading is safe. Older builds do *not*
+necessarily refuse newer files cleanly: they may treat the mismatch as damage, set
+the real data aside as `store-register.json.corrupt-<timestamp>`, fall back to `.bak`
+and show pre-upgrade data behind the ordinary damage banner. Same trap as the
 `v1.0.1` to `v1.1.1` upgrade, same procedural fix, and it cannot be fixed in the new
 version because the defect is in the released reader. Before the new `.exe` is used:
 back up `store-register.json`, delete the old `.exe` from the laptop and the pen drive,

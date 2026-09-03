@@ -130,7 +130,7 @@ func TestMoneyEntryMakesTheOrderItAgrees(t *testing.T) {
 						t.Errorf("line %d is %s but the movement names %s", i, l.ID, m.OrderLineIDs[i])
 					}
 				}
-				if register.FinanceValueText(mustFinance(t, e, key), o.PartyID) != "Sharma Events" {
+				if partyText(t, e, o.PartyID) != "Sharma Events" {
 					t.Error("the order was made against the wrong party")
 				}
 				if o.PartyID != m.PartyID {
@@ -450,11 +450,10 @@ func TestSplitMoneyEntryMakesOneOrderPerRow(t *testing.T) {
 	if len(all) != 2 {
 		t.Fatalf("%d orders for two amounts, want 2", len(all))
 	}
-	f := mustFinance(t, e, key)
-	if register.FinanceValueText(f, all[0].PartyID) != "Sharma Events" ||
-		register.FinanceValueText(f, all[1].PartyID) != "Bala Transport" {
+	if partyText(t, e, all[0].PartyID) != "Sharma Events" ||
+		partyText(t, e, all[1].PartyID) != "Bala Transport" {
 		t.Errorf("the two orders are against %q and %q",
-			register.FinanceValueText(f, all[0].PartyID), register.FinanceValueText(f, all[1].PartyID))
+			partyText(t, e, all[0].PartyID), partyText(t, e, all[1].PartyID))
 	}
 	if all[0].ID == all[1].ID {
 		t.Fatalf("both orders were numbered %s", all[0].ID)

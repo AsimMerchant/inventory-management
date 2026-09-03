@@ -96,8 +96,11 @@ func validateSettlements(f *FinanceData, accountIDs map[string]bool) error {
 			return fmt.Errorf("%s id is blank or duplicated", kind)
 		}
 		ids[id] = true
-		v, ok := ResolveFinanceValue(f, partyID)
-		if !ok || v.Kind != FinanceParty {
+		// The party is a name in the open register, not a value in here, so
+		// the vault cannot resolve it and must not try. A name that has gone
+		// missing shows as the text the record was saved with; it never makes
+		// the vault refuse to open. See ResolveParty and PartyText.
+		if partyID == "" {
 			return fmt.Errorf("%s party is unknown", kind)
 		}
 		if product.ProductID == "" || CleanName(product.ProductName) == "" {
@@ -170,10 +173,15 @@ func validateMovements(f *FinanceData, accountIDs map[string]bool) error {
 		if !accountIDs[m.RecordedByID] {
 			return fmt.Errorf("money movement recorder is unknown")
 		}
+		// The party is a name in the open register; only the purpose and the
+		// payment mode are values in here.
+		if m.PartyID == "" {
+			return fmt.Errorf("money movement party is unknown")
+		}
 		for _, pair := range []struct {
 			id   string
 			kind FinanceValueKind
-		}{{m.PartyID, FinanceParty}, {m.PurposeID, FinancePurpose}, {m.ModeID, FinanceMode}} {
+		}{{m.PurposeID, FinancePurpose}, {m.ModeID, FinanceMode}} {
 			v, ok := ResolveFinanceValue(f, pair.id)
 			if !ok || v.Kind != pair.kind {
 				return fmt.Errorf("money movement %s is unknown", pair.kind)
@@ -273,7 +281,7 @@ func validateOrders(f *FinanceData, accountIDs map[string]bool) error {
 			return fmt.Errorf("financial order id is blank or duplicated")
 		}
 		orderIDs[o.ID] = true
-		if _, ok := ResolveFinanceValue(f, o.PartyID); !ok {
+		if o.PartyID == "" {
 			return fmt.Errorf("financial order party is unknown")
 		}
 		if !accountIDs[o.CreatedByID] {

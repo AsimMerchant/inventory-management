@@ -126,10 +126,8 @@ func TestValidateFinanceHoldsTheMovementInvariants(t *testing.T) {
 		"zero amount":      func(_ *FinanceData, m *MoneyMovement) { m.AmountPaise = 0 },
 		"negative amount":  func(_ *FinanceData, m *MoneyMovement) { m.AmountPaise = -1 },
 		"no direction":     func(_ *FinanceData, m *MoneyMovement) { m.Direction = "" },
-		"unknown party":    func(_ *FinanceData, m *MoneyMovement) { m.PartyID = "PTY-9999" },
 		"unknown purpose":  func(_ *FinanceData, m *MoneyMovement) { m.PurposeID = "PUR-9999" },
 		"unknown mode":     func(_ *FinanceData, m *MoneyMovement) { m.ModeID = "PMD-9999" },
-		"purpose as party": func(f *FinanceData, m *MoneyMovement) { m.PartyID = m.PurposeID },
 		"unknown recorder": func(_ *FinanceData, m *MoneyMovement) { m.RecordedByID = "FAC-9999" },
 		"unknown order":    func(_ *FinanceData, m *MoneyMovement) { m.OrderID = "ORD-9999" },
 		"lines with no order": func(_ *FinanceData, m *MoneyMovement) {

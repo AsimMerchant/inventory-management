@@ -33,18 +33,18 @@ type movementView struct {
 	VoidLine    string
 }
 
-func viewMovement(f *register.FinanceData, m register.MoneyMovement) movementView {
+func viewMovement(reg *register.Register, f *register.FinanceData, m register.MoneyMovement) movementView {
 	v := movementView{
 		ID: m.ID, Direction: register.DirectionText(m.Direction),
 		Amount: register.FormatRupees(m.AmountPaise), OccurredAt: m.OccurredAt,
-		Party:   register.FinanceValueText(f, m.PartyID),
+		Party:   register.PartyText(reg, m.PartyID),
 		Purpose: register.FinanceValueText(f, m.PurposeID),
 		Mode:    register.FinanceValueText(f, m.ModeID),
 		OrderID: m.OrderID, Reference: m.Reference, Remarks: m.Remarks,
 		RecordedAt: m.RecordedAt, Changes: m.Changes, Voided: m.Voided,
 	}
 	if m.OrderID != "" {
-		v.Order = orderRefText(f, m)
+		v.Order = orderRefText(reg, f, m)
 	}
 	if len(m.Products) != 0 {
 		v.Products = productRefText(m.Products)
@@ -165,7 +165,7 @@ func (s *Server) journalPage(w http.ResponseWriter, r *http.Request, problem str
 	data.PrintedAt = s.now().Format("Monday, 2 January 2006 · 3:04 pm")
 
 	data.Totals = totalsView{money(0), money(0), money(0)}
-	_ = s.st.ReadFinance(sess.vaultKey, func(f *register.FinanceData) {
+	_ = s.st.ReadBoth(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) {
 		if !validFilter {
 			return
 		}
@@ -180,7 +180,7 @@ func (s *Server) journalPage(w http.ResponseWriter, r *http.Request, problem str
 			ordered = register.AscendingMovements(kept)
 		}
 		for _, m := range ordered {
-			data.Rows = append(data.Rows, viewMovement(f, m))
+			data.Rows = append(data.Rows, viewMovement(reg, f, m))
 		}
 		if t, err := register.TotalMoney(f, filter.Keep); err == nil {
 			data.Totals = totalsView{money(t.PaidPaise), money(t.ReceivedPaise), money(t.NetPaise)}
@@ -212,7 +212,7 @@ type dashboardData struct {
 func (s *Server) financeDashboard(w http.ResponseWriter, r *http.Request) {
 	sess := financeSessionOf(r)
 	data := dashboardData{CSRF: sess.csrf, Admin: s.sessionIsAdmin(sess)}
-	_ = s.st.ReadFinance(sess.vaultKey, func(f *register.FinanceData) {
+	_ = s.st.ReadBoth(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) {
 		for _, a := range f.Accounts {
 			if a.ID == sess.accountID {
 				data.Who, data.Mobile = a.DisplayName, a.Mobile
@@ -230,7 +230,7 @@ func (s *Server) financeDashboard(w http.ResponseWriter, r *http.Request) {
 			rows = rows[:10]
 		}
 		for _, m := range rows {
-			data.Recent = append(data.Recent, viewMovement(f, m))
+			data.Recent = append(data.Recent, viewMovement(reg, f, m))
 		}
 	})
 	s.financePage(w, r, "Financial ledger", "finance-home.html", data)

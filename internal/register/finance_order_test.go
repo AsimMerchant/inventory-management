@@ -207,7 +207,6 @@ func TestValidateFinanceHoldsTheOrderInvariants(t *testing.T) {
 		"unknown basis":         func(o *FinanceOrder) { o.Lines[0].Basis = "borrowed" },
 		"repeated product line": func(o *FinanceOrder) { o.Lines[1].Basis = Rent },
 		"duplicate line id":     func(o *FinanceOrder) { o.Lines[1].ID = "OLN-0001" },
-		"unknown party":         func(o *FinanceOrder) { o.PartyID = "PTY-9999" },
 		"bad status":            func(o *FinanceOrder) { o.Status = "half" },
 		"kind without total":    func(o *FinanceOrder) { o.AgreedKind = "exact" },
 		"blank snapshot":        func(o *FinanceOrder) { o.Lines[0].ProductNameSnapshot = "" },

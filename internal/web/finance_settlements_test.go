@@ -109,8 +109,8 @@ func TestSupplierReturnAndSaleMoveStockButNoMoney(t *testing.T) {
 		t.Error("the inward supplier should stay readable public data")
 	}
 	for _, secret := range []string{
-		"supplierReturns", "\"sales\"", "Patel Decorators",
-		"amountPaise", "partyId", "buyerPartyId", "SRN-", "SAL-",
+		"supplierReturns", "\"sales\"",
+		"amountPaise", "buyerPartyId", "SRN-", "SAL-",
 	} {
 		if strings.Contains(raw, secret) {
 			t.Errorf("%q is readable in the register file", secret)
@@ -761,8 +761,8 @@ func TestInventoryDisposalContainsNoFinancialDetail(t *testing.T) {
 
 	raw := string(mustReadFile(t, e.path))
 	for _, secret := range []string{
-		"Patel Decorators", "GATE/12", "Loaded onto their truck",
-		"supplierReturns", "buyerPartyId", "partyId", "amountPaise",
+		"GATE/12", "Loaded onto their truck",
+		"supplierReturns", "buyerPartyId", "amountPaise",
 	} {
 		if strings.Contains(raw, secret) {
 			t.Errorf("%q is readable in the register file", secret)

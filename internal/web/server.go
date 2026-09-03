@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"sync"
@@ -66,6 +67,10 @@ func (s *Server) routes() {
 	// 08
 	m.HandleFunc("GET /api/people", s.apiPeople)
 
+	// The shared supplier and other-party list. Open, because the delivery
+	// desk picks from it and is never logged in.
+	m.HandleFunc("GET /api/parties", s.apiParties)
+
 	// 11
 	m.HandleFunc("/entry/{id}/edit", s.entryEdit)
 	m.HandleFunc("POST /entry/{id}/delete", s.entryDelete)
@@ -85,10 +90,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// An authorized person may place an order before inventory staff start a
-	// shift. The finance order picker reuses the public product-name endpoint,
-	// so allow that read-only request for a confirmed finance session only.
-	if r.URL.Path == "/api/products" {
+	// shift. The finance pickers reuse the public product-name and party
+	// endpoints, so allow those read-only requests for a confirmed finance
+	// session only. Without this the picker silently returns nothing and no
+	// product and no supplier can be chosen at all.
+	if r.URL.Path == "/api/products" || r.URL.Path == "/api/parties" {
 		if sess, _ := s.authenticatedFinanceSession(r); sess != nil && !sess.recoveryPending {
+			// The party endpoint uses the unlocked vault only to include
+			// schema-4 party names which have not reached their first
+			// schema-5 write yet. Its response still contains names and IDs
+			// only; the product endpoint ignores this context.
+			r = r.WithContext(context.WithValue(r.Context(), financeContextKey{}, sess))
 			s.mux.ServeHTTP(w, r)
 			return
 		}

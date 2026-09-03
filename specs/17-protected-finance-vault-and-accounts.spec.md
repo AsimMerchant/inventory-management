@@ -17,22 +17,46 @@ logged in.
 - This intentionally supersedes the no-authentication and no-money prohibitions in
   `CLAUDE.md`, specs 00, 04, 05, 10 and 12, but only for routes beginning `/finance`.
   Inventory routes, the five inventory tabs and on-duty attribution remain unchanged.
-- Spec 15 made schema 2 necessary for product tombstones. A schema-2 executable ignores
-  unknown financial fields, so this spec requires schema 3 downgrade protection.
+- Spec 15 made schema 2 necessary for product tombstones; the vault and later shared
+  vocabularies advanced the file through schemas 3–5. Older executables do not safely
+  understand the current file, so this spec requires schema-5 downgrade protection.
 - Go 1.27 provides `crypto/pbkdf2`; no KDF or cipher is implemented by this project.
 
 ## Contract
 
 ### Inputs
 
-#### Schema 3 and encrypted envelope
+#### Schema 5, shared public parties and encrypted envelope
 
-Set `register.SchemaVersion = 3`. Keep the existing inventory members in their existing
-JSON order and append:
+Set `register.SchemaVersion = 5`. Schema 3 introduced the finance envelope and schema 4
+introduced public acquisition kinds. Schema 5 adds the one supplier/other-party
+vocabulary required by both the unauthenticated delivery desk and authenticated finance
+screens. Keep the existing inventory members in their existing JSON order and include:
 
 ```go
+Parties []Party          `json:"parties,omitempty"`
 Finance *FinanceEnvelope `json:"finance,omitempty"`
+
+type Party struct {
+    ID            string   `json:"id"`
+    Name          string   `json:"name"`
+    PreviousNames []string `json:"previousNames,omitempty"`
+    MergedIntoID  string   `json:"mergedIntoId,omitempty"`
+}
 ```
+
+Add field `PartyID` with Go type `string`, JSON name `partyId` and `omitempty` to the
+existing `Inward`. Retain field `Supplier` with Go type `string` and JSON name `supplier`
+unchanged as the historical human-readable snapshot.
+
+Those four fields are the complete public `Party` contract. A newly created party uses
+`PRT-0001` and the existing widening four-digit ID convention. A party imported from a
+schema-4 vault keeps its `PTY-0001` ID so no encrypted financial reference is rewritten.
+Both prefixes are valid party IDs. `Name` is the current cleaned display name;
+`PreviousNames` contains names only; `MergedIntoID` points to another public party and
+resolvers follow it transitively. Public party JSON must not gain creation time, creator,
+account ID, mobile, change actor, change time, audit event, amount, purpose, payment mode,
+order/movement/settlement link or any other fact that says money changed hands.
 
 The public envelope contains key-wrapping metadata and encrypted bytes, never financial
 records or display values:
@@ -59,9 +83,13 @@ type FinanceKeySlot struct {
 ```
 
 `MobileHash` is lowercase hex SHA-256 of `register.MobileKey(mobile)` and is only a
-lookup hint. A mobile number, display name, role, status, order, amount, party, purpose,
-mode, audit record and financial timestamp must not occur in plaintext anywhere in
-`store-register.json`. The number of slots and ciphertext length are not secret.
+lookup hint. A financial account mobile number/display name/role/status, order, amount,
+purpose, mode, financial link, audit provenance and financial timestamp must not occur
+in plaintext anywhere in `store-register.json`. Public party IDs, current names,
+previous names and merge targets are intentional exceptions because inventory staff
+must use the same vocabulary without logging in. The existence of a public party must
+reveal no financial relationship. The number of slots and ciphertext length are not
+secret.
 
 The decrypted `FinanceData` begins in this spec; specs 18–20 append their owned slices
 in order so each implementation stage compiles:
@@ -108,12 +136,38 @@ Every slice normalizes to `[]`. All IDs are generated with the existing widening
 four-digit convention. Mobile identity is `register.MobileKey`; blank or two accounts
 with the same non-empty mobile key are refused. Display names use `CleanName`.
 
-Files at schema 1 or 2 load in memory as schema 3 with `Finance == nil`, without an
-open-time write. The next successful update writes schema 3 atomically. Schema 3 loads
-unchanged. Every other schema is refused. Before deploying this version, copy
+Files at schema 1, 2, 3 or 4 load in memory as schema 5 without an open-time write;
+schema 5 loads unchanged and every other schema is refused. During that in-memory load,
+each nonblank legacy `Inward.Supplier` is cleaned, matched by `FoldKey`, added once to
+`Register.Parties` if needed, and assigned to `Inward.PartyID`. Distinct non-equal
+spellings such as `Sharma Events` and `Sharma Tents` remain distinct until an admin
+combines them. `Inward.Supplier` remains the immutable name snapshot and is never
+rewritten by a later rename or combine.
+
+A schema-4 vault may still contain `FinanceReusableValue{Kind: FinanceParty}` rows that
+cannot be read during unauthenticated open. An authenticated combined read must import
+those rows into a copy of `Register.Parties` so `/api/parties` and every finance picker
+offer all existing names before any schema-5 write. The first successful authenticated
+finance mutation imports them permanently in the same locked atomic transaction as that
+mutation and removes only the party-kind rows from encrypted `ReusableValues`:
+
+- each imported row keeps its `PTY-*` ID and existing `MergedIntoID`;
+- every `FinanceOrder.PartyID`, `MoneyMovement.PartyID`,
+  `SupplierReturn.PartyID` and `StockSale.BuyerPartyID` remains byte-for-byte unchanged;
+- a folded match already created from an inward is retained as the live `PRT-*` row and
+  the imported `PTY-*` row points to it, rather than either reference being rewritten;
+- earlier value corrections contribute their cleaned `From` names to
+  `Party.PreviousNames`, and earlier merge chains continue to resolve;
+- creator/account/mobile/timestamps and all finance audit/change provenance remain only
+  in encrypted finance data; they are not copied into `Party`.
+
+The import, callback change, cross-boundary validation, fresh vault encryption, schema-5
+public data and existing temp/fsync/backup/rename save are one transaction. Any callback,
+validation, encryption or save failure leaves memory, main and backup unchanged. The
+next successful ordinary or financial save writes schema 5. Before deploying, copy
 `store-register.json` somewhere safe and remove every older executable from the laptop
-and pen drive: a v1.1.1 schema-2 reader can fall back to a schema-2 `.bak` and overwrite
-schema 3 exactly as documented for the earlier v1.0.1/schema-2 transition.
+and pen drive because an older reader can fall back to an older-schema `.bak` and later
+overwrite newer fields.
 
 #### Cryptographic construction
 
@@ -147,15 +201,19 @@ func (s *Store) InitializeFinance(displayName, mobile, password string, now time
 func (s *Store) UnlockFinance(mobile, password string) (vaultKey []byte, accountID string, err error)
 func (s *Store) UnlockFinanceRecovery(recovery string) ([]byte, error)
 func (s *Store) ReadFinance(vaultKey []byte, fn func(*register.FinanceData)) error
+func (s *Store) ReadBoth(vaultKey []byte, fn func(*register.Register, *register.FinanceData)) error
 func (s *Store) UpdateFinance(vaultKey []byte, fn func(*register.Register, *register.FinanceData) error) error
 ```
 
 `InitializeFinance` is accepted only while `Finance == nil`; it creates active admin
 `FAC-0001`, password/recovery slots and an empty encrypted payload in one atomic save.
-`UpdateFinance` deep-copies the full register and decrypted finance data, runs `fn`,
-`register.Validate` and `register.ValidateFinance`, encrypts with a fresh nonce and uses
-the existing temp/fsync/backup/rename sequence. Any callback, validation, random,
-encryption or save error restores exact in-memory and on-disk state.
+`ReadBoth` holds the store lock, decrypts, imports any schema-4 party rows into copies,
+and passes those copies to `fn` without saving. `UpdateFinance` deep-copies the full
+register and decrypted finance data, imports old party rows, runs `fn`,
+`register.Validate`, `register.ValidateFinance` and `register.ValidatePartyReferences`,
+encrypts with a fresh nonce and uses the existing temp/fsync/backup/rename sequence. Any
+callback, validation, random, encryption or save error restores exact in-memory and
+on-disk state.
 
 Every operation that changes a key slot—activation, disable, reset, password change,
 recovery, or recovery-key replacement—uses the same private locked transaction:
@@ -328,6 +386,8 @@ labels.
 ### Outputs
 
 - Ordinary inventory remains available without a financial account or session.
+- The delivery desk and authenticated finance screens use one public party vocabulary;
+  only names, aliases and stable IDs cross the vault boundary.
 - Only an active account can decrypt financial data; every financial user sees the full
   protected area, while account/shared-value management requires an admin.
 - The JSON remains human-readable for inventory content but exposes no financial value.
@@ -350,9 +410,25 @@ labels.
 
 ## Required tests
 
-`TestSchemaTwoLoadsAsThreeWithoutWriting` — load a real schema-2 v1.1.1 fixture; bytes
-and `.bak` are unchanged, inventory is identical, `Finance == nil`, in-memory version is
-3, and the next ordinary save is schema 3.
+`TestSchemaTwoLoadsAsCurrentWithoutWriting` — load a real schema-2 v1.1.1 fixture; bytes
+and `.bak` are unchanged, inventory is identical, legacy supplier snapshots are linked
+to public parties in memory, `Finance == nil`, in-memory version is 5, and the next
+ordinary save is schema 5.
+
+`TestFirstFinanceWriteMigratesEncryptedSchemaFourPartiesAtomically` — schema-4 Sharma
+Events keeps its `PTY-*` ID and every order/movement/return/sale reference; the first
+finance write produces schema 5, removes the encrypted party-kind list, exposes only the
+four allowed public party fields, retains encrypted actor/mobile/time audit and survives
+restart.
+
+`TestFirstFinanceWritePartyMigrationRollsBackOnFailure` — callback failure, invalid
+cross-boundary party reference, encryption randomness failure and forced atomic-save
+failure each leave schema-4 encrypted party rows, public register, main, backup and
+in-memory state byte-identical.
+
+`TestImportVaultPartyRenameAndMergeHistoryStillResolves` — import `Sharm Events` merged
+into corrected `Sharma Tent House`; both old spellings and the current name resolve after
+restart without rewriting a financial reference or exposing correction provenance.
 
 `TestFinanceVaultRoundTripContainsNoPlaintext` — initialize Asha Mehta / 98861 40023,
 append an audit summary `Protected vault marker 7QX9`, save/reopen/unlock, and recover all
@@ -423,15 +499,17 @@ logout, 14:59 activity, exact 15:00 expiry, expired banner and no post-expiry wr
 logins lock only that mobile for 15 minutes and successful login after boundary clears it.
 
 `TestPublicPagesLeakNoFinanceContent` — with a populated unlocked vault, crawl every
-ordinary route/API and assert only `Authorized login` appears; no protected strings,
-financial navigation, amount, party, purpose, mode or account mobile appears.
+ordinary route/API and assert only `Authorized login` and the intentionally public party
+names/IDs/aliases appear; no protected navigation, amount, purpose, mode, account mobile,
+financial relationship, audit provenance or timestamp appears.
 
 ## Acceptance criteria
 
-1. Schema 1/2 migration, schema 3 save and downgrade warning procedure are tested.
+1. Schema 1–4 migration, schema-5 save and downgrade warning procedure are tested.
 2. AES-256-GCM and Go's `crypto/pbkdf2` are the only vault/password constructions; all
    random values come from `crypto/rand` and all authentication precedes parsing.
-3. Raw main/backup/corrupt copies contain no decrypted financial field or value.
+3. Raw main/backup/corrupt copies contain no decrypted financial field or value except
+   the contracted public party names, aliases and IDs, with no financial relationship.
 4. Every finance route passes the session/role/CSRF matrix and idle expiry tests.
 5. Existing inventory tests and unauthenticated workflows remain unchanged.
 6. No third-party dependency, network call, TLS listener or non-loopback listener exists.
@@ -440,13 +518,14 @@ financial navigation, amount, party, purpose, mode or account mobile appears.
 
 ```text
 cd /home/asim/Projects/inventory-management
-go test ./internal/store/ ./internal/register/ -run 'TestSchemaTwo|TestFinance' -race -count=1 -v
+go test ./internal/store/ ./internal/register/ -run 'TestSchemaTwo|TestFinance|TestFirstFinanceWrite|TestImportVaultParty|TestValidateParty|TestLinkInwardParties' -race -count=1 -v
 go test ./internal/web/ -run 'TestFirstAccount|TestAdmin|TestAccountDestructive|TestSetupCode|TestRecoveryKey|TestAuthorizationForms|TestExpired|TestCannotDisable|TestFinanceAuthorization|TestFinanceSession|TestFinanceCSRF|TestPublicPages' -race -count=1 -v
 go test ./... -race -count=1
 go vet ./...
 rg -n 'crypto/(aes|cipher|pbkdf2|rand|sha256|subtle)' internal
 rg -n 'math/rand|crypto/des|crypto/rc4|NewCBC|NewCTR' internal --glob '*.go' --glob '!**/*_test.go' # must print nothing
-rg -n '"displayName"|"mobile"|Sharma Events|"amountPaise":500000|"purposeId"|"modeId"' store-register.json 2>/dev/null # must print nothing
+rg -n '"displayName"|"mobile"|"amountPaise":500000|"purposeId"|"modeId"|"createdById"|"byAccountId"' store-register.json 2>/dev/null # must print nothing; party names are intentionally public
+rg -n '"parties"|"previousNames"|"mergedIntoId"' store-register.json 2>/dev/null # public party vocabulary may print
 rg -n 'net/http' internal/register internal/store # must print nothing
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /tmp/register.exe .
 ```

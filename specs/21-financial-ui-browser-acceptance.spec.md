@@ -10,8 +10,10 @@ printing and restart—before the feature branch may merge.
 
 - The approved `design/store-register.html` predates financial work. Exact new strings
   in specs 17–20 trace to the user's 2 September 2026 decisions, not to that walkthrough.
-- Ordinary staff are busy and untrained. The five inventory tabs and all existing entry
-  flows remain visually/behaviorally unchanged except the neutral `Authorized login`.
+- Ordinary staff are busy and untrained. The five inventory tabs remain; the inward and
+  inward-correction flows additionally use the schema-5 shared supplier/other-party
+  picker required by the user's 3 September 2026 decision. Other inventory flows remain
+  visually/behaviorally unchanged except the neutral `Authorized login`.
 - User explicitly requires real browser testing with Playwright/headless Chromium, not
   only handler tests. Project instructions require the Browser skill's Playwright
   interface and independent release gate.
@@ -65,6 +67,12 @@ Canonical routes are exactly:
 | GET | `/finance/audit` | immutable financial activity |
 | GET | `/finance/api/values` | authenticated suggestion JSON |
 
+`GET /api/parties?q=<text>` is the shared public party-suggestion route owned by spec
+18, not a protected finance route. An ordinary on-duty inventory request and a
+confirmed finance session may call it. Its JSON contains suggestion IDs/names/labels
+only; an authenticated read includes schema-4 vault party names before the first
+schema-5 write without exposing why any party exists.
+
 Wrong method is 405. Unknown protected entity is shell 404 with
 `That financial record was not found.` and no decrypted neighbor data. All protected
 GETs use `Cache-Control: no-store`, `Pragma: no-cache`,
@@ -72,7 +80,9 @@ GETs use `Cache-Control: no-store`, `Pragma: no-cache`,
 `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self';
 base-uri 'none'; frame-ancestors 'none'; form-action 'self'`. No financial value enters
 URL parameters except explicit journal filters and opaque internal IDs on authenticated
-pages. Amount, party, purpose, remarks and password are POST bodies.
+pages. Amount, purpose, remarks and password are POST bodies. Party names may appear in
+the query of the deliberately public `/api/parties` suggestion route; no financial
+record or relationship is identified by that query or response.
 
 #### Forms and refusal behavior
 
@@ -111,13 +121,14 @@ means more money has been received than paid; it is not automatically labelled p
 Never infer tax, invoice balance, settlement completion or ownership from entries.
 
 Ordinary inventory pages contain no new supplier return/sale/payment/order rows. Their
-Stock counts reflect the neutral public disposal projection. Protected finance pages may
-link back to `Dashboard`; public pages never link directly to a protected subpage other
-than login.
+Stock counts reflect the neutral public disposal projection, and their party picker may
+show the contracted public name list. Protected finance pages may link back to
+`Dashboard`; public pages never link directly to a protected subpage other than login.
 
 ### Outputs
 
-- One binary supports unchanged inventory work plus an authenticated financial area.
+- One binary supports inventory work with the shared party picker plus an authenticated
+  financial area.
 - Every agreed order/money/end-event path is reachable, auditable, encrypted and usable
   with or without JavaScript.
 - A real browser run proves protection, stock arithmetic, date/time journal filtering,
@@ -159,7 +170,15 @@ password/setup/recovery secrets; no partial write or orphan reusable value.
 
 `TestOrdinaryInventoryExperienceRemainsUnchanged` — byte-level/exact-string comparison
 of every existing page before/after an unopened populated finance vault, except for the
-single approved `Authorized login` link and stock counts changed by public disposals.
+approved `Authorized login` link, shared party picker/list and stock counts changed by
+public disposals. Public party output contains no finance relationship or metadata.
+
+`TestSharedPartyRouteHonorsBothAccessPathsAndNoLeakBoundary` — before any schema-5
+finance write, authenticated Asha can query an old encrypted Sharma Events through
+`/api/parties` without an inventory shift; after migration, on-duty Suresh sees the same
+name/ID on `/inward/new` without finance login; an off-duty unauthenticated request still
+obeys the ordinary shift guard; responses contain no amount/purpose/mode/account/mobile/
+timestamp/audit/link fields.
 
 `TestFinanceHeadersAndFormsContainNoExternalResource` — no CDN/network target, inline
 secret, GET mutation, URL amount/party/remarks, autocomplete password, or cacheable
@@ -178,8 +197,9 @@ selector, print actors and filter precedence all match specs 17–20.
    again for the marked no-script path, then after process restart.
 3. Browser console has no uncaught error; every request stays on discovered
    `http://127.0.0.1:<8765..8785>`; no external request is made.
-4. Raw main/backup inspection proves financial plaintext absent and public disposal has
-   no settlement kind/party/money.
+4. Raw main/backup inspection finds only the contracted public party IDs/names/aliases;
+   all financial plaintext is absent and public disposal has no settlement kind,
+   party-link or money.
 5. Independent `plain_language_reviewer` has no blocking finding and independent
    `release_gate` reports `READY`; implementer/orchestrator reports cannot replace them.
 
@@ -190,20 +210,24 @@ loopback URL from stdout, and always stop that PID. Use only the Browser skill's
 Playwright interface to drive visible/interactive state and inspect network/console.
 
 1. On public Stock/shift screens, verify `Authorized login` exists and no finance menu,
-   money text or protected API response is available. Direct `/finance` redirects to
-   login; direct protected mutation without session/CSRF is 403/no write.
+   money text or protected API response is available. Public party suggestions may show
+   names/IDs only. Direct `/finance` redirects to login; direct protected mutation
+   without session/CSRF is 403/no write.
 2. Set up first admin Asha Mehta / `98861 40023` with a test-only strong password. Save
    the displayed recovery key in test memory, confirm it, verify admin/financial menus.
 3. Asha authorizes Rohan Das / `99001 34562` as Financial user; capture the one-time code,
    log out, activate Rohan with his independently chosen password, verify Rohan sees the
    full empty ledger but not account/list management.
-4. Log in as Asha. Create supplier Sharma Events and an order containing 100 Tents on
+4. Log in as Asha. Create shared party Sharma Events and an order containing 100 Tents on
    rent and 50 Chairs for purchase, estimated ₹25,000.00. Create Tents through the
    deliberate finance product confirmation. Verify protected order detail and zero-stock
-   Tents on ordinary Stock, with no amount/supplier/order leakage there.
-5. Log out, add/start inventory person Suresh Kumar, and record actual Tents receipts of
-   70 then 30 from Sharma Events plus 50 purchased Chairs. Verify Stock 100 Tents/50
-   Chairs and that the inward flow never asks for or reveals the order/expected/payment.
+   Tents on ordinary Stock. Confirm `/api/parties?q=sha` exposes Sharma's name/ID but no
+   amount, order link, purpose, mode, account, audit actor or timestamp.
+5. Log out, add/start inventory person Suresh Kumar, select Sharma Events from the shared
+   picker, and record actual Tents receipts of 70 then 30 plus 50 purchased Chairs.
+   Verify Stock 100 Tents/50 Chairs, both Tents inwards point at the same party while
+   retaining their name snapshots, and the inward flow never asks for or reveals the
+   order/expected/payment.
 6. Log in as Rohan. Record ₹5,000.00 Money paid / Deposit / Online, then batch-save
    ₹5,000.00 Rent, ₹2,000.00 Freight and ₹2,000.00 Unloading labur (intentional typo) to appropriate
    supplier/payee parties, linked to the order/products. Use `Online payment` on one row,
@@ -238,10 +262,12 @@ Playwright interface to drive visible/interactive state and inspect network/cons
     responses are unavailable. The exact 14:59-active/15:00-expired boundary remains a
     deterministic clock-controlled integration test required by spec 17; this browser
     run must not claim a real-time idle test without actually waiting 15 minutes.
-14. Stop the exact server PID. Inspect JSON: schema 3, readable inventory/disposal, no
-    distinctive plaintext finance values. Restart the same binary/directory; verify all
-    stock totals without finance login, then authenticate and repeat key order/journal/
-    audit/settlement assertions.
+14. Stop the exact server PID. Inspect JSON: schema 5, readable inventory/disposal and
+    public party rows containing only `id`, `name`, optional `previousNames` and optional
+    `mergedIntoId`; no distinctive plaintext amount, purpose, mode, financial link,
+    account/mobile or audit provenance. Restart the same binary/directory; verify all
+    stock totals and party suggestions without finance login, then authenticate and
+    repeat key order/journal/audit/settlement assertions.
 15. In a new browser context with JavaScript disabled, log in and complete one existing-
     value payment, one new-purpose payment through `Or add a new one`, exact-time filter,
     print view and logout entirely through server-rendered controls.
@@ -254,7 +280,7 @@ assertion count, console/network findings and any diagnostic screenshot paths in
 
 ```text
 cd /home/asim/Projects/inventory-management
-go test ./internal/web/ -run 'TestFinancialRoute|TestEveryFinancial|TestFinancialForms|TestFinancialRefusals|TestOrdinaryInventory|TestFinanceHeaders|TestPlainLanguageContracts' -race -count=1 -v
+go test ./internal/web/ -run 'TestFinancialRoute|TestEveryFinancial|TestFinancialForms|TestFinancialRefusals|TestOrdinaryInventory|TestSharedParty|TestFinanceHeaders|TestPlainLanguageContracts' -race -count=1 -v
 go test ./... -race -count=1
 go vet ./...
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /tmp/register.exe .
@@ -262,7 +288,7 @@ file /tmp/register.exe
 go list -deps ./... | grep -v '^storeregister' | grep -v '^vendor/' | grep -v '^crypto/internal' | grep '\.' # must print nothing
 rg -n '0\.0\.0\.0|net.Listen\("tcp", ":' main.go internal --glob '*.go' --glob '!**/*_test.go' # must print nothing
 rg -n 'https?://' internal/web/templates internal/web/static # must print nothing
-rg -n 'profit|loss|cash balance|accounts payable|\bdebit\b|\bcredit\b' internal/web --glob '*.go' --glob '*.html' --exclude '*_test.go' # must print nothing
+rg -n 'profit|loss|cash balance|accounts payable|\bdebit\b|\bcredit\b' internal/web --glob '*.go' --glob '*.html' --glob '!**/*_test.go' # must print nothing
 ```
 
 ## Open

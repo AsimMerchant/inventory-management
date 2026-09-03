@@ -300,6 +300,7 @@ func TestLogIsReadOnly(t *testing.T) {
 	}
 	var reopened register.Register
 	st.Read(func(r *register.Register) { reopened = *r })
+	register.LinkInwardParties(reg)
 	if !reflect.DeepEqual(&reopened, reg) {
 		t.Errorf("reopened register differs")
 	}

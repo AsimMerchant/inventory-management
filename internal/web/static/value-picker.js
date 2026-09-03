@@ -29,7 +29,8 @@
 
     function load(q) {
       var req = new XMLHttpRequest();
-      req.open('GET', '/finance/api/values?kind=' + kind + '&q=' + encodeURIComponent(q));
+      var url = box.getAttribute('data-url');
+      req.open('GET', url + (url.indexOf('?') < 0 ? '?' : '&') + 'q=' + encodeURIComponent(q));
       req.onload = function () {
         if (req.status !== 200) { hide(); return; }
         draw(JSON.parse(req.responseText), q);

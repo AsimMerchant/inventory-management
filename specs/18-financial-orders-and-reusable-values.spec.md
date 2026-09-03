@@ -3,8 +3,9 @@
 ## Objective
 
 Let an authorized person record an order before goods arrive, including several
-products and rent/purchase per line, and make every reusable typed party, purpose and
-payment mode immediately available as a shared typeahead suggestion.
+products and an acquisition basis per line. Use one public supplier/other-party list on
+the unauthenticated inward desk and authenticated finance screens, while keeping purpose
+and payment-mode suggestions encrypted.
 
 ## Context
 
@@ -14,8 +15,13 @@ payment mode immediately available as a shared typeahead suggestion.
   in the ordinary inventory picker at zero stock; suppliers, purposes and payment modes
   are reusable suggestions; initial modes are Cash, UPI, Bank transfer, Cheque and Card;
   custom values such as Online and Product adjustment are allowed.
-- Spec 17 owns the encrypted vault, financial identity and admin authorization. This
-  spec never exposes its decrypted values to an ordinary route or API.
+- User decision recorded 3 September 2026: supplier/payee names are shared plain data
+  because the unauthenticated inward person must use the same names. This exposure is
+  limited to stable IDs, current names and old-name/merge aliases; the money portion
+  remains protected.
+- Spec 17 owns the public `Register.Parties` boundary, encrypted vault, financial
+  identity, migration and admin authorization. This spec never exposes a purpose, mode
+  or financial relationship to an ordinary route or API.
 - Specs 06/15 own product duplicate, near-duplicate, rename and tombstone behavior.
   This spec adds a second deliberate product-creation route but preserves those guards.
 - An order is intent, not inventory. No order quantity enters stock arithmetic and an
@@ -32,7 +38,8 @@ Orders         []FinanceOrder         `json:"orders"`
 ReusableValues []FinanceReusableValue `json:"reusableValues"`
 ```
 
-Schema-1/2 migration and a fresh vault normalize both to `[]`.
+Schema migration and a fresh vault normalize both to `[]`; schema-5 migration removes
+old party-kind rows as specified in spec 17 while preserving purpose/mode rows.
 This spec adds audit kinds `order_created`, `order_edited`, `order_cancelled`,
 `value_created`, `value_renamed`, `value_merged`, and `value_deleted`.
 
@@ -41,13 +48,12 @@ This spec adds audit kinds `order_created`, `order_edited`, `order_cancelled`,
 ```go
 type FinanceValueKind string
 const (
-    FinanceParty   FinanceValueKind = "party"
     FinancePurpose FinanceValueKind = "purpose"
     FinanceMode    FinanceValueKind = "mode"
 )
 
 type FinanceReusableValue struct {
-    ID          string           `json:"id"` // "PTY-0001" | "PUR-0001" | "PMD-0001"
+    ID          string           `json:"id"` // "PUR-0001" | "PMD-0001"
     Kind        FinanceValueKind `json:"kind"`
     Value       string           `json:"value"`
     CreatedAt   time.Time        `json:"createdAt"`
@@ -68,12 +74,19 @@ type FinanceChange struct {
 }
 ```
 
-`CleanName` is applied before storage; blank is refused. `FoldKey` is unique among
-unmerged values of the same kind. Prefixes are fixed as above. At first finance setup,
+`FinanceParty == "party"` and old `PTY-*` reusable values may remain as a schema-4
+read/migration compatibility type only; schema 5 creates no protected party value and
+persists none after the first successful authenticated finance write. `CleanName` is
+applied before storage; blank is refused. `FoldKey` is unique among unmerged values of
+the same kind. Prefixes are fixed as above. At first finance setup,
 create the five mode values in this order: `Cash`, `UPI`, `Bank transfer`, `Cheque`,
 `Card`, attributed to FAC-0001 at setup time. No initial party or purpose is created.
 
-Every party, purpose and mode control is a mandatory typeahead:
+Every party, purpose and mode control is a mandatory typeahead. Party controls use the
+public `Register.Parties` model and `GET /api/parties?q=<text>`; purpose and mode controls
+use protected `GET /finance/api/values?kind=purpose|mode&q=<text>`. Each returns JSON
+objects containing exactly the suggestion ID, value and label needed by the picker.
+Matching and form behavior are:
 
 - case-insensitive substring match after `CleanName`/`FoldKey`;
 - values beginning with the query first, then other substring matches, alphabetically
@@ -83,31 +96,75 @@ Every party, purpose and mode control is a mandatory typeahead:
 - if no exact folded match exists, a final row reads `+ Add “<cleaned text>”` and the
   POST creates that value in the same atomic transaction as the order/movement;
 - an exact folded match must resolve to its existing ID and never creates a duplicate;
-- the server repeats resolution/creation inside `Store.UpdateFinance`; client behavior
-  is only an enhancement.
+- the server repeats party resolution/creation against `Register.Parties` and protected
+  value resolution/creation inside `Store.UpdateFinance`; client behavior is only an
+  enhancement.
 
 The no-script fallback is an existing-value `<select>` plus `Or add a new one` text
-field. If both are submitted, selected ID wins; if neither is valid/nonblank, refuse.
+field. Fields are `partyIdChoice`/`partyNameNew`,
+`purposeIdChoice`/`purposeNameNew` and `modeIdChoice`/`modeNameNew`. A nonblank typed-new
+field wins over its select; otherwise the selected ID is used. If neither is
+valid/nonblank, refuse. The JS fields remain hidden `partyId` plus visible `partyName`,
+and the corresponding purpose/mode names.
+
+`GET /api/parties` is available to an ordinary on-duty inventory request without
+financial authentication and to a confirmed authenticated finance session even before
+an inventory shift begins. The public response contains party IDs and current names
+only. In the latter case it uses `Store.ReadBoth` so unmigrated schema-4 vault parties
+are also suggested before the first schema-5 write. It never returns amount, purpose,
+mode, account/mobile, timestamps, audit provenance or a record using the party.
 
 Admin routes `GET /finance/lists` and `POST /finance/lists/{id}/rename`, `/merge`, and
-`/delete` manage these values. Rename requires a unique cleaned value and appends a
-`FinanceChange` (`Field: "value"`, labels `Party`, `Purpose`, or `Payment mode`). Merge
-requires a different live target of the same kind, sets `MergedIntoID`, appends audit,
-and makes every resolver follow the target transitively; cycles are invalid. Existing
-records are not rewritten and display the final target value. Delete is accepted only
-when no current order, movement or settlement field references the value; historical
-audit/change text does not make it used. It physically removes the unused typo but
-appends a `FinanceAuditEvent` containing its kind/value.
-Used values are never physically erased. Exact refusal:
-`This value has been used. Rename it or merge it instead.`
+`/delete` manage public parties and protected purposes/modes. A purpose/mode rename
+appends the existing encrypted `FinanceChange`; a party rename changes public `Name`,
+appends the prior wording to public `PreviousNames`, and appends encrypted audit kind
+`party_renamed` with label `Supplier or other party corrected`. It does not put actor or
+time into the public row. A party combine sets public `MergedIntoID`, keeps every inward
+and finance record's stored ID unchanged, resolves all screens through the target and
+appends encrypted `party_merged` audit. Cycles and same-target combines are invalid.
+
+A party may be physically deleted only when no inward, order, money movement, supplier
+return, sale or other party merge points at it. Deleted unused parties append encrypted
+`party_deleted` audit. Exact party refusal: `This name has been used. Rename it or merge
+it instead.` Protected purpose/mode deletion retains the existing exact refusal `This
+value has been used. Rename it or merge it instead.` Historical audit text alone does
+not make a value used.
+
+The public-party store operations are exactly:
+
+```go
+func (s *Store) RenameParty(vaultKey []byte, actorID, partyID, newText string, now time.Time) error
+func (s *Store) MergeParty(vaultKey []byte, actorID, partyID, targetID string, now time.Time) error
+func (s *Store) DeleteParty(vaultKey []byte, actorID, partyID string, now time.Time) error
+```
+
+Each requires an active administrator and one `UpdateFinance` transaction. Its encrypted
+audit event has `EntityType: "party"`, the source `EntityID`, immutable actor ID/name/
+mobile/time, and these exact values:
+
+| Action | Kind | Summary | Before | After |
+|---|---|---|---|---|
+| rename | `party_renamed` | `Supplier or other party corrected` | old current name | new current name |
+| combine | `party_merged` | `Supplier or other party merged` | source name | target name |
+| delete unused | `party_deleted` | `Supplier or other party removed` | deleted name | blank |
 
 List controls say `Rename`, `Combine duplicates`, and `Delete unused value`; never the
-database term `Merge` by itself. Combine and delete are two-step. The first POST writes
-nothing and renders:
+database term `Merge` by itself. The page introduction says `Supplier names and ways
+goods came in also appear on delivery screens; purposes and payment modes appear only
+in financial details. Renaming an entry changes current records, while Financial
+activity keeps the earlier wording.` A used row says `In use. Rename it or combine it
+with another entry.` Combine and delete are two-step. The first POST writes nothing and
+renders:
 
-- `Combine <source> into <target>?` / `Every financial record that currently shows
-  <source> will show <target>. The activity history will keep both earlier names.` /
-  button `Yes, combine these values`;
+- for a party, `Combine <source> into <target>?` / `Every delivery and financial record
+  that currently shows <source> will show <target>. The activity history will keep both
+  earlier names.` / button `Yes, combine these values`;
+- for a protected purpose/mode, `Combine <source> into <target>?` / `Every financial
+  record that currently shows <source> will show <target>. The activity history will
+  keep both earlier names.` / button `Yes, combine these values`;
+- for a party, `Delete unused supplier or other party “<value>”?` / `It will be removed
+  from future suggestions. This is allowed only because no delivery and no financial
+  record uses it.` / button `Yes, delete this unused value`;
 - `Delete unused <kind> “<value>”?` / `It will be removed from future suggestions. This
   is allowed only because no current financial record uses it.` / button `Yes, delete
   this unused value`.
@@ -168,10 +225,12 @@ same product are refused. `OrderedAt` defaults to now and accepts a local
 `datetime-local` value interpreted in the server's local offset; it may be backdated or
 future-dated. `CreatedAt` is actual save time and never editable.
 
-Successful POST re-resolves the party and products, creates any new party, validates at
-least one line and every positive quantity/basis, then appends one order in one
-`UpdateFinance`. It redirects 303 to `/finance/orders/{id}` and says `Order saved.`
-Creating an order changes no inward, on-hand, supplier obligation or money balance.
+Successful POST re-resolves the party against public `Register.Parties` and products,
+creates any new public party, validates at least one line and every positive
+quantity/basis, then appends one encrypted order in one `UpdateFinance`. It redirects
+303 to `/finance/orders/{id}` and says `Order saved.` Creating an order may add only the
+party's public ID/name row; it changes no inward, on-hand, supplier obligation or money
+balance and exposes no order-to-party link outside the vault.
 
 `GET /finance/orders` lists newest `OrderedAt` first, ID tie-break, with status, party,
 products/expected quantities/bases, optional `Estimated total` or `Agreed total`.
@@ -228,33 +287,45 @@ not see expected quantity, order party, total, payment or order ID and do not se
 order. Receiving 70 of an expected 100 and later 30 is two independent inwards; neither
 changes the order or creates money movement.
 
-Finance party suggestions are protected and must not populate the ordinary inward
-supplier datalist. Existing inward supplier suggestions continue to come only from live
-inwards. Case-fold comparison may later correlate an inward supplier to a finance party
-for supplier-return limits in spec 20; it does not expose the protected list.
+The ordinary inward and correction forms use the same party picker as finance, labelled
+`Came from`. Their fields are `partyId`/`partyName` with no-script
+`partyIdChoice`/`partyNameNew`. A valid selection stores its resolved ID in
+`Inward.PartyID`; a new cleaned name is added to `Register.Parties` in the same ordinary
+atomic write. `Inward.Supplier` stores the name snapshot used at save time. A blank party
+remains allowed. For a stale pre-schema-5 browser form, POST `/inward/new` and inward
+correction accept old field `supplier` only when all new party fields are blank, then
+resolve/add it exactly like typed `partyName`; this compatibility must not override a
+new-form selection.
 
 ### Outputs
 
 - Orders capture intent and optional cost without changing physical stock.
-- New products are deliberately shared with inventory at zero stock; all other financial
-  details remain protected.
-- Every reusable typed value becomes an immediate shared suggestion for all financial
-  users and can be safely corrected by an admin.
+- New products are deliberately shared with inventory at zero stock. Party names/IDs and
+  aliases are deliberately shared with inventory; every amount, purpose, mode and
+  financial link remains protected.
+- Every typed party becomes an immediate suggestion to inventory and finance; every
+  typed purpose/mode becomes an immediate suggestion to financial users. Admin changes
+  are audited inside the vault.
 
 ### Side effects
 
-- Order/product/reusable-value writes are one encrypted atomic save with authenticated
-  audit identity.
-- Typeahead queries and every GET are read-only and require a finance session.
+- Order/product/party/reusable-value writes are one atomic save with authenticated audit
+  identity encrypted; only the contracted public product/party fields are plaintext.
+- Typeahead queries and every GET are read-only. Purpose/mode queries require a finance
+  session; party queries serve either an ordinary on-duty request or a confirmed finance
+  session.
 - Cancel/edit/list maintenance never erases order or ledger history.
 
 ## Files to create or modify
 
 - `internal/register/finance_model.go`, `finance_order.go`, `finance_validate.go` and
   tests — order/value model, resolution and validation.
+- `internal/register/model.go`, `parties.go` and tests — public party model, resolution,
+  aliases, cross-boundary references and legacy inward linking.
 - `internal/store/finance.go` and tests — copying/encrypted transactional updates.
-- `internal/web/finance_orders.go`, `finance_values.go`, templates/static enhancement
-  and tests.
+- `internal/store/parties.go` and tests — schema-4 vault import and audited admin actions.
+- `internal/web/finance_orders.go`, `finance_values.go`, `parties.go`, `inward.go`,
+  correction handlers, templates/static enhancement and tests.
 - `internal/web/products.go` only to share existing product guard helpers without
   weakening the ordinary route.
 
@@ -268,9 +339,28 @@ available to another finance user; exact/case-fold reuse creates no duplicate.
 eight cap, hidden ID clearing, add row, and equivalent server-only selection/new-value
 flow for Sharma Events, Freight and Product adjustment.
 
+`TestSharedPartySuggestionsWorkAtDeskAndBeforeFirstFinanceWrite` — legacy encrypted
+Sharma Events is returned by authenticated `/api/parties?q=sha` before an inventory
+shift and before any schema-5 write; after migration the on-duty inward form returns the
+same ID/name without decrypting finance; neither response contains amount, purpose,
+mode, actor, mobile, timestamp or financial link.
+
+`TestInwardPartyPickerAndStaleSupplierFormUseOneList` — Suresh records 70 Tents from a
+selected Sharma Events and later 30 through a stale `supplier=Sharma Events` form; both
+inwards keep their supplier snapshot, point at one shared party ID and Stock reaches
+100. A stale inward-correction POST also resolves its `supplier` field into the shared
+list. A simultaneous new-form selection plus stale supplier field uses the new fields.
+
 `TestAdminRenamesMergesAndDeletesReusableTypos` — rename Frieght to Freight; merge Online
 payment into Bank transfer; physically delete unused Sharm Events; audit has old/new,
-admin ID/name/mobile/time; used deletion gets the exact refusal and no bytes change.
+admin ID/name/mobile/time; used deletion gets the applicable exact refusal and no bytes
+change.
+
+`TestAdminPartyRenameMergeAndDeleteKeepPublicRowsMinimal` — rename Sharma Events to
+Sharma Event Hire, combine Sharm Events into it and delete unused Bala Transprt. Existing
+inward/order/movement/return/sale IDs do not change and resolve to the kept name; public
+JSON contains only `id`, `name`, `previousNames`, `mergedIntoId`; encrypted audit retains
+admin ID/name/mobile/time; deleting a used party gets `ErrPartyUsed` and no write.
 
 `TestReusableListCombineAndDeleteRequireImpactConfirmation` — first POST shows the exact
 plain-language target/consequence/action and writes nothing; only `confirm=yes` combines
@@ -297,7 +387,8 @@ hand-built posts cannot bypass recheck inside `UpdateFinance`.
 
 `TestInventoryReceivesPartialOrderWithoutOrderKnowledge` — order 100 Tents; ordinary
 desk receives 70 then 30; on-hand becomes 100, order remains expected 100/open, and all
-ordinary pages contain no order/payment fields or finance party suggestions.
+ordinary pages contain no order/payment fields; the inward picker contains only the
+contracted public party name/ID and reveals no financial relationship.
 
 `TestCancelPaidUndeliveredOrderKeepsHistory` — cancel 100 Chairs after a movement from
 spec 19: order and original payment remain, no product/inward is deleted, and a later
@@ -311,8 +402,8 @@ reason, CSRF and `confirm=yes`, then audits cancellation without changing money/
 CreatedAt/By and snapshots; removing a movement-linked line gets exact refusal.
 
 `TestOrderConcurrentNewValueResolutionDoesNotDuplicate` — two posts creating Sharma
-Events at once result in one case-fold party and two valid orders or one clean refusal;
-vault validates and decrypts after restart.
+Events at once result in one case-fold public party and two valid orders or one clean
+refusal; public and vault references validate and decrypt after restart.
 
 ## Acceptance criteria
 
@@ -320,22 +411,25 @@ vault validates and decrypts after restart.
    quantities and per-line rent/purchase; optional money is int64 paise.
 2. Orders and their corrections/cancellation have no stock side effect.
 3. Party/purpose/mode typeahead creation and reuse are mandatory with both JS and
-   no-script paths; list management is admin-only and audited.
+   no-script paths; the party vocabulary is shared by desk and finance while
+   purpose/mode stay encrypted; list management is admin-only and encrypted-audited.
 4. Only the two deliberate product routes append main products; both apply identical
    duplicate/confirmation/save-time checks.
-5. Ordinary routes expose the new product name but no encrypted order/value detail.
+5. Ordinary routes expose product names and contracted party names/IDs/aliases, but no
+   amount, purpose, mode, financial relationship, account or audit provenance.
 
 ## Verification commands
 
 ```text
 cd /home/asim/Projects/inventory-management
-go test ./internal/register/ -run 'TestInitialPayment|TestFinanceSuggestion|TestAdminRenames|TestOrder' -race -count=1 -v
-go test ./internal/web/ -run 'TestInitialPayment|TestFinanceSuggestion|TestAdminRenames|TestReusableList|TestFinancialUser|TestOrder|TestFinanceOrder|TestFinanceProduct|TestInventoryReceives|TestCancelPaid' -race -count=1 -v
+go test ./internal/register/ -run 'TestInitialPayment|TestFinanceSuggestion|TestAdminRenames|TestOrder|TestValidateParty|TestLinkInwardParties' -race -count=1 -v
+go test ./internal/store/ -run 'TestImportVaultPart|TestFirstFinanceWrite|TestParty' -race -count=1 -v
+go test ./internal/web/ -run 'TestInitialPayment|TestFinanceSuggestion|TestAdminRenames|TestReusableList|TestFinancialUser|TestOrder|TestFinanceOrder|TestFinanceProduct|TestInventoryReceives|TestCancelPaid|TestInward' -race -count=1 -v
 go test ./... -race -count=1
 go vet ./...
 rg -n 'Products = append' internal --glob '*.go' --glob '!**/*_test.go' # only ordinary and finance product-create owning functions
 rg -n 'float(32|64)|ParseFloat|FormatFloat' internal/register internal/web internal/store # must print nothing
-rg -n 'ReusableValues|FinanceParty|FinancePurpose|FinanceMode' internal/web/inward.go internal/web/templates/inward.html # must print nothing
+rg -n 'FinancePurpose|FinanceMode|amountPaise|purposeId|modeId' internal/web/inward.go internal/web/templates/inward.html internal/web/parties.go # must print nothing
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /tmp/register.exe .
 ```
 

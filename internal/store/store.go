@@ -189,11 +189,15 @@ func readRegister(path string) (*register.Register, error) {
 	}
 	// Every schema this program has ever written is still read, and read with
 	// every record intact. Only an older exe opening a newer file refuses.
-	if reg.SchemaVersion != 1 && reg.SchemaVersion != 2 && reg.SchemaVersion != 3 && reg.SchemaVersion != register.SchemaVersion {
+	if reg.SchemaVersion != 1 && reg.SchemaVersion != 2 && reg.SchemaVersion != 3 && reg.SchemaVersion != 4 && reg.SchemaVersion != register.SchemaVersion {
 		return nil, fmt.Errorf("%s was written by a different version of this program (schema %d)", path, reg.SchemaVersion)
 	}
 	reg.SchemaVersion = register.SchemaVersion
 	normalise(&reg)
+	// Every delivery that names a supplier gets an entry on the shared list.
+	// The vault's own party list joins the same list the first time somebody
+	// opens it, which is the only moment it can be read at all.
+	register.LinkInwardParties(&reg)
 	return &reg, nil
 }
 
@@ -283,6 +287,13 @@ func deepCopy(r *register.Register) *register.Register {
 		c.AcquisitionKinds = append([]register.AcquisitionKind{}, r.AcquisitionKinds...)
 		for i := range c.AcquisitionKinds {
 			c.AcquisitionKinds[i].Changes = copyChanges(c.AcquisitionKinds[i].Changes)
+		}
+	}
+
+	if r.Parties != nil {
+		c.Parties = append([]register.Party{}, r.Parties...)
+		for i := range c.Parties {
+			c.Parties[i].PreviousNames = append([]string(nil), r.Parties[i].PreviousNames...)
 		}
 	}
 

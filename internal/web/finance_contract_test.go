@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"html"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -88,17 +89,17 @@ func TestReusableListCombineAndDeleteRequireImpactConfirmation(t *testing.T) {
 	// The full rename/combine/delete behavior test also asserts the mutations.
 	// This test fixes the first-step contract and the changed-target recheck.
 	e := newTestServer(t, nil, financeNow)
-	admin, key, actor := financeAdmin(t, e)
+	admin, key, _ := financeAdmin(t, e)
 	var source, target, changed string
-	if err := e.st.UpdateFinance(key, func(_ *register.Register, f *register.FinanceData) error {
+	if err := e.st.UpdateFinance(key, func(reg *register.Register, _ *register.FinanceData) error {
 		var err error
-		if source, err = register.AddFinanceValue(f, register.FinanceParty, "Sharm Events", actor, financeNow); err != nil {
+		if source, err = register.AddParty(reg, "Sharm Events"); err != nil {
 			return err
 		}
-		if target, err = register.AddFinanceValue(f, register.FinanceParty, "Sharma Events", actor, financeNow); err != nil {
+		if target, err = register.AddParty(reg, "Sharma Events"); err != nil {
 			return err
 		}
-		changed, err = register.AddFinanceValue(f, register.FinanceParty, "Sharma Event Hire", actor, financeNow)
+		changed, err = register.AddParty(reg, "Sharma Event Hire")
 		return err
 	}); err != nil {
 		t.Fatal(err)
@@ -116,6 +117,32 @@ func TestReusableListCombineAndDeleteRequireImpactConfirmation(t *testing.T) {
 	})
 	if status != 200 || !strings.Contains(body, "Combine Sharm Events into Sharma Event Hire?") {
 		t.Fatal("changed target did not receive fresh impact")
+	}
+}
+
+func TestSharedListPageExplainsWhichSuggestionsReachTheDeliveryDesk(t *testing.T) {
+	e := newTestServer(t, register.WalkthroughT0(), financeNow)
+	admin, key, _ := financeAdmin(t, e)
+	if err := e.st.UpdateFinance(key, func(reg *register.Register, _ *register.FinanceData) error {
+		id, err := register.AddParty(reg, "Sharma Events")
+		if err == nil {
+			reg.Inwards[0].PartyID = id
+		}
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	status, body := admin.get(t, "/finance/lists")
+	if status != http.StatusOK {
+		t.Fatalf("shared lists = %d", status)
+	}
+	for _, want := range []string{
+		"Supplier names and ways goods came in also appear on delivery screens; purposes and payment modes appear only in financial details.",
+		"In use. Rename it or combine it with another entry.",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("shared lists missing %q", want)
+		}
 	}
 }
 

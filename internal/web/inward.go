@@ -2,7 +2,6 @@ package web
 
 import (
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -47,10 +46,9 @@ type inwardData struct {
 	KindID      string                     // the kind picked off the list, when the basis is "other"
 	NewKind     string                     // a kind typed for the first time
 	Kinds       []register.AcquisitionKind // the shared list of typed kinds
-	Supplier    string
+	Party       valuePicker                // the shared supplier and other-party list
 	ChallanNo   string
 	ReceivedBy  string
-	Suppliers   []string // the datalist of suppliers already used
 	ButtonLabel string
 }
 
@@ -63,7 +61,7 @@ func (s *Server) inwardNew(w http.ResponseWriter, r *http.Request) {
 	}
 
 	q := r.URL.Query()
-	data := s.inwardForm(q.Get("picked"), "")
+	data := s.inwardForm(q.Get("picked"), "", "", "")
 
 	var b *banner
 	if added := q.Get("added"); added != "" {
@@ -72,8 +70,9 @@ func (s *Server) inwardNew(w http.ResponseWriter, r *http.Request) {
 	s.renderInward(w, data, b)
 }
 
-// inwardForm builds the page from a picked product and a typed quantity.
-func (s *Server) inwardForm(productID, quantity string) inwardData {
+// inwardForm builds the page from a picked product, a typed quantity and
+// whatever the supplier picker was holding.
+func (s *Server) inwardForm(productID, quantity, partyID, partyText string) inwardData {
 	now := s.now()
 	data := inwardData{
 		Now:        now,
@@ -83,7 +82,7 @@ func (s *Server) inwardForm(productID, quantity string) inwardData {
 	}
 	s.st.Read(func(reg *register.Register) {
 		data.Picker = s.picker(reg, "all", true, productID)
-		data.Suppliers = suppliersUsed(reg)
+		data.Party = partyPicker(reg, "Came from", "partyId", "partyName", partyID, partyText)
 		data.Kinds = register.LiveAcquisitionKinds(reg)
 		if who, ok := s.onDuty(reg); ok {
 			data.ReceivedBy = who.Name
@@ -104,24 +103,6 @@ func inwardButtonLabel(productName, quantity string) string {
 	return "Save — " + strconv.Itoa(n) + " " + productWord(productName) + " in"
 }
 
-// suppliersUsed lists the suppliers already named on an inward, A to Z, for the
-// datalist under "Came from". Unlike a product, a new supplier may be typed.
-func suppliersUsed(reg *register.Register) []string {
-	seen := map[string]bool{}
-	var names []string
-	for _, in := range register.LiveInwards(reg) {
-		if in.Supplier == "" || seen[register.FoldKey(in.Supplier)] {
-			continue
-		}
-		seen[register.FoldKey(in.Supplier)] = true
-		names = append(names, in.Supplier)
-	}
-	sort.Slice(names, func(i, j int) bool {
-		return register.FoldKey(names[i]) < register.FoldKey(names[j])
-	})
-	return names
-}
-
 func (s *Server) renderInward(w http.ResponseWriter, data inwardData, b *banner) {
 	p := s.page("Stuff came in")
 	p.Tabs = false
@@ -139,14 +120,19 @@ func (s *Server) inwardSave(w http.ResponseWriter, r *http.Request) {
 	basis := strings.TrimSpace(r.FormValue("basis"))
 	kindID := strings.TrimSpace(r.FormValue("kindId"))
 	newKind := register.CleanName(r.FormValue("newKind"))
-	supplier := register.CleanName(r.FormValue("supplier"))
+	partyID, partyText := readPartyPicker(r, "partyId", "partyName")
+	if partyID == "" && partyText == "" {
+		// A page left open while the executable is replaced still posts the
+		// former supplier field. Treat it as a typed shared name rather than
+		// silently losing what the desk entered.
+		partyText = register.CleanName(r.FormValue("supplier"))
+	}
 	challanNo := strings.TrimSpace(r.FormValue("challanNo"))
 
-	data := s.inwardForm(productID, quantity)
+	data := s.inwardForm(productID, quantity, partyID, partyText)
 	data.ReceivedOn = receivedOn
 	data.Basis = basis
 	data.KindID, data.NewKind = kindID, newKind
-	data.Supplier = supplier
 	data.ChallanNo = challanNo
 
 	refuse := func(text string) {
@@ -207,11 +193,19 @@ func (s *Server) inwardSave(w http.ResponseWriter, r *http.Request) {
 			}
 			id = added
 		}
+		// A supplier typed for the first time joins the shared list in the
+		// same write as the delivery, so two desks saving one name at once
+		// cannot leave two rows saying it. The name is stored on the delivery
+		// as well, as history and so the file reads as words by hand.
+		party, supplier, partyErr := resolvePartyID(reg, partyID, partyText)
+		if partyErr != nil {
+			return partyErr
+		}
 		newID = reg.NextID("INW")
 		reg.Inwards = append(reg.Inwards, register.Inward{
 			ID: newID, ProductID: productID, Quantity: n,
 			ReceivedOn: receivedOn, Basis: register.Basis(basis), KindID: id,
-			Supplier: supplier, ChallanNo: challanNo,
+			PartyID: party, Supplier: supplier, ChallanNo: challanNo,
 			ReceivedBy: onDutyName, RecordedAt: now, RecordedBy: onDutyName,
 		})
 		return nil

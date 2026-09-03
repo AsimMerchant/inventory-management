@@ -209,8 +209,9 @@ func TestDeleteProductRequiresReason(t *testing.T) {
 
 func TestDeleteProductAndHistoryAtomically(t *testing.T) {
 	r := register.WalkthroughT3()
-	impact, _ := register.ProductDeletionImpact(r, "PRD-0001")
 	e := newTestServer(t, r, sixOhFive)
+	var impact register.ProductImpact
+	e.st.Read(func(reg *register.Register) { impact, _ = register.ProductDeletionImpact(reg, "PRD-0001") })
 	resp, _ := e.post("/product/PRD-0001/delete", url.Values{"impactVersion": {impact.Version}, "reason": {"Goods never arrived."}})
 	if resp.StatusCode != 303 {
 		t.Fatalf("status=%d", resp.StatusCode)
@@ -503,8 +504,9 @@ func TestDeletedNameMayBeCreatedAgain(t *testing.T) {
 
 func TestDeletedProductCannotBeManagedAgain(t *testing.T) {
 	r := register.WalkthroughT3()
-	impact, _ := register.ProductDeletionImpact(r, "PRD-0001")
 	e := newTestServer(t, r, sixOhFive)
+	var impact register.ProductImpact
+	e.st.Read(func(reg *register.Register) { impact, _ = register.ProductDeletionImpact(reg, "PRD-0001") })
 	_, _ = e.post("/product/PRD-0001/delete", url.Values{"impactVersion": {impact.Version}, "reason": {"wrong"}})
 	resp, body := e.get("/product/PRD-0001/edit")
 	if resp.StatusCode != 200 {
