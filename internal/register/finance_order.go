@@ -241,9 +241,19 @@ func FinanceValueIsUsed(f *FinanceData, id string) bool {
 }
 
 // FinanceLineIsReferenced reports whether a ledger entry points at this order
-// line. Spec 19 introduces the movements that can point at one; until then no
-// line is referenced and the guard below is reachable but never triggered.
+// line. A voided movement does not count: it is a row kept for the record and
+// no longer claims anything, so the line it once named is free again.
 func FinanceLineIsReferenced(f *FinanceData, lineID string) bool {
+	for _, m := range f.Movements {
+		if !m.Live() {
+			continue
+		}
+		for _, id := range m.OrderLineIDs {
+			if id == lineID {
+				return true
+			}
+		}
+	}
 	return false
 }
 

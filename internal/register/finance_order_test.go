@@ -267,3 +267,30 @@ func TestSortedFinanceOrdersAreNewestFirst(t *testing.T) {
 		t.Fatalf("order is %v", got)
 	}
 }
+
+// A money entry that names an order line locks that line: the order screen must
+// not let it be taken away or pointed at a different product, because the money
+// already recorded refers to it. Voiding the entry frees the line again.
+func TestFinanceLineIsReferencedFollowsLiveMoney(t *testing.T) {
+	f := &FinanceData{
+		Movements: []MoneyMovement{
+			{ID: "MOV-0001", OrderID: "ORD-0001", OrderLineIDs: []string{"OLN-0001"}},
+			{ID: "MOV-0002", OrderID: "ORD-0001", OrderLineIDs: []string{"OLN-0002"},
+				Voided: &FinanceVoid{Reason: "recorded twice"}},
+		},
+	}
+	for _, tt := range []struct {
+		name, line string
+		want       bool
+	}{
+		{"a live entry names it", "OLN-0001", true},
+		{"only a voided entry names it", "OLN-0002", false},
+		{"nothing names it", "OLN-0003", false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := FinanceLineIsReferenced(f, tt.line); got != tt.want {
+				t.Errorf("FinanceLineIsReferenced(%s) = %v, want %v", tt.line, got, tt.want)
+			}
+		})
+	}
+}
