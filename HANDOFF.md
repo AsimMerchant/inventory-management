@@ -311,6 +311,51 @@ Worth deciding when this is planned, none of it assumed:
 
 Follows the merge and the third kind. Nothing here is started.
 
+### Three amount columns, and the bill is what creates a debt — designed 3 September 2026, NOT BUILT
+
+Worked out with the user on 3 September 2026 after he rejected two of my proposals in a
+row. Both rejections were right and both are recorded here, because the reasoning is the
+valuable part.
+
+**The bill creates the debt, not the agreement.** Researched rather than assumed: standard
+practice is to record a payable when the supplier's **invoice arrives**, not when an order
+is placed. Before the bill, nothing is owed — that is the correct state, not a gap. See
+[Accounts Payable explained](https://www.accountingcoach.com/accounts-payable/explanation)
+and [Single-entry bookkeeping](https://en.wikipedia.org/wiki/Single-entry_bookkeeping).
+
+This removes the question I had put to the user and which he could not answer — whether
+the agreed amount is known when money is recorded. It does not need to be. The bill
+arrives with the goods, on the supplier's challan, which the desk already handles. It also
+explains why the order felt like pointless paperwork all day: **an estimate is not a debt**,
+and accounting does not treat it as one either.
+
+So the *Agreed total* field becomes a **bill amount**, entered when the bill comes. A
+supplier who has not billed shows their payments and says plainly that no bill has arrived,
+rather than implying a balance nobody can compute.
+
+**Rejected: a separate *Record a bill* screen.** The user, immediately: *"record a bill?
+record money? why 2 forms purpose?"* He was right — it walks straight back into the
+two-screen split this whole day was spent removing.
+
+**Rejected: one screen with a three-way radio** (billed / paid / received). It handles the
+common case only by making the person add a second row, and his case is one event:
+*"day 1 at same fucking time i pay 5k i get bill of 20k, same exact time."*
+
+**His proposal, adopted: three amount boxes on one line.**
+
+    Sharma Tent House · 3 September · cash · challan STH/4390
+    Billed  20,000   ·   Paid  5,000   ·   Received  ____
+    500 chairs, on rent
+
+Fill in whichever applies. Bill only, advance with no bill, both at once, or a refund
+received. One save, and behind it two records are written. This is also what a hand-written
+cash book looks like — parallel columns — so it matches the paper it replaces. It removes
+the radio, and removes *Add another amount* from the ordinary case.
+
+**What it costs, and the user was told:** one line carries one payment mode, so two
+payments the same day in different modes still need a second line. *Add another amount*
+stays for that.
+
 ### A page per supplier with a running balance — designed 3 September 2026, NOT BUILT
 
 This is the shape the balances gap below should be built in. Worked out with the user late
