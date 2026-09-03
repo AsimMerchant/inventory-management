@@ -47,6 +47,9 @@ type moneyProductLine struct {
 	ProductName string
 	Quantity    string
 	Basis       string
+	KindID      string                     // the kind picked off the list, when the basis is "other"
+	NewKind     string                     // a kind typed for the first time
+	Kinds       []register.AcquisitionKind // the shared list, read from the open register
 	Picker      pickerData
 	Row         int
 	Index       int
@@ -193,6 +196,8 @@ func readMoneyProductLines(r *http.Request, row int) []moneyProductLine {
 			ProductName: register.CleanName(firstValue(r, lineField("productName", row, j))),
 			Quantity:    strings.TrimSpace(firstValue(r, lineField("qty", row, j))),
 			Basis:       firstValue(r, lineField("basis", row, j)),
+			KindID:      firstValue(r, lineField("kindId", row, j)),
+			NewKind:     register.CleanName(firstValue(r, lineField("newKind", row, j))),
 		})
 	}
 	return out
@@ -236,7 +241,7 @@ func (s *Server) fillMoney(d *moneyDraft, r *http.Request) {
 			for _, o := range register.SortedFinanceOrders(f) {
 				row.Orders = append(row.Orders, moneyOrderChoice{
 					ID: o.ID, Selected: o.ID == row.OrderID,
-					Label: register.FinanceValueText(f, o.PartyID) + " · " + lineText(o.Lines),
+					Label: register.FinanceValueText(f, o.PartyID) + " · " + lineText(reg, o.Lines),
 				})
 			}
 			row.Lines = []moneyLineChoice{}
@@ -256,8 +261,10 @@ func (s *Server) fillMoney(d *moneyDraft, r *http.Request) {
 				row.Products = []moneyProductLine{{}}
 			}
 			all := matchProductsMode(reg, "", "all")
+			kinds := register.LiveAcquisitionKinds(reg)
 			for j := range row.Products {
 				l := &row.Products[j]
+				l.Kinds = kinds
 				l.Row, l.Index = i, j
 				l.Removable = len(row.Products) > 1
 				name := l.ProductName
@@ -531,7 +538,7 @@ func buildMovement(reg *register.Register, f *register.FinanceData, row moneyRow
 		return register.MoneyMovement{}, "Pick the order those products belong to."
 	}
 
-	products, agreedLines, text := resolveMoneyLines(reg, row)
+	products, agreedLines, text := resolveMoneyLines(reg, f, row, actorID, now)
 	if text != "" {
 		return register.MoneyMovement{}, text
 	}
@@ -566,7 +573,7 @@ func buildMovement(reg *register.Register, f *register.FinanceData, row moneyRow
 	}
 	f.Orders = append(f.Orders, order)
 	f.Audit = append(f.Audit, financeAuditFor(f, actorID, now, "order_created", "order", order.ID,
-		"Order recorded with the money entry", "", orderSummary(f, order)))
+		"Order recorded with the money entry", "", orderSummary(reg, f, order)))
 	m.OrderID = order.ID
 	for _, l := range order.Lines {
 		m.OrderLineIDs = append(m.OrderLineIDs, l.ID)
@@ -589,7 +596,11 @@ func rowHasTypedProducts(row moneyRow) bool {
 // movement carries and, for the lines that name a quantity, the order lines
 // that quantity belongs on. A product with no quantity is still a product this
 // money was for; it just agrees nothing.
-func resolveMoneyLines(reg *register.Register, row moneyRow) ([]register.FinanceProductRef, []register.FinanceOrderLine, string) {
+// The register is the working copy inside the write, so a kind typed here for
+// the first time joins the shared list in the same transaction as the order it
+// belongs to. That list is plain register data: the delivery desk has to read
+// it and is never logged in.
+func resolveMoneyLines(reg *register.Register, f *register.FinanceData, row moneyRow, actorID string, now time.Time) ([]register.FinanceProductRef, []register.FinanceOrderLine, string) {
 	var products []register.FinanceProductRef
 	var lines []register.FinanceOrderLine
 	seen := map[string]bool{}
@@ -614,15 +625,44 @@ func resolveMoneyLines(reg *register.Register, row moneyRow) ([]register.Finance
 			return nil, nil, "Type the agreed quantity as a whole number of 1 or more, or leave it empty."
 		}
 		basis := register.Basis(l.Basis)
-		if basis != register.Rent && basis != register.Purchase {
-			return nil, nil, "Say whether each product with an agreed quantity is rented or bought."
+		if basis != register.Rent && basis != register.Purchase && basis != register.Other {
+			return nil, nil, "Say how each product with an agreed quantity came in."
+		}
+		kindID := ""
+		if basis == register.Other {
+			kindID = l.KindID
+			if l.NewKind != "" {
+				added, err := register.AddAcquisitionKind(reg, l.NewKind, financeAccountName(f, actorID), now)
+				if err != nil {
+					return nil, nil, kindRefusal
+				}
+				kindID = added
+			}
+			if _, ok := register.ResolveAcquisitionKind(reg, kindID); !ok {
+				return nil, nil, kindRefusal
+			}
 		}
 		lines = append(lines, register.FinanceOrderLine{
 			ProductID: p.ID, ProductNameSnapshot: p.Name,
-			ExpectedQuantity: quantity, Basis: basis,
+			ExpectedQuantity: quantity, Basis: basis, KindID: kindID,
 		})
 	}
 	return products, lines, ""
+}
+
+// kindRefusal is the one thing a person is told when the third choice is
+// ticked and no word goes with it.
+const kindRefusal = "Pick how the goods came in from the list, or type a new word for it."
+
+// financeAccountName is the display name to write against something an
+// authorized person created in the open half of the file.
+func financeAccountName(f *register.FinanceData, actorID string) string {
+	for _, a := range f.Accounts {
+		if a.ID == actorID {
+			return a.DisplayName
+		}
+	}
+	return ""
 }
 
 // numberOrderLines gives each new line its ID. NextID counts the lines already

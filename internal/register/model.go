@@ -9,7 +9,7 @@ import (
 )
 
 // SchemaVersion is the only file version this program reads or writes.
-const SchemaVersion = 3
+const SchemaVersion = 4
 
 // Register is everything the store desk remembers.
 type Register struct {
@@ -27,7 +27,13 @@ type Register struct {
 	// It exists so ordinary stock arithmetic is right after a restart with
 	// nobody logged in.
 	Disposals []InventoryDisposal `json:"disposals"`
-	Finance   *FinanceEnvelope    `json:"finance,omitempty"`
+	// AcquisitionKinds is the shared vocabulary for goods that arrived neither
+	// on rent nor by purchase: donated, sponsored, borrowed. It sits in the
+	// open beside Disposals and for the same reason: the delivery desk is
+	// never logged in, so a list it has to read cannot live in the vault. A
+	// word like "donated" is not financial data.
+	AcquisitionKinds []AcquisitionKind `json:"acquisitionKinds,omitempty"`
+	Finance          *FinanceEnvelope  `json:"finance,omitempty"`
 }
 
 // InventoryDisposal is one lot of stock that left the store for good.
@@ -88,12 +94,15 @@ type Deletion struct {
 	Reason string    `json:"reason"` // required, plain words
 }
 
-// Basis says whether stock was rented or bought.
+// Basis says how stock arrived. Rent and Purchase are the two the program
+// knows about by name; Other means the desk typed its own word, and Inward.KindID
+// says which one.
 type Basis string
 
 const (
 	Rent     Basis = "rent"
 	Purchase Basis = "purchase"
+	Other    Basis = "other"
 )
 
 // Inward is one delivery into the store. It is not a lot: issues and returns
@@ -104,9 +113,10 @@ type Inward struct {
 	Quantity   int       `json:"quantity"`   // >= 1
 	ReceivedOn string    `json:"receivedOn"` // "2026-09-03", date only, editable
 	Basis      Basis     `json:"basis"`
-	Supplier   string    `json:"supplier"`   // "" allowed
-	ChallanNo  string    `json:"challanNo"`  // "" allowed
-	ReceivedBy string    `json:"receivedBy"` // "" allowed; defaults to on-duty name
+	KindID     string    `json:"kindId,omitempty"` // AKD-0001, only when Basis is Other
+	Supplier   string    `json:"supplier"`         // "" allowed
+	ChallanNo  string    `json:"challanNo"`        // "" allowed
+	ReceivedBy string    `json:"receivedBy"`       // "" allowed; defaults to on-duty name
 	RecordedAt time.Time `json:"recordedAt"`
 	RecordedBy string    `json:"recordedBy"`
 	Changes    []Change  `json:"changes,omitempty"`

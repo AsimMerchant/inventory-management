@@ -187,7 +187,9 @@ func readRegister(path string) (*register.Register, error) {
 	if err := json.Unmarshal(data, &reg); err != nil {
 		return nil, fmt.Errorf("%s is not a readable register: %w", path, err)
 	}
-	if reg.SchemaVersion != 1 && reg.SchemaVersion != 2 && reg.SchemaVersion != register.SchemaVersion {
+	// Every schema this program has ever written is still read, and read with
+	// every record intact. Only an older exe opening a newer file refuses.
+	if reg.SchemaVersion != 1 && reg.SchemaVersion != 2 && reg.SchemaVersion != 3 && reg.SchemaVersion != register.SchemaVersion {
 		return nil, fmt.Errorf("%s was written by a different version of this program (schema %d)", path, reg.SchemaVersion)
 	}
 	reg.SchemaVersion = register.SchemaVersion
@@ -259,6 +261,8 @@ func normalise(reg *register.Register) {
 	if reg.Disposals == nil {
 		reg.Disposals = []register.InventoryDisposal{}
 	}
+	// AcquisitionKinds is deliberately left alone. A file written before typed
+	// kinds existed has no key for them, and is written back without one.
 }
 
 // deepCopy copies every slice into a fresh backing array, so an in-place edit of
@@ -275,6 +279,12 @@ func deepCopy(r *register.Register) *register.Register {
 		c.Products[i].Deleted = copyDeletion(c.Products[i].Deleted)
 	}
 	c.Staff = append([]register.Staff{}, r.Staff...)
+	if r.AcquisitionKinds != nil {
+		c.AcquisitionKinds = append([]register.AcquisitionKind{}, r.AcquisitionKinds...)
+		for i := range c.AcquisitionKinds {
+			c.AcquisitionKinds[i].Changes = copyChanges(c.AcquisitionKinds[i].Changes)
+		}
+	}
 
 	c.Inwards = append([]register.Inward{}, r.Inwards...)
 	for i := range c.Inwards {

@@ -54,6 +54,7 @@ type FinanceOrderLine struct {
 	ProductNameSnapshot string `json:"productNameSnapshot"`
 	ExpectedQuantity    int    `json:"expectedQuantity"`
 	Basis               Basis  `json:"basis"`
+	KindID              string `json:"kindId,omitempty"` // AKD-0001, only when Basis is Other
 }
 
 // FinanceOrder is what was ordered from one party, before anything arrives.

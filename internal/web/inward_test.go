@@ -41,9 +41,10 @@ func TestInwardFormRendersWalkthroughLabels(t *testing.T) {
 		"Product",
 		"How many",
 		"Date received",
-		"Rent or purchase",
+		"How these came in",
 		"On rent — goes back to supplier",
 		"Purchased for resale — does not come back",
+		"Some other way — donated, sponsored, borrowed",
 		"Came from",
 		"Leave blank if you don't know.",
 		"Challan no.",
@@ -174,7 +175,7 @@ func TestInwardRefusesMissingBasis(t *testing.T) {
 	e := newTestServer(t, register.WalkthroughT0(), tenFortyTwo)
 	form := walkthroughInward()
 	form.Set("basis", "")
-	refusedInward(t, e, form, "Choose rent or purchase.")
+	refusedInward(t, e, form, "Choose how these came in.")
 }
 
 func TestInwardRefusesBadDate(t *testing.T) {

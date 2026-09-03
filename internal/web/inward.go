@@ -44,6 +44,9 @@ type inwardData struct {
 	Quantity    string
 	ReceivedOn  string
 	Basis       string
+	KindID      string                     // the kind picked off the list, when the basis is "other"
+	NewKind     string                     // a kind typed for the first time
+	Kinds       []register.AcquisitionKind // the shared list of typed kinds
 	Supplier    string
 	ChallanNo   string
 	ReceivedBy  string
@@ -81,6 +84,7 @@ func (s *Server) inwardForm(productID, quantity string) inwardData {
 	s.st.Read(func(reg *register.Register) {
 		data.Picker = s.picker(reg, "all", true, productID)
 		data.Suppliers = suppliersUsed(reg)
+		data.Kinds = register.LiveAcquisitionKinds(reg)
 		if who, ok := s.onDuty(reg); ok {
 			data.ReceivedBy = who.Name
 		}
@@ -133,12 +137,15 @@ func (s *Server) inwardSave(w http.ResponseWriter, r *http.Request) {
 	quantity := strings.TrimSpace(r.FormValue("quantity"))
 	receivedOn := strings.TrimSpace(r.FormValue("receivedOn"))
 	basis := strings.TrimSpace(r.FormValue("basis"))
+	kindID := strings.TrimSpace(r.FormValue("kindId"))
+	newKind := register.CleanName(r.FormValue("newKind"))
 	supplier := register.CleanName(r.FormValue("supplier"))
 	challanNo := strings.TrimSpace(r.FormValue("challanNo"))
 
 	data := s.inwardForm(productID, quantity)
 	data.ReceivedOn = receivedOn
 	data.Basis = basis
+	data.KindID, data.NewKind = kindID, newKind
 	data.Supplier = supplier
 	data.ChallanNo = challanNo
 
@@ -162,25 +169,48 @@ func (s *Server) inwardSave(w http.ResponseWriter, r *http.Request) {
 		refuse("Type the date like this: 03-09-2026.")
 		return
 	}
-	if basis != string(register.Rent) && basis != string(register.Purchase) {
-		refuse("Choose rent or purchase.")
+	if basis != string(register.Rent) && basis != string(register.Purchase) && basis != string(register.Other) {
+		refuse("Choose how these came in.")
+		return
+	}
+	if basis != string(register.Other) {
+		kindID, newKind = "", ""
+	} else if newKind == "" && kindID == "" {
+		refuse("Pick how these came in from the list, or type a new word for it.")
 		return
 	}
 
 	var onDutyName string
+	knownKind := false
 	s.st.Read(func(reg *register.Register) {
 		if who, ok := s.onDuty(reg); ok {
 			onDutyName = who.Name
 		}
+		_, knownKind = register.ResolveAcquisitionKind(reg, kindID)
 	})
+	if basis == string(register.Other) && newKind == "" && !knownKind {
+		refuse("Pick how these came in from the list, or type a new word for it.")
+		return
+	}
 
 	now := s.now()
 	var newID string
 	err = s.st.Update(func(reg *register.Register) error {
+		// A word typed for the first time joins the shared list in the same
+		// write as the delivery it describes, so two desks saving "donated"
+		// at once cannot leave two rows saying it.
+		id := kindID
+		if basis == string(register.Other) && newKind != "" {
+			added, addErr := register.AddAcquisitionKind(reg, newKind, onDutyName, now)
+			if addErr != nil {
+				return addErr
+			}
+			id = added
+		}
 		newID = reg.NextID("INW")
 		reg.Inwards = append(reg.Inwards, register.Inward{
 			ID: newID, ProductID: productID, Quantity: n,
-			ReceivedOn: receivedOn, Basis: register.Basis(basis),
+			ReceivedOn: receivedOn, Basis: register.Basis(basis), KindID: id,
 			Supplier: supplier, ChallanNo: challanNo,
 			ReceivedBy: onDutyName, RecordedAt: now, RecordedBy: onDutyName,
 		})

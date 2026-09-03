@@ -173,7 +173,7 @@ func TestMoneyProductLinesAreRefusedInPlainWords(t *testing.T) {
 		{
 			name:  "a quantity with no rent or purchase tick",
 			lines: []line{{chairsName, "500", ""}},
-			want:  "Say whether each product with an agreed quantity is rented or bought.",
+			want:  "Say how each product with an agreed quantity came in.",
 		},
 		{
 			name:  "a quantity that is not a whole number",

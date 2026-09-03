@@ -115,19 +115,38 @@ func OnHand(r *Register, productID string) int {
 type StockRow struct {
 	ProductID string
 	Name      string
-	Basis     Basis // Rent if any inward for the product is rent, else Purchase
-	CameIn    int
-	Out       int
-	OnHand    int
+	// Basis is Rent if any inward for the product is rent; otherwise the
+	// typed kind of the first such delivery if there is one; otherwise
+	// Purchase. Stock is pooled, so a product that arrived two ways can only
+	// show one word, and rent is shown first because those goods are owed.
+	Basis  Basis
+	KindID string // set only when Basis is Other
+	CameIn int
+	Out    int
+	OnHand int
+}
+
+// sortedByID orders deliveries by their identifier so a choice made from
+// several of them is the same every time the page is drawn.
+func sortedByID(rows []Inward) []Inward {
+	out := append([]Inward{}, rows...)
+	sort.SliceStable(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
 }
 
 // StockRows is the stock table, sorted by name A to Z. A product with no
 // inwards still gets a row, with three zeros.
 func StockRows(r *Register) []StockRow {
 	rent := map[string]bool{}
-	for _, in := range LiveInwards(r) {
+	kind := map[string]string{}
+	for _, in := range sortedByID(LiveInwards(r)) {
 		if in.Basis == Rent {
 			rent[in.ProductID] = true
+		}
+		if in.Basis == Other && in.KindID != "" {
+			if _, seen := kind[in.ProductID]; !seen {
+				kind[in.ProductID] = in.KindID
+			}
 		}
 	}
 
@@ -136,14 +155,18 @@ func StockRows(r *Register) []StockRow {
 		if p.Deleted != nil {
 			continue
 		}
-		basis := Purchase
-		if rent[p.ID] {
+		basis, kindID := Purchase, ""
+		switch {
+		case rent[p.ID]:
 			basis = Rent
+		case kind[p.ID] != "":
+			basis, kindID = Other, kind[p.ID]
 		}
 		rows = append(rows, StockRow{
 			ProductID: p.ID,
 			Name:      p.Name,
 			Basis:     basis,
+			KindID:    kindID,
 			CameIn:    CameIn(r, p.ID),
 			Out:       OutWithPeople(r, p.ID),
 			OnHand:    OnHand(r, p.ID),
@@ -465,25 +488,36 @@ type SupplierRow struct {
 	Supplier     string // "" means no supplier was recorded on those inwards
 	ProductID    string
 	ProductName  string
-	OnRent       bool
+	OnRent       bool  // Basis == Rent, kept because it is what the screen asks
+	Basis        Basis //
+	KindID       string
 	CameIn       int
 	WontComeBack int
 }
 
 // SupplierRows is the suppliers record: rent rows first by supplier then
-// product, then the bought rows by product. WontComeBack is a note on the
-// record, not a debt: it is shown on every rent row for that product.
+// product, then each typed kind, then the bought rows by product. Two typed
+// kinds never share a row: donated chairs and sponsored chairs from one
+// supplier are two lines. WontComeBack is a note on the record, not a debt: it
+// is shown on every rent row for that product.
 func SupplierRows(r *Register) []SupplierRow {
 	type key struct {
 		supplier  string
 		productID string
-		onRent    bool
+		basis     Basis
+		kindID    string
 	}
 	names := productNames(r)
 	totals := map[key]int{}
 	var order []key
 	for _, in := range LiveInwards(r) {
-		k := key{supplier: in.Supplier, productID: in.ProductID, onRent: in.Basis == Rent}
+		k := key{supplier: in.Supplier, productID: in.ProductID, basis: in.Basis, kindID: in.KindID}
+		if k.basis != Other {
+			k.kindID = ""
+		}
+		if k.basis != Rent && k.basis != Other {
+			k.basis = Purchase
+		}
 		if _, seen := totals[k]; !seen {
 			order = append(order, k)
 		}
@@ -503,24 +537,43 @@ func SupplierRows(r *Register) []SupplierRow {
 			Supplier:    k.supplier,
 			ProductID:   k.productID,
 			ProductName: names[k.productID],
-			OnRent:      k.onRent,
+			OnRent:      k.basis == Rent,
+			Basis:       k.basis,
+			KindID:      k.kindID,
 			CameIn:      totals[k],
 		}
-		if k.onRent {
+		if k.basis == Rent {
 			row.WontComeBack = lost[k.productID]
 		}
 		rows = append(rows, row)
 	}
+	// Rent first because those goods are owed, then each typed kind together
+	// under its own word, then what was bought.
+	rank := func(row SupplierRow) int {
+		switch row.Basis {
+		case Rent:
+			return 0
+		case Other:
+			return 1
+		default:
+			return 2
+		}
+	}
 	sort.Slice(rows, func(i, j int) bool {
 		a, b := rows[i], rows[j]
-		if a.OnRent != b.OnRent {
-			return a.OnRent
+		if ra, rb := rank(a), rank(b); ra != rb {
+			return ra < rb
 		}
-		if a.OnRent {
+		if a.Basis == Rent {
 			if s1, s2 := FoldKey(a.Supplier), FoldKey(b.Supplier); s1 != s2 {
 				return s1 < s2
 			}
 			return FoldKey(a.ProductName) < FoldKey(b.ProductName)
+		}
+		if a.Basis == Other {
+			if w1, w2 := kindSortKey(r, a.Basis, a.KindID), kindSortKey(r, b.Basis, b.KindID); w1 != w2 {
+				return w1 < w2
+			}
 		}
 		if p1, p2 := FoldKey(a.ProductName), FoldKey(b.ProductName); p1 != p2 {
 			return p1 < p2

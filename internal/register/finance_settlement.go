@@ -276,12 +276,14 @@ func resolvedPartyID(f *FinanceData, id string) string {
 	return id
 }
 
-// eligibleInwards are the live inwards a settlement of this kind may draw on,
-// oldest first: received date, then when it was typed, then id.
-func eligibleInwards(r *Register, f *FinanceData, productID string, basis Basis, aliases map[string]bool) []Inward {
+// eligibleInwards are the live inwards a settlement may draw on, oldest first:
+// received date, then when it was typed, then id. Which deliveries those are
+// is decided by allow: rent and every typed kind may go back, purchase and
+// every typed kind may be sold.
+func eligibleInwards(r *Register, f *FinanceData, productID string, allow func(Basis) bool, aliases map[string]bool) []Inward {
 	out := []Inward{}
 	for _, in := range LiveInwards(r) {
-		if in.ProductID != productID || in.Basis != basis {
+		if in.ProductID != productID || !allow(in.Basis) {
 			continue
 		}
 		if aliases != nil {
@@ -339,11 +341,11 @@ func AllocatedFromInward(f *FinanceData, inwardID string) int {
 }
 
 // remaining is what is still drawable from each eligible inward, in order.
-func remaining(r *Register, f *FinanceData, productID string, basis Basis,
+func remaining(r *Register, f *FinanceData, productID string, allow func(Basis) bool,
 	aliases map[string]bool, exceptKind, exceptID string) []DisposalAllocation {
 
 	out := []DisposalAllocation{}
-	for _, in := range eligibleInwards(r, f, productID, basis, aliases) {
+	for _, in := range eligibleInwards(r, f, productID, allow, aliases) {
 		left := in.Quantity - allocatedFromInward(f, in.ID, exceptKind, exceptID)
 		if left > 0 {
 			out = append(out, DisposalAllocation{InwardID: in.ID, Quantity: left})
@@ -384,9 +386,12 @@ func minInt(a, b int) int {
 	return b
 }
 
-// SupplierReturnAvailable is the most rented stock of this product that may
-// leave the store now: the smaller of what is physically here and what came in
-// on rent and has not gone back.
+// SupplierReturnAvailable is the most stock of this product that may go back
+// now: the smaller of what is physically here and what came in on rent or
+// under a typed kind and has not left yet. A typed kind counts because a
+// borrowed or donated thing may well go back, and the same goods can instead
+// be sold: both doors draw on one pool, so whatever leaves by one is gone from
+// the other.
 //
 // It deliberately does not depend on who is receiving it. Goods do not always
 // go straight back to the supplier who sent them — they are handed to a
@@ -397,13 +402,14 @@ func SupplierReturnAvailable(r *Register, f *FinanceData, partyID, productID str
 }
 
 func supplierReturnAvailable(r *Register, f *FinanceData, _, productID, exceptKind, exceptID string) int {
-	rented := sumAllocations(remaining(r, f, productID, Rent, nil, exceptKind, exceptID))
+	rented := sumAllocations(remaining(r, f, productID, CanGoBack, nil, exceptKind, exceptID))
 	stock := onHandExcluding(r, f, productID, exceptKind, exceptID)
 	return maxZero(minInt(stock, rented))
 }
 
-// SupplierSentRented is how much of this product came in on rent from one
-// party and has not gone back yet, by ID or by the name typed on a screen. It
+// SupplierSentRented is how much of this product came in from one party on
+// rent or under a typed kind and has not gone back yet, by ID or by the name
+// typed on a screen. It
 // exists so a long product list can be narrowed to one supplier's goods on
 // request. It limits nothing: what may leave the store is SupplierReturnAvailable.
 func SupplierSentRented(r *Register, f *FinanceData, party, productID string) int {
@@ -418,7 +424,7 @@ func SupplierSentRented(r *Register, f *FinanceData, party, productID string) in
 	if len(aliases) == 0 {
 		return 0
 	}
-	return maxZero(sumAllocations(remaining(r, f, productID, Rent, aliases, "", "")))
+	return maxZero(sumAllocations(remaining(r, f, productID, CanGoBack, aliases, "", "")))
 }
 
 // SupplierReturnAvailableByName is the same number for a party typed on the
@@ -432,13 +438,14 @@ func SupplierReturnAvailableByName(r *Register, f *FinanceData, name, productID 
 }
 
 // PurchasedAvailableToSell is the most that may be sold now: the smaller of
-// what is in the store and what was bought and not yet sold.
+// what is in the store and what was bought or came in under a typed kind and
+// has not left yet.
 func PurchasedAvailableToSell(r *Register, f *FinanceData, productID string) int {
 	return purchasedAvailableToSell(r, f, productID, "", "")
 }
 
 func purchasedAvailableToSell(r *Register, f *FinanceData, productID, exceptKind, exceptID string) int {
-	purchased := sumAllocations(remaining(r, f, productID, Purchase, nil, exceptKind, exceptID))
+	purchased := sumAllocations(remaining(r, f, productID, CanBeSold, nil, exceptKind, exceptID))
 	stock := onHandExcluding(r, f, productID, exceptKind, exceptID)
 	return maxZero(minInt(stock, purchased))
 }
@@ -453,8 +460,9 @@ func maxZero(n int) int {
 // ErrNotEnoughStock is returned when a settlement asks for more than allowed.
 var ErrNotEnoughStock = errors.New("not enough stock")
 
-// AllocateSupplierReturn spreads a return across the rented receipts for this
-// product, oldest first, whoever they came from. Stock is pooled: the program
+// AllocateSupplierReturn spreads a return across the receipts for this product
+// that may go back — rented and typed-kind alike — oldest first, whoever they
+// came from. Stock is pooled: the program
 // cannot know which physical chair is which, and makes no stronger claim.
 func AllocateSupplierReturn(r *Register, f *FinanceData, partyID, productID string, quantity int) ([]DisposalAllocation, error) {
 	return allocateSupplierReturn(r, f, partyID, productID, quantity, "", "")
@@ -467,11 +475,11 @@ func allocateSupplierReturn(r *Register, f *FinanceData, partyID, productID stri
 	if quantity > supplierReturnAvailable(r, f, partyID, productID, exceptKind, exceptID) {
 		return nil, ErrNotEnoughStock
 	}
-	return take(remaining(r, f, productID, Rent, nil, exceptKind, exceptID), quantity), nil
+	return take(remaining(r, f, productID, CanGoBack, nil, exceptKind, exceptID), quantity), nil
 }
 
-// AllocateStockSale spreads a sale across purchased receipts, oldest first,
-// whoever they came from.
+// AllocateStockSale spreads a sale across the receipts that may be sold —
+// bought and typed-kind alike — oldest first, whoever they came from.
 func AllocateStockSale(r *Register, f *FinanceData, productID string, quantity int) ([]DisposalAllocation, error) {
 	return allocateStockSale(r, f, productID, quantity, "", "")
 }
@@ -483,7 +491,7 @@ func allocateStockSale(r *Register, f *FinanceData, productID string, quantity i
 	if quantity > purchasedAvailableToSell(r, f, productID, exceptKind, exceptID) {
 		return nil, ErrNotEnoughStock
 	}
-	return take(remaining(r, f, productID, Purchase, nil, exceptKind, exceptID), quantity), nil
+	return take(remaining(r, f, productID, CanBeSold, nil, exceptKind, exceptID), quantity), nil
 }
 
 func take(available []DisposalAllocation, quantity int) []DisposalAllocation {

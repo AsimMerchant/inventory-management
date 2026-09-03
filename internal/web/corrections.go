@@ -160,6 +160,9 @@ type editData struct {
 	Quantity   string
 	ReceivedOn string
 	Basis      string
+	KindID     string                     // the kind picked off the list, when the basis is "other"
+	NewKind    string                     // a kind typed for the first time
+	Kinds      []register.AcquisitionKind // the shared list of typed kinds
 	Supplier   string
 	ChallanNo  string
 	ReceivedBy string
@@ -208,6 +211,7 @@ func editForm(reg *register.Register, id string) (editData, bool) {
 			d.Quantity = strconv.Itoa(in.Quantity)
 			d.ReceivedOn = in.ReceivedOn
 			d.Basis = string(in.Basis)
+			d.KindID, d.Kinds = in.KindID, register.LiveAcquisitionKinds(reg)
 			d.Supplier, d.ChallanNo, d.ReceivedBy = in.Supplier, in.ChallanNo, in.ReceivedBy
 			d.Subheading = entryName(reg, id) + ", received " + shortdateOf(in.ReceivedOn)
 			d.Changes = changeLines(in.Changes, d.Word)
@@ -433,6 +437,11 @@ func (d *editData) readForm(r *http.Request) {
 	case "inward":
 		d.ReceivedOn = get("receivedOn", d.ReceivedOn)
 		d.Basis = get("basis", d.Basis)
+		d.KindID = get("kindId", d.KindID)
+		d.NewKind = register.CleanName(get("newKind", d.NewKind))
+		if d.Basis != string(register.Other) {
+			d.KindID, d.NewKind = "", ""
+		}
 		d.Supplier = register.CleanName(get("supplier", d.Supplier))
 		d.ChallanNo = get("challanNo", d.ChallanNo)
 	case "issue":
@@ -486,8 +495,11 @@ func fieldRefusal(d editData) string {
 		if _, err := time.Parse(dateLayout, d.ReceivedOn); err != nil {
 			return "Type the date like this: 03-09-2026."
 		}
-		if d.Basis != string(register.Rent) && d.Basis != string(register.Purchase) {
-			return "Choose rent or purchase."
+		if d.Basis != string(register.Rent) && d.Basis != string(register.Purchase) && d.Basis != string(register.Other) {
+			return "Choose how these came in."
+		}
+		if d.Basis == string(register.Other) && d.KindID == "" && d.NewKind == "" {
+			return "Pick how these came in from the list, or type a new word for it."
 		}
 	case "issue":
 		if d.TakerName == "" {
@@ -534,13 +546,29 @@ func applyEdit(reg *register.Register, d editData, by string, now time.Time) ([]
 			if in.ID != d.ID {
 				continue
 			}
+			// A word typed for the first time joins the shared list in the
+			// same write as the correction that uses it.
+			kindID := d.KindID
+			if d.Basis == string(register.Other) && d.NewKind != "" {
+				added, err := register.AddAcquisitionKind(reg, d.NewKind, by, now)
+				if err != nil {
+					return nil, "Pick how these came in from the list, or type a new word for it."
+				}
+				kindID = added
+			}
+			if d.Basis == string(register.Other) {
+				if _, ok := register.ResolveAcquisitionKind(reg, kindID); !ok {
+					return nil, "Pick how these came in from the list, or type a new word for it."
+				}
+			}
 			note("quantity", "How many", strconv.Itoa(in.Quantity), strconv.Itoa(qty))
 			note("dateReceived", "Date received", shortdateOf(in.ReceivedOn), shortdateOf(d.ReceivedOn))
-			note("basis", "Rent or purchase", basisWord(in.Basis), basisWord(register.Basis(d.Basis)))
+			note("basis", "How it came in", register.BasisWord(reg, in.Basis, in.KindID), register.BasisWord(reg, register.Basis(d.Basis), kindID))
 			note("supplier", "Came from", in.Supplier, d.Supplier)
 			note("challan", "Challan no.", in.ChallanNo, d.ChallanNo)
 			in.Quantity, in.ReceivedOn = qty, d.ReceivedOn
-			in.Basis, in.Supplier, in.ChallanNo = register.Basis(d.Basis), d.Supplier, d.ChallanNo
+			in.Basis, in.KindID = register.Basis(d.Basis), kindID
+			in.Supplier, in.ChallanNo = d.Supplier, d.ChallanNo
 		}
 	case "issue":
 		issuedAt, _ := time.ParseInLocation(stampLayout, d.IssuedAt, time.Local)
@@ -696,13 +724,6 @@ func issuesFor(reg *register.Register, productID, takerName string) []string {
 		}
 	}
 	return ids
-}
-
-func basisWord(b register.Basis) string {
-	if b == register.Rent {
-		return "Rent"
-	}
-	return "Purchase"
 }
 
 func dispositionWord(d register.Disposition) string {
@@ -869,7 +890,10 @@ func disposalGuard(reg *register.Register, was register.Inward, id string) strin
 		if in.Deleted != nil {
 			return register.ErrStrandedDisposal
 		}
-		if in.Basis != was.Basis || register.FoldKey(in.Supplier) != register.FoldKey(was.Supplier) {
+		// The typed kind counts as part of the basis here: goods already
+		// drawn on as donated must not become rented or bought underneath a
+		// removal that has happened.
+		if in.Basis != was.Basis || in.KindID != was.KindID || register.FoldKey(in.Supplier) != register.FoldKey(was.Supplier) {
 			return register.ErrStrandedDisposal
 		}
 		if in.Quantity < allocated {

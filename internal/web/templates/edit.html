@@ -46,7 +46,7 @@
     </div>
   </div>
   <div class="field">
-    <span class="lab">Rent or purchase</span>
+    <span class="lab">How these came in</span>
     <div class="seg">
       <label class="opt{{if eq .Basis "rent"}} on{{end}}">
         <input type="radio" name="basis" value="rent"{{if eq .Basis "rent"}} checked{{end}}>
@@ -56,6 +56,24 @@
         <input type="radio" name="basis" value="purchase"{{if eq .Basis "purchase"}} checked{{end}}>
         Purchased for resale — does not come back
       </label>
+      <label class="opt{{if eq .Basis "other"}} on{{end}}">
+        <input type="radio" name="basis" value="other"{{if eq .Basis "other"}} checked{{end}}>
+        Some other way — donated, sponsored, borrowed
+      </label>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <span class="lab">Which way</span>
+        <select class="inp" name="kindId">
+          <option value="">Pick from the list</option>
+          {{range .Kinds}}<option value="{{.ID}}"{{if eq .ID $.KindID}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      <div class="field">
+        <span class="lab">Or type a new word</span>
+        <input class="inp" type="text" name="newKind" autocomplete="off" value="{{.NewKind}}">
+        <div class="hint">Only if it is not on the list. Everyone will see it afterwards.</div>
+      </div>
     </div>
   </div>
   <div class="row2">

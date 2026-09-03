@@ -309,10 +309,10 @@ func validateOrders(f *FinanceData, accountIDs map[string]bool) error {
 			if l.ExpectedQuantity < 1 {
 				return fmt.Errorf("financial order line quantity must be at least 1")
 			}
-			if l.Basis != Rent && l.Basis != Purchase {
-				return fmt.Errorf("financial order line must be rent or purchase")
+			if l.Basis != Rent && l.Basis != Purchase && l.Basis != Other {
+				return fmt.Errorf("financial order line must be rent, purchase or a typed kind")
 			}
-			pair := l.ProductID + "\x00" + string(l.Basis)
+			pair := l.ProductID + "\x00" + string(l.Basis) + "\x00" + l.KindID
 			if pairs[pair] {
 				return fmt.Errorf("financial order repeats one product on the same basis")
 			}

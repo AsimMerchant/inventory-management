@@ -28,7 +28,7 @@ func initializedFinance(t *testing.T) (*Store, string, []byte, string) {
 	return s, path, key, recovery
 }
 
-func TestSchemaTwoLoadsAsThreeWithoutWriting(t *testing.T) {
+func TestSchemaTwoLoadsAsCurrentWithoutWriting(t *testing.T) {
 	r := register.WalkthroughT0()
 	r.SchemaVersion = 2
 	data := mustEncode(t, r)
@@ -42,7 +42,7 @@ func TestSchemaTwoLoadsAsThreeWithoutWriting(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.Read(func(got *register.Register) {
-		if got.SchemaVersion != 3 || got.Finance != nil {
+		if got.SchemaVersion != register.SchemaVersion || got.Finance != nil {
 			t.Errorf("schema=%d finance=%v", got.SchemaVersion, got.Finance)
 		}
 	})

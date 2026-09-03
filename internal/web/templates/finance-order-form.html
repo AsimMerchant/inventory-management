@@ -14,10 +14,18 @@
       <span class="lab">How many</span>
       <input class="inp" type="number" name="quantity" min="1" value="{{.Quantity}}" inputmode="numeric">
     </div>
+    {{$line := .}}
     <div class="field">
-      <span class="lab">Rent or purchase</span>
+      <span class="lab">How these came in</span>
       <label><input type="radio" name="basis-{{.Index}}" value="rent"{{if eq .Basis "rent"}} checked{{end}}> Rented</label>
       <label><input type="radio" name="basis-{{.Index}}" value="purchase"{{if eq .Basis "purchase"}} checked{{end}}> Bought</label>
+      <label><input type="radio" name="basis-{{.Index}}" value="other"{{if eq .Basis "other"}} checked{{end}}> Some other way</label>
+      <select class="inp" name="kindId">
+        <option value="">Pick from the list</option>
+        {{range .Kinds}}<option value="{{.ID}}"{{if eq .ID $line.KindID}} selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+      <span class="lab">Or type a new word</span>
+      <input class="inp" type="text" name="newKind" autocomplete="off" value="{{.NewKind}}">
     </div>
     {{if .Locked}}<p class="note">This product is already used by a ledger entry.</p>{{end}}
     <button class="btn ghost" type="submit" formaction="/finance/product/new" name="line" value="{{.Index}}">Add the typed name as a brand-new product</button>

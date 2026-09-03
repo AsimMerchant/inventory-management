@@ -78,6 +78,58 @@ screen says *This product is already used by a ledger entry* and offers no remov
   claim of 95.4% could not be reproduced and predates this work. **92.2% does not meet the
   95% gate** and is recorded here rather than glossed.
 
+### Step two is built: the third acquisition kind, and schema 4 — 3 September 2026
+
+On branch `fix/product-pickers-at-scale`. **`SchemaVersion` is now 4.** Before the new
+`.exe` is used: back up `store-register.json`, then delete the old `.exe` from the laptop
+**and from the pen drive**. This is the same procedural fix the user chose on 1 September
+and again for schema 3, and for the same reason — the defect is in the released reader
+and cannot be fixed here. `v1.2.1` does not refuse a schema-4 file cleanly: it treats the
+mismatch as damage, sets the real data aside as `store-register.json.corrupt-<timestamp>`,
+falls back to `.bak` and shows pre-upgrade data behind the ordinary damage banner. The
+new build reads schema 1, 2, 3 and 4, so upgrading is safe and no record is rewritten.
+
+**Where the list lives, and why it is not in the vault.** `AcquisitionKinds` is a new
+slice on the plain `register.Register`, beside `Disposals` and for the same reason: the
+delivery desk is never logged in, so a list it has to read cannot be encrypted. A word
+like "donated" is not financial data. The ledger reads the same list. IDs are `AKD-0001`.
+`Inward.KindID` and `FinanceOrderLine.KindID` name the word; `Basis` gains `other`.
+Both keys are `omitempty` and nothing normalises the slice, so a file written before this
+existed is byte-identical after a no-op save.
+
+**The control is a plain `<select>` plus an "or type a new word" box, deliberately.**
+Not a typeahead. The list is three to six words, so the scale problem this branch exists
+to fix does not apply, and there is no `data-picker`/`data-values` box to go dead without
+its script tag — the trap this branch has already hit twice. It works with JavaScript off
+by construction rather than by fallback. Do not "upgrade" it.
+
+**Rule two is in the arithmetic, not in the screens.** `eligibleInwards` and `remaining`
+now take a predicate instead of one basis: `CanGoBack` is rent plus every typed kind,
+`CanBeSold` is purchase plus every typed kind. Both draw on one pool, and
+`allocatedFromInward` already counted returns and sales together, so fifty donated chairs
+sold are fifty that can no longer go back. There is a test for exactly that.
+
+**Deliberate asymmetry, decided here and worth his eye:** `SupplierObligations` still
+counts rent only. Donated goods may go back, but nobody is owed them, so they are not an
+obligation. The return door being open and an obligation existing are two different
+things.
+
+**Nothing validates that a `KindID` still exists.** `register.Validate` runs inside every
+write and `ValidateFinance` on every vault decrypt, so a missing word must never stop the
+file loading. An unresolvable kind displays as the plain word "Other".
+
+**Wording changed, and it needs his judgement.** The label over the three choices was
+`Rent or purchase` and is now `How these came in` on *Stuff came in*, *Fix this*, *Record
+money* and the order form. Two refusals changed with it: `Choose rent or purchase.`
+became `Choose how these came in.`, and the money screen's `Say whether each product
+with an agreed quantity is rented or bought.` became `Say how each product with an agreed
+quantity came in.` Specs 07, 11 and 18 still carry the old wording and were **not**
+edited. This has not been through `plain_language_reviewer`.
+
+Verified: `go test ./... -race -count=1` green, `go vet` clean, PE32+ cross-compile with
+`-trimpath -ldflags="-s -w"`. `internal/register` coverage 87.7% alone. No browser
+testing was done — the user said he would drive it himself.
+
 ### The agreed order of work, settled with the user on 3 September 2026
 
 Four things to clear, then one to plan. This order is his, and the reasoning is his:
@@ -480,8 +532,9 @@ same commit. And `ValueKindPrefix` returns `""` for a kind it does not know, whi
 
 **Open, and explicitly his call, not to be assumed:**
 
-**Decided 3 September 2026: `SchemaVersion` goes to 4, and only when the third kind
-ships.** The user delegated the call — *"u decide that"* — under one requirement: the new
+**Decided 3 September 2026, and shipped the same day: `SchemaVersion` goes to 4, and only
+when the third kind ships.** It has shipped; see the step-two section above for the
+upgrade procedure. The user delegated the call — *"u decide that"* — under one requirement: the new
 exe must open the existing `v1.2.1` file with every order intact. That requirement is met
 either way and is not what the number affects. The reader accepts schema 1, 2 and 3 and
 will accept 4, so upgrading is unaffected; the version number governs only an **old** exe

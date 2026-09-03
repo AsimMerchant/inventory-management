@@ -22,6 +22,9 @@ type orderLine struct {
 	ProductName string
 	Quantity    string
 	Basis       string
+	KindID      string                     // the kind picked off the list, when the basis is "other"
+	NewKind     string                     // a kind typed for the first time
+	Kinds       []register.AcquisitionKind // the shared list, read from the open register
 	Picker      pickerData
 	Index       int
 	Removable   bool
@@ -67,6 +70,7 @@ func (s *Server) readOrderDraft(r *http.Request) orderDraft {
 
 	ids, names := r.Form["productId"], r.Form["productName"]
 	quantities, bases := r.Form["quantity"], r.Form["basis"]
+	kindIDs, newKinds := r.Form["kindId"], r.Form["newKind"]
 	lineIDs := r.Form["lineId"]
 	count := len(names)
 	for _, n := range []int{len(ids), len(quantities), len(bases), len(lineIDs)} {
@@ -90,6 +94,8 @@ func (s *Server) readOrderDraft(r *http.Request) orderDraft {
 			ProductName: register.CleanName(at(names, i)),
 			Quantity:    strings.TrimSpace(at(quantities, i)),
 			Basis:       basis,
+			KindID:      at(kindIDs, i),
+			NewKind:     register.CleanName(at(newKinds, i)),
 			LineID:      at(lineIDs, i),
 		})
 	}
@@ -110,6 +116,8 @@ func (d orderDraft) query() url.Values {
 		q.Add("productName", l.ProductName)
 		q.Add("quantity", l.Quantity)
 		q.Add("basis", l.Basis)
+		q.Add("kindId", l.KindID)
+		q.Add("newKind", l.NewKind)
 		q.Add("lineId", l.LineID)
 	}
 	q.Set("orderedAt", d.OrderedAt)
@@ -130,10 +138,12 @@ func (s *Server) fill(d *orderDraft, r *http.Request) {
 			"partyId", "partyName", d.Party.PickedID, d.Party.PickedText, "")
 	})
 	s.st.Read(func(reg *register.Register) {
+		kinds := register.LiveAcquisitionKinds(reg)
 		for i := range d.Lines {
 			l := &d.Lines[i]
 			l.Index = i
 			l.Removable = len(d.Lines) > 1
+			l.Kinds = kinds
 			name := l.ProductName
 			if l.ProductID != "" {
 				if p, ok := register.ProductByID(reg, l.ProductID); ok {
@@ -218,7 +228,7 @@ func (s *Server) financeOrderNew(w http.ResponseWriter, r *http.Request) {
 			refusal = "Say who this order is with."
 			return errOrderRefused
 		}
-		lines, text := buildLines(reg, f, d)
+		lines, text := buildLines(reg, f, d, sess.accountID, now)
 		if text != "" {
 			refusal = text
 			return errOrderRefused
@@ -233,7 +243,7 @@ func (s *Server) financeOrderNew(w http.ResponseWriter, r *http.Request) {
 		}
 		f.Orders = append(f.Orders, order)
 		f.Audit = append(f.Audit, financeAuditFor(f, sess.accountID, now, "order_created", "order", newID,
-			"Order recorded", "", orderSummary(f, order)))
+			"Order recorded", "", orderSummary(reg, f, order)))
 		return nil
 	})
 	switch {
@@ -273,7 +283,7 @@ func orderFields(d orderDraft) (time.Time, *int64, string) {
 // buildLines resolves each typed line against the live catalogue inside the
 // transaction. A product name typed but never picked is refused: the product
 // invariant is the same here as on the inventory side.
-func buildLines(reg *register.Register, f *register.FinanceData, d orderDraft) ([]register.FinanceOrderLine, string) {
+func buildLines(reg *register.Register, f *register.FinanceData, d orderDraft, actorID string, now time.Time) ([]register.FinanceOrderLine, string) {
 	lines := []register.FinanceOrderLine{}
 	seen := map[string]bool{}
 	// NextID counts the lines already stored, so several new lines in one save
@@ -297,20 +307,34 @@ func buildLines(reg *register.Register, f *register.FinanceData, d orderDraft) (
 			return nil, "Type how many of each product were ordered."
 		}
 		basis := register.Basis(l.Basis)
-		if basis != register.Rent && basis != register.Purchase {
-			return nil, "Say whether each product is rented or bought."
+		if basis != register.Rent && basis != register.Purchase && basis != register.Other {
+			return nil, "Say how each product came in."
 		}
-		if seen[p.ID+string(basis)] {
+		kindID := ""
+		if basis == register.Other {
+			kindID = l.KindID
+			if l.NewKind != "" {
+				added, err := register.AddAcquisitionKind(reg, l.NewKind, financeAccountName(f, actorID), now)
+				if err != nil {
+					return nil, kindRefusal
+				}
+				kindID = added
+			}
+			if _, ok := register.ResolveAcquisitionKind(reg, kindID); !ok {
+				return nil, kindRefusal
+			}
+		}
+		if seen[p.ID+string(basis)+kindID] {
 			return nil, "That product is already on this order on the same terms."
 		}
-		seen[p.ID+string(basis)] = true
+		seen[p.ID+string(basis)+kindID] = true
 		id := l.LineID
 		if id == "" {
 			id = next()
 		}
 		lines = append(lines, register.FinanceOrderLine{
 			ID: id, ProductID: p.ID, ProductNameSnapshot: p.Name,
-			ExpectedQuantity: quantity, Basis: basis,
+			ExpectedQuantity: quantity, Basis: basis, KindID: kindID,
 		})
 	}
 	if len(lines) == 0 {
@@ -320,20 +344,22 @@ func buildLines(reg *register.Register, f *register.FinanceData, d orderDraft) (
 }
 
 // orderSummary is the one-line description an audit row carries.
-func orderSummary(f *register.FinanceData, o register.FinanceOrder) string {
+func orderSummary(reg *register.Register, f *register.FinanceData, o register.FinanceOrder) string {
 	parts := []string{register.FinanceValueText(f, o.PartyID)}
-	parts = append(parts, lineText(o.Lines))
+	parts = append(parts, lineText(reg, o.Lines))
 	if o.AgreedPaise != nil {
 		parts = append(parts, register.FormatRupees(*o.AgreedPaise))
 	}
 	return strings.Join(parts, " · ")
 }
 
-// lineText renders the product lines the way a correction records them.
-func lineText(lines []register.FinanceOrderLine) string {
+// lineText renders the product lines the way a correction records them. A
+// typed kind is written out in the word somebody chose, not as "other": these
+// strings are history and have to go on saying what they said.
+func lineText(reg *register.Register, lines []register.FinanceOrderLine) string {
 	var out []string
 	for _, l := range lines {
-		out = append(out, strconv.Itoa(l.ExpectedQuantity)+" "+l.ProductNameSnapshot+" — "+string(l.Basis))
+		out = append(out, strconv.Itoa(l.ExpectedQuantity)+" "+l.ProductNameSnapshot+" — "+strings.ToLower(register.BasisWord(reg, l.Basis, l.KindID)))
 	}
 	return strings.Join(out, "; ")
 }
@@ -395,7 +421,8 @@ func viewOrder(reg *register.Register, f *register.FinanceData, o register.Finan
 	for _, l := range o.Lines {
 		row := orderLineView{
 			ID: l.ID, Product: l.ProductNameSnapshot, Quantity: l.ExpectedQuantity,
-			Basis: string(l.Basis), Locked: register.FinanceLineIsReferenced(f, l.ID),
+			Basis:  strings.ToLower(register.BasisWord(reg, l.Basis, l.KindID)),
+			Locked: register.FinanceLineIsReferenced(f, l.ID),
 		}
 		if p, ok := register.ProductByID(reg, l.ProductID); ok && p.Name != l.ProductNameSnapshot {
 			row.NowCalled = "now called " + p.Name
@@ -652,7 +679,7 @@ func (s *Server) financeOrderEdit(w http.ResponseWriter, r *http.Request) {
 			refusal = "Say who this order is with."
 			return errOrderRefused
 		}
-		lines, text := buildLines(reg, f, d)
+		lines, text := buildLines(reg, f, d, sess.accountID, now)
 		if text != "" {
 			refusal = text
 			return errOrderRefused
@@ -669,14 +696,14 @@ func (s *Server) financeOrderEdit(w http.ResponseWriter, r *http.Request) {
 			after.AgreedKind = ""
 		}
 
-		changes := orderChanges(f, before, after, sess.accountID, now)
+		changes := orderChanges(reg, f, before, after, sess.accountID, now)
 		if len(changes) == 0 {
 			return nil
 		}
 		after.Changes = append(append([]register.FinanceChange{}, before.Changes...), changes...)
 		f.Orders[at] = after
 		f.Audit = append(f.Audit, financeAuditFor(f, sess.accountID, now, "order_edited", "order", id,
-			"Order corrected", orderSummary(f, before), orderSummary(f, after)))
+			"Order corrected", orderSummary(reg, f, before), orderSummary(reg, f, after)))
 		return nil
 	})
 	switch {
@@ -703,7 +730,7 @@ func lineRefusal(f *register.FinanceData, before, after []register.FinanceOrderL
 			continue
 		}
 		now, ok := kept[old.ID]
-		if !ok || now.ProductID != old.ProductID || now.Basis != old.Basis {
+		if !ok || now.ProductID != old.ProductID || now.Basis != old.Basis || now.KindID != old.KindID {
 			return register.ErrLineUsed.Error()
 		}
 	}
@@ -712,7 +739,7 @@ func lineRefusal(f *register.FinanceData, before, after []register.FinanceOrderL
 
 // orderChanges records one FinanceChange per changed field, in the order the
 // spec fixes. Submitting the same values again records nothing.
-func orderChanges(f *register.FinanceData, before, after register.FinanceOrder, actorID string, at time.Time) []register.FinanceChange {
+func orderChanges(reg *register.Register, f *register.FinanceData, before, after register.FinanceOrder, actorID string, at time.Time) []register.FinanceChange {
 	var out []register.FinanceChange
 	add := func(field, label, from, to string) {
 		if from == to {
@@ -731,7 +758,7 @@ func orderChanges(f *register.FinanceData, before, after register.FinanceOrder, 
 	}
 	add("party", "Supplier or other party",
 		register.FinanceValueText(f, before.PartyID), register.FinanceValueText(f, after.PartyID))
-	add("products", "Products ordered", lineText(before.Lines), lineText(after.Lines))
+	add("products", "Products ordered", lineText(reg, before.Lines), lineText(reg, after.Lines))
 	add("agreedTotal", "Agreed total", totalText(before.AgreedPaise), totalText(after.AgreedPaise))
 	add("agreedKind", "Estimate or exact", kindText(before.AgreedKind), kindText(after.AgreedKind))
 	add("orderedAt", "Order date and time",
@@ -783,7 +810,7 @@ func (s *Server) draftFromOrder(r *http.Request, id string) (orderDraft, bool) {
 		for _, l := range o.Lines {
 			d.Lines = append(d.Lines, orderLine{
 				ProductID: l.ProductID, ProductName: l.ProductNameSnapshot,
-				Quantity: strconv.Itoa(l.ExpectedQuantity), Basis: string(l.Basis),
+				Quantity: strconv.Itoa(l.ExpectedQuantity), Basis: string(l.Basis), KindID: l.KindID,
 				LineID: l.ID, Locked: register.FinanceLineIsReferenced(f, l.ID),
 			})
 		}

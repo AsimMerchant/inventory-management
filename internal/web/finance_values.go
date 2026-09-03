@@ -216,10 +216,17 @@ func pickerFor(data *register.FinanceData, kind register.FinanceValueKind, label
 	}
 }
 
+// listTarget is one value a row may be merged into. It is the same shape for
+// the vault's three lists and for the open acquisition-kinds list, so the
+// screen draws them all the same way.
+type listTarget struct {
+	ID, Value string
+}
+
 type listRow struct {
 	ID, Kind, Value, KindLabel string
 	Used                       bool
-	Targets                    []register.FinanceReusableValue
+	Targets                    []listTarget
 }
 
 type listSection struct {
@@ -240,15 +247,18 @@ func (s *Server) financeLists(w http.ResponseWriter, r *http.Request) {
 func (s *Server) renderLists(w http.ResponseWriter, r *http.Request, problem, notice string) {
 	sess := financeSessionOf(r)
 	data := listsData{CSRF: sess.csrf, Error: problem, Notice: notice}
-	_ = s.st.ReadFinance(sess.vaultKey, func(f *register.FinanceData) {
+	// One lock, both halves: the three financial lists are in the vault and
+	// the acquisition kinds are in the open register, and Read and ReadFinance
+	// take the same mutex.
+	_ = s.st.ReadBoth(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) {
 		fill := func(kind register.FinanceValueKind) []listRow {
 			rows := []listRow{}
 			live := register.LiveFinanceValues(f, kind)
 			for _, v := range live {
-				others := []register.FinanceReusableValue{}
+				others := []listTarget{}
 				for _, o := range live {
 					if o.ID != v.ID {
-						others = append(others, o)
+						others = append(others, listTarget{ID: o.ID, Value: o.Value})
 					}
 				}
 				rows = append(rows, listRow{
@@ -260,10 +270,27 @@ func (s *Server) renderLists(w http.ResponseWriter, r *http.Request, problem, no
 			}
 			return rows
 		}
+		kinds := []listRow{}
+		liveKinds := register.LiveAcquisitionKinds(reg)
+		for _, k := range liveKinds {
+			others := []listTarget{}
+			for _, o := range liveKinds {
+				if o.ID != k.ID {
+					others = append(others, listTarget{ID: o.ID, Value: o.Name})
+				}
+			}
+			kinds = append(kinds, listRow{
+				ID: k.ID, Kind: "acquisitionKind", Value: k.Name,
+				KindLabel: "How goods came in",
+				Used:      register.AcquisitionKindIsUsed(reg, f, k.ID),
+				Targets:   others,
+			})
+		}
 		data.Sections = []listSection{
 			{"Suppliers and other parties", fill(register.FinanceParty)},
 			{"Purposes", fill(register.FinancePurpose)},
 			{"Payment modes", fill(register.FinanceMode)},
+			{"Ways goods came in, besides rent and purchase", kinds},
 		}
 	})
 	s.financePage(w, r, "Shared lists", "finance-lists.html", data)
@@ -287,6 +314,13 @@ func (s *Server) financeListAction(w http.ResponseWriter, r *http.Request) {
 	action := r.PathValue("action")
 	if action == "merge" && r.FormValue("confirm") == "yes" && r.FormValue("confirmedTarget") != r.FormValue("target") {
 		r.Form.Set("confirm", "")
+	}
+	// The acquisition kinds live in the open register rather than the vault,
+	// so they take the same three actions down their own path. Nothing else
+	// about the screen differs.
+	if strings.HasPrefix(id, "AKD-") {
+		s.kindListAction(w, r, id, action, now)
+		return
 	}
 	if (action == "merge" || action == "delete") && r.FormValue("confirm") != "yes" {
 		var source, target register.FinanceReusableValue
@@ -344,6 +378,77 @@ func (s *Server) financeListAction(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, register.ErrValueUsed):
 		s.renderLists(w, r, register.ErrValueUsed.Error(), "")
+	case errors.Is(err, store.ErrNotAdmin):
+		w.WriteHeader(http.StatusForbidden)
+	case err != nil:
+		s.renderLists(w, r, err.Error(), "")
+	default:
+		http.Redirect(w, r, "/finance/lists?"+url.Values{"done": {notice}}.Encode(), http.StatusSeeOther)
+	}
+}
+
+// kindListAction runs one rename, merge or delete on the shared list of ways
+// goods came in. It is the value actions above with one difference: the list
+// is plain register data, because the delivery desk reads it and is never
+// logged in. The confirmation screens, the refusals and the destination are
+// the same.
+func (s *Server) kindListAction(w http.ResponseWriter, r *http.Request, id, action string, now time.Time) {
+	sess := financeSessionOf(r)
+	if (action == "merge" || action == "delete") && r.FormValue("confirm") != "yes" {
+		var source, target register.AcquisitionKind
+		var sourceOK, targetOK, sourceUsed bool
+		_ = s.st.ReadBoth(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) {
+			source, sourceOK = register.AcquisitionKindByID(reg, id)
+			sourceUsed = register.AcquisitionKindIsUsed(reg, f, id)
+			if action == "merge" {
+				target, targetOK = register.AcquisitionKindByID(reg, r.FormValue("target"))
+			}
+		})
+		if !sourceOK || source.MergedIntoID != "" || (action == "merge" && (!targetOK || target.MergedIntoID != "" || target.ID == source.ID)) {
+			s.renderLists(w, r, "Pick two different values from the same list.", "")
+			return
+		}
+		if action == "delete" && sourceUsed {
+			s.renderLists(w, r, register.ErrKindUsed.Error(), "")
+			return
+		}
+		if action == "merge" {
+			s.renderFinanceConfirm(w, r, financeConfirmData{
+				Heading: "Combine " + source.Name + " into " + target.Name + "?",
+				Warning: "Every delivery and order that currently shows " + source.Name + " will show " + target.Name + ". The activity history will keep both earlier words.",
+				Action:  "/finance/lists/" + id + "/merge", Button: "Yes, combine these values",
+				Target: target.ID, ConfirmedTarget: target.ID,
+			})
+			return
+		}
+		s.renderFinanceConfirm(w, r, financeConfirmData{
+			Heading: "Delete unused way goods came in “" + source.Name + "”?",
+			Warning: "It will be removed from future suggestions. This is allowed only because no delivery and no order uses it.",
+			Action:  "/finance/lists/" + id + "/delete", Button: "Yes, delete this unused value",
+		})
+		return
+	}
+
+	var err error
+	var notice string
+	switch action {
+	case "rename":
+		err = s.st.RenameAcquisitionKind(sess.vaultKey, sess.accountID, id, r.FormValue("value"), now)
+		notice = "Wording corrected."
+	case "merge":
+		err = s.st.MergeAcquisitionKind(sess.vaultKey, sess.accountID, id, r.FormValue("target"), now)
+		notice = "The two entries are now one."
+	case "delete":
+		err = s.st.DeleteAcquisitionKind(sess.vaultKey, sess.accountID, id, now)
+		notice = "Removed."
+	default:
+		s.financeNotFound(w, r)
+		return
+	}
+
+	switch {
+	case errors.Is(err, register.ErrKindUsed):
+		s.renderLists(w, r, register.ErrKindUsed.Error(), "")
 	case errors.Is(err, store.ErrNotAdmin):
 		w.WriteHeader(http.StatusForbidden)
 	case err != nil:

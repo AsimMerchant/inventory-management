@@ -21,8 +21,8 @@ import (
 type stockRow struct {
 	ProductID string
 	Name      string
-	PillClass string // "pill rent" or "pill sale"
-	PillWord  string // "Rent" or "Purchase"
+	PillClass string // "pill rent", "pill sale", "pill other" or "pill none"
+	PillWord  string // "Rent", "Purchase" or the typed word
 	CameIn    int
 	Out       int
 	OnHand    int
@@ -55,7 +55,11 @@ func (s *Server) stockView(w http.ResponseWriter, r *http.Request) {
 			if row.CameIn == 0 {
 				out.PillClass, out.PillWord = "pill none", "Not received yet"
 			} else if row.Basis != register.Rent {
-				out.PillClass, out.PillWord = "pill sale", "Purchase"
+				out.PillClass = "pill sale"
+				if row.Basis == register.Other {
+					out.PillClass = "pill other"
+				}
+				out.PillWord = register.BasisWord(reg, row.Basis, row.KindID)
 			}
 			if row.OnHand > 0 {
 				out.IssueHref = "/issue/new?productId=" + row.ProductID
@@ -307,7 +311,11 @@ func (s *Server) inwardsView(w http.ResponseWriter, r *http.Request) {
 				Changes: changesOn[in.ID], FixHref: "/entry/" + in.ID + "/edit",
 			}
 			if in.Basis != register.Rent {
-				row.PillClass, row.PillWord = "pill sale", "Purchase"
+				row.PillClass = "pill sale"
+				if in.Basis == register.Other {
+					row.PillClass = "pill other"
+				}
+				row.PillWord = register.BasisWord(reg, in.Basis, in.KindID)
 			}
 			if in.Deleted != nil {
 				row.Deleted, row.Deletion, row.FixHref = true, deletionLine(*in.Deleted), ""
@@ -361,7 +369,11 @@ func (s *Server) suppliersView(w http.ResponseWriter, r *http.Request) {
 				PillClass: "pill rent", PillWord: "Rent",
 			}
 			if !row.OnRent {
-				out.PillClass, out.PillWord = "pill sale", "Purchase"
+				out.PillClass = "pill sale"
+				if row.Basis == register.Other {
+					out.PillClass = "pill other"
+				}
+				out.PillWord = register.BasisWord(reg, row.Basis, row.KindID)
 			}
 			if row.Supplier == "" {
 				out.Bought = true

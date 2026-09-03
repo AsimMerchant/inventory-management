@@ -212,6 +212,7 @@ table.stk tr:last-child td{border-bottom:none}
 .pill.ok{background:var(--ok-soft);color:var(--ok)}
 .pill.out{background:var(--bad-soft);color:var(--bad)}
 .pill.none{background:transparent;color:var(--ink-faint);border:1px solid var(--ink-faint)}
+.pill.other{background:transparent;color:var(--ink-soft);border:1px solid var(--ink-soft)}
 
 .tile{
   border:1px solid var(--rule);
