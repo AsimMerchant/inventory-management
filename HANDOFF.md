@@ -63,17 +63,37 @@ on record money and order screen."*
 Keeping it per line rather than per entry is what makes the two sides comparable at all,
 since the desk's records are per product too.
 
+**There are two different challans and they must never be mixed.** Corrected by the user
+on 3 September 2026 against a suggestion of mine to search one number across everything,
+which would have been a defect:
+
+- **The supplier's challan** — the vendor's own bill or delivery note, their number,
+  written by them. This is `Inward.ChallanNo`, entered on *Stuff came in*. We do not
+  control the numbering and two suppliers may easily use the same number.
+- **Our issue challan** — torn from our own book when goods are handed to somebody. Our
+  number, our sequence. This is `Issue.ChallanNo`, entered on *Someone is taking*, and it
+  is the one the return screen searches through `FindOutstandingByChallan`.
+
+They are unrelated pieces of paper. A supplier challan `447` and one of our issue slips
+`447` have nothing to do with each other, so a search that returns both is wrong. Never
+match them, never search them together, never share a field.
+
+**The ledger's challan is the supplier's one.** Money is paid against the vendor's bill,
+so a money entry carries the vendor's number and ties to the delivery bearing the same
+number. Our issue book has no business in the ledger.
+
 Worth deciding when this is planned, none of it assumed:
 
-- Whether typing a challan number the desk has already used should show what came in
-  under it — the register can already search challans, `FindOutstandingByChallan` in
-  `register/challan.go`, though today only across issues.
+- Whether typing a supplier challan on the ledger should show what came in under it. That
+  search does not exist today: `FindOutstandingByChallan` walks issues only, so nothing
+  anywhere finds a delivery by the vendor's number. It would have to be written, and it
+  must stay strictly on the supplier side.
 - Whether repeating the number down five lines should be a single press, given the
   standing rule that nobody types an identifier from memory. Typing the same challan five
   times is exactly the kind of remembering that rule exists to prevent.
-- Whether a challan on the ledger side stays free text, as it is on the desk side, or
-  becomes something the two halves must agree on. Free text matches today's behaviour and
-  is the smaller change.
+- Whether the ledger's challan stays free text, as both are on the desk side, or becomes
+  something the two halves must agree on. Free text matches today's behaviour and is the
+  smaller change.
 
 Follows the merge and the third kind. Nothing here is started.
 
