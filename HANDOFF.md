@@ -259,6 +259,61 @@ Worth deciding when this is planned, none of it assumed:
 
 Follows the merge and the third kind. Nothing here is started.
 
+### A page per supplier with a running balance — designed 3 September 2026, NOT BUILT
+
+This is the shape the balances gap below should be built in. Worked out with the user late
+on 3 September 2026 and recognised by him immediately: *"aaaaaaaaaaaaaaaaaaaaaah, this is
+much simpler no?"*
+
+**The framing that unlocked it.** Bookkeeping has two different books. The *journal* is the
+chronological list — what happened, in order. The *ledger* is the same entries regrouped by
+**account**, one page per party, with a running balance. The journal answers *what
+happened*; the ledger answers *where do I stand with this person*. The screen in this
+program is already correctly called **Transaction journal**. The journal was built, the
+ledger never was, and the whole thing was called a ledger. That is precisely why the user
+said the centre piece was missing.
+
+**Decided: build accounts with running balances. Do not build debits and credits.** The
+double-entry machinery is what accountants need and what makes Tally hard; the store needs
+two of the four things a ledger has — a page per supplier, and the balance on it.
+
+**The page is per supplier, never per product.** You pay a person, not a chair. Products
+are what the money was for and are written on the lines. Per product would be useless:
+"you owe chairs ₹39,000" answers nothing, and those chairs may have come from two
+suppliers.
+
+The worked example put to the user, four products and three challans under one supplier:
+
+    Sharma Tent House — you owe ₹31,000
+
+    1 Sep  Agreed: 500 chairs on rent · challan STH/4390   25,000   25,000
+    1 Sep  Paid — advance, cash                            -5,000   20,000
+    2 Sep  Agreed: 60 round tables · challan STH/4471       6,000   26,000
+    2 Sep  Agreed: 12 shamiana poles · challan STH/4471     3,000   29,000
+    3 Sep  Paid — cash                                    -12,000   17,000
+    4 Sep  Agreed: 200 more chairs · challan STH/4502      14,000   31,000
+
+Chairs appear twice, two deliveries under two challans — on this page they are simply two
+lines, which is the "one product, many challans" case handled with no special machinery.
+
+Above it, one line per supplier — Sharma ₹31,000, Gupta ₹3,500, Verma settled, and a
+total. Tap a name, get their page.
+
+**Every figure is already in the file.** Agreed totals sit on the orders, payments sit on
+the movements. Nothing new to type: this is grouping and addition, which is the work the
+book was supposed to save them.
+
+**It also gives the order a job.** *Record an order* felt like pointless paperwork because
+the agreed figure went nowhere. Here it is the line that creates the balance.
+
+**Held back deliberately.** The goods side — 500 agreed, 300 delivered, 200 pending — is a
+different table with different arithmetic. Mixing it into the money page is how this gets
+complicated again. Money first, separately.
+
+**Honest limit, told to the user.** This does not reduce what anybody types; *Record money*
+still asks fourteen things. It changes why they would bother, because every entry now moves
+a number they care about. Reducing the typing is the separate simplification item below.
+
 ### The ledger cannot say where you stand — named 3 September 2026, NOT BUILT
 
 The user's words after being shown what an estimate does today: *"so we didnt actually
