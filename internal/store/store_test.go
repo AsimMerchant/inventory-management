@@ -86,6 +86,7 @@ func TestSaveThenLoadRoundTrip(t *testing.T) {
 	reopened.Read(func(r *register.Register) {
 		want := register.WalkthroughT0()
 		register.LinkInwardParties(want)
+		want.SupplierChallans = []register.SupplierChallan{}
 		if !reflect.DeepEqual(r, want) {
 			t.Error("the reloaded register is not the register that was saved")
 		}
@@ -125,7 +126,7 @@ func TestFileIsHumanReadable(t *testing.T) {
 	}
 	text := string(data)
 	for _, want := range []string{
-		"  \"schemaVersion\": 5,\n",
+		"  \"schemaVersion\": 6,\n",
 		"      \"name\": \"Chairs\",\n",
 		"      \"supplier\": \"Sharma Tent House\",\n",
 		"Sharma Tent House",
@@ -361,7 +362,7 @@ func TestWrongSchemaVersionRefused(t *testing.T) {
 	path := filepath.Join(dir, FileName)
 
 	future := mustEncode(t, register.WalkthroughT0())
-	future = []byte(strings.Replace(string(future), `"schemaVersion": 5`, `"schemaVersion": 6`, 1))
+	future = []byte(strings.Replace(string(future), `"schemaVersion": 6`, `"schemaVersion": 7`, 1))
 	if err := os.WriteFile(path, future, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -389,7 +390,7 @@ func TestWrongSchemaVersionRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, _, err := Open(path2); err == nil {
-		t.Error("Open accepted a schema 6 file with no backup")
+		t.Error("Open accepted a schema 7 file with no backup")
 	}
 }
 

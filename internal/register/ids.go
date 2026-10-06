@@ -51,6 +51,10 @@ func (r *Register) idsFor(prefix string) []string {
 		for _, p := range r.Parties {
 			ids = append(ids, p.ID)
 		}
+	case "SCH":
+		for _, row := range r.SupplierChallans {
+			ids = append(ids, row.ID)
+		}
 	case "AKD":
 		for _, k := range r.AcquisitionKinds {
 			ids = append(ids, k.ID)

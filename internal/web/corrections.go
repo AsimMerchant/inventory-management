@@ -166,6 +166,7 @@ type editData struct {
 	Kinds      []register.AcquisitionKind // the shared list of typed kinds
 	Party      valuePicker                // the shared supplier and other-party list
 	ChallanNo  string
+	Challans   []valueOption
 	ReceivedBy string
 
 	TakerName  string
@@ -218,6 +219,9 @@ func editForm(reg *register.Register, id string) (editData, bool) {
 			// up blank on a supplier the delivery clearly names.
 			d.Party = partyPicker(reg, "Came from", "partyId", "partyName", in.PartyID, register.InwardPartyName(reg, in))
 			d.ChallanNo, d.ReceivedBy = in.ChallanNo, in.ReceivedBy
+			for _, row := range register.MatchSupplierChallans(reg, in.PartyID, "") {
+				d.Challans = append(d.Challans, valueOption{ID: row.ID, Value: register.InwardPartyName(reg, in) + " · " + row.Number})
+			}
 			d.Subheading = entryName(reg, id) + ", received " + shortdateOf(in.ReceivedOn)
 			d.Changes = changeLines(in.Changes, d.Word)
 			d.finish(in.Deleted)
@@ -360,6 +364,20 @@ func (s *Server) entrySave(w http.ResponseWriter, r *http.Request, id string) {
 	// nothing is typed twice.
 	typed := data
 	typed.readForm(r)
+	if typed.Kind == "inward" && typed.ChallanNo == "" && r.FormValue("supplierChallanIdChoice") != "" {
+		valid := false
+		s.st.Read(func(reg *register.Register) {
+			row, owner, ok := register.ResolveSupplierChallan(reg, r.FormValue("supplierChallanIdChoice"))
+			party, partyOK := register.ResolveParty(reg, typed.Party.PickedID)
+			if ok && partyOK && owner.ID == party.ID {
+				typed.ChallanNo, valid = row.Number, true
+			}
+		})
+		if !valid {
+			s.renderEdit(w, typed, &banner{"bad", "Pick a challan for this supplier, or type the number."})
+			return
+		}
+	}
 	if typed.Kind == "issue" && r.FormValue("addPerson") != "" {
 		typed.Additional = append(typed.Additional, register.IssueRecipient{})
 		s.renderEdit(w, typed, nil)

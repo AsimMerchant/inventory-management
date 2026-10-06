@@ -189,7 +189,7 @@ func readRegister(path string) (*register.Register, error) {
 	}
 	// Every schema this program has ever written is still read, and read with
 	// every record intact. Only an older exe opening a newer file refuses.
-	if reg.SchemaVersion != 1 && reg.SchemaVersion != 2 && reg.SchemaVersion != 3 && reg.SchemaVersion != 4 && reg.SchemaVersion != register.SchemaVersion {
+	if reg.SchemaVersion != 1 && reg.SchemaVersion != 2 && reg.SchemaVersion != 3 && reg.SchemaVersion != 4 && reg.SchemaVersion != 5 && reg.SchemaVersion != register.SchemaVersion {
 		return nil, fmt.Errorf("%s was written by a different version of this program (schema %d)", path, reg.SchemaVersion)
 	}
 	reg.SchemaVersion = register.SchemaVersion
@@ -265,6 +265,9 @@ func normalise(reg *register.Register) {
 	if reg.Disposals == nil {
 		reg.Disposals = []register.InventoryDisposal{}
 	}
+	if reg.SupplierChallans == nil {
+		reg.SupplierChallans = []register.SupplierChallan{}
+	}
 	// AcquisitionKinds is deliberately left alone. A file written before typed
 	// kinds existed has no key for them, and is written back without one.
 }
@@ -295,6 +298,9 @@ func deepCopy(r *register.Register) *register.Register {
 		for i := range c.Parties {
 			c.Parties[i].PreviousNames = append([]string(nil), r.Parties[i].PreviousNames...)
 		}
+	}
+	if r.SupplierChallans != nil {
+		c.SupplierChallans = append([]register.SupplierChallan{}, r.SupplierChallans...)
 	}
 
 	c.Inwards = append([]register.Inward{}, r.Inwards...)

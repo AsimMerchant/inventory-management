@@ -20,10 +20,14 @@ type moneyRow struct {
 	Index      int
 	Direction  string
 	Amount     string
+	Billed     string
+	Paid       string
+	Received   string
 	OccurredAt string
 	Party      valuePicker
 	Purpose    valuePicker
 	Mode       valuePicker
+	Challan    supplierChallanPicker
 	OrderID    string
 	LineIDs    []string
 	Settlement string
@@ -38,6 +42,11 @@ type moneyRow struct {
 	Lines       []moneyLineChoice
 	Settlements []moneySettlementChoice
 	Removable   bool
+}
+
+type supplierChallanPicker struct {
+	PickedID, PickedText string
+	Options              []valueOption
 }
 
 // moneyProductLine is one product line of one money row, held as typed so a
@@ -98,6 +107,7 @@ func (s *Server) readMoneyDraft(r *http.Request) moneyDraft {
 	}
 	directions := r.Form["direction"]
 	amounts := r.Form["amount"]
+	billed, paid, received := r.Form["billed"], r.Form["paid"], r.Form["received"]
 	occurred := r.Form["occurredAt"]
 	partyIDs, partyNames := r.Form["partyId"], r.Form["partyName"]
 	purposeIDs, purposeNames := r.Form["purposeId"], r.Form["purposeName"]
@@ -105,11 +115,18 @@ func (s *Server) readMoneyDraft(r *http.Request) moneyDraft {
 	partyChoices, partyNew := r.Form["partyIdChoice"], r.Form["partyNameNew"]
 	purposeChoices, purposeNew := r.Form["purposeIdChoice"], r.Form["purposeNameNew"]
 	modeChoices, modeNew := r.Form["modeIdChoice"], r.Form["modeNameNew"]
+	challanIDs, challanTexts := r.Form["supplierChallanId"], r.Form["supplierChallanNo"]
+	challanChoices, challanNew := r.Form["supplierChallanIdChoice"], r.Form["supplierChallanNoNew"]
 	orders := r.Form["orderId"]
 	settlements := r.Form["settlement"]
 	references, remarks := r.Form["reference"], r.Form["remarks"]
 
-	count := len(amounts)
+	count := len(billed)
+	for _, n := range []int{len(paid), len(received), len(amounts)} {
+		if n > count {
+			count = n
+		}
+	}
 	for _, n := range []int{len(directions), len(occurred), len(partyNames), len(orders)} {
 		if n > count {
 			count = n
@@ -129,6 +146,9 @@ func (s *Server) readMoneyDraft(r *http.Request) moneyDraft {
 			Index:      i,
 			Direction:  direction,
 			Amount:     strings.TrimSpace(at(amounts, i)),
+			Billed:     strings.TrimSpace(at(billed, i)),
+			Paid:       strings.TrimSpace(at(paid, i)),
+			Received:   strings.TrimSpace(at(received, i)),
 			OccurredAt: strings.TrimSpace(at(occurred, i)),
 			OrderID:    at(orders, i),
 			Settlement: at(settlements, i),
@@ -146,6 +166,21 @@ func (s *Server) readMoneyDraft(r *http.Request) moneyDraft {
 		applyNoScriptValue(&row.Party, at(partyChoices, i), at(partyNew, i))
 		applyNoScriptValue(&row.Purpose, at(purposeChoices, i), at(purposeNew, i))
 		applyNoScriptValue(&row.Mode, at(modeChoices, i), at(modeNew, i))
+		row.Challan.PickedID, row.Challan.PickedText = at(challanIDs, i), register.CleanName(at(challanTexts, i))
+		if typed := register.CleanName(at(challanNew, i)); typed != "" {
+			row.Challan.PickedID, row.Challan.PickedText = "", typed
+		} else if choice := at(challanChoices, i); choice != "" {
+			row.Challan.PickedID = choice
+		}
+		// Keep old tests and already-open v1.2 forms readable without putting
+		// their retired fields back on the page.
+		if row.Billed == "" && row.Paid == "" && row.Received == "" && row.Amount != "" {
+			if row.Direction == string(register.MoneyIn) {
+				row.Received = row.Amount
+			} else {
+				row.Paid = row.Amount
+			}
+		}
 		d.Rows = append(d.Rows, row)
 	}
 	return d
@@ -227,15 +262,23 @@ func (s *Server) fillMoney(d *moneyDraft, r *http.Request) {
 			if row.OccurredAt == "" {
 				row.OccurredAt = s.now().Format("2006-01-02T15:04")
 			}
-			if row.Direction == "" {
-				row.Direction = string(register.MoneyOut)
-			}
 			row.Party = partyPicker(reg, "Supplier or other party",
 				"partyId", "partyName", row.Party.PickedID, row.Party.PickedText)
 			row.Purpose = pickerFor(f, register.FinancePurpose, "Purpose",
 				"purposeId", "purposeName", row.Purpose.PickedID, row.Purpose.PickedText, "")
 			row.Mode = pickerFor(f, register.FinanceMode, "Payment mode",
 				"modeId", "modeName", row.Mode.PickedID, row.Mode.PickedText, "")
+			row.Challan.Options = []valueOption{}
+			if party, ok := register.ResolveParty(reg, row.Party.PickedID); ok {
+				for _, c := range register.MatchSupplierChallans(reg, party.ID, "") {
+					row.Challan.Options = append(row.Challan.Options, valueOption{ID: c.ID, Value: c.Number})
+				}
+				if row.Challan.PickedID != "" && row.Challan.PickedText == "" {
+					if c, _, ok := register.ResolveSupplierChallan(reg, row.Challan.PickedID); ok {
+						row.Challan.PickedText = c.Number
+					}
+				}
+			}
 
 			row.Orders = []moneyOrderChoice{}
 			for _, o := range register.SortedFinanceOrders(f) {
@@ -312,7 +355,7 @@ func (s *Server) renderMoneyForm(w http.ResponseWriter, r *http.Request, d money
 	sess := financeSessionOf(r)
 	d.CSRF = sess.csrf
 	if d.Heading == "" {
-		d.Heading = "Record money"
+		d.Heading = "Record something"
 	}
 	if d.Submit == "" {
 		d.Submit = "Save"
@@ -343,10 +386,12 @@ func (s *Server) financeMoneyNew(w http.ResponseWriter, r *http.Request) {
 		// all four.
 		last := d.Rows[len(d.Rows)-1]
 		d.Rows = append(d.Rows, moneyRow{
-			Direction: last.Direction, OccurredAt: last.OccurredAt,
-			Party:   valuePicker{PickedID: last.Party.PickedID, PickedText: last.Party.PickedText},
-			Mode:    valuePicker{PickedID: last.Mode.PickedID, PickedText: last.Mode.PickedText},
-			OrderID: last.OrderID, Settlement: last.Settlement, Reference: last.Reference,
+			OccurredAt: last.OccurredAt,
+			Party:      valuePicker{PickedID: last.Party.PickedID, PickedText: last.Party.PickedText},
+			Purpose:    valuePicker{PickedID: last.Purpose.PickedID, PickedText: last.Purpose.PickedText},
+			Mode:       valuePicker{PickedID: last.Mode.PickedID, PickedText: last.Mode.PickedText},
+			Challan:    supplierChallanPicker{PickedID: last.Challan.PickedID, PickedText: last.Challan.PickedText},
+			Reference:  last.Reference,
 		})
 		s.renderMoneyForm(w, r, d)
 		return
@@ -365,31 +410,24 @@ func (s *Server) financeMoneyNew(w http.ResponseWriter, r *http.Request) {
 	firstID, saved := "", 0
 
 	err := s.st.UpdateFinance(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) error {
-		built := []register.MoneyMovement{}
+		events := 0
 		for _, row := range d.Rows {
-			m, text := buildMovement(reg, f, row, sess.accountID, now)
+			created, text := buildRecordSomething(reg, f, row, sess.accountID, now)
 			if text != "" {
 				refusal = text
 				return errMoneyRefused
 			}
-			m.ID = nextMovementID(f, len(built))
-			built = append(built, m)
-		}
-		if len(built) == 0 {
-			refusal = "Type at least one amount."
-			return errMoneyRefused
-		}
-		f.Movements = append(f.Movements, built...)
-		for _, m := range built {
-			f.Audit = append(f.Audit, financeAuditFor(f, sess.accountID, now, "movement_created", "movement", m.ID,
-				movementSummary(reg, f, m), "", ""))
+			if firstID == "" {
+				firstID = created.firstID
+			}
+			events += created.events
 		}
 		// Every total the ledger shows must still add up after this write.
 		if _, err := register.TotalMoney(f, nil); err != nil {
 			refusal = register.ErrMoneyOverflow.Error()
 			return errMoneyRefused
 		}
-		firstID, saved = built[0].ID, len(built)
+		saved = events
 		return nil
 	})
 
@@ -452,6 +490,163 @@ func atoiSafe(s string) int {
 	return n
 }
 
+type recordSomethingResult struct {
+	firstID string
+	events  int
+}
+
+// buildRecordSomething validates and appends one routine row inside the one
+// UpdateFinance transaction owned by the handler.
+func buildRecordSomething(reg *register.Register, f *register.FinanceData, row moneyRow, actorID string, now time.Time) (recordSomethingResult, string) {
+	if row.Billed == "" && row.Paid == "" && row.Received == "" {
+		return recordSomethingResult{}, "Type a billed, paid or received amount."
+	}
+	parse := func(text string) (int64, string) {
+		if text == "" {
+			return 0, ""
+		}
+		value, err := register.ParseRupees(text)
+		if err != nil {
+			return 0, "Type each amount in rupees, using up to two decimal places."
+		}
+		return value, ""
+	}
+	billed, text := parse(row.Billed)
+	if text != "" {
+		return recordSomethingResult{}, text
+	}
+	paid, text := parse(row.Paid)
+	if text != "" {
+		return recordSomethingResult{}, text
+	}
+	received, text := parse(row.Received)
+	if text != "" {
+		return recordSomethingResult{}, text
+	}
+	occurredAt, err := time.ParseInLocation("2006-01-02T15:04", row.OccurredAt, time.Local)
+	if err != nil {
+		return recordSomethingResult{}, "Pick the date and time of the entry."
+	}
+	partyID, _, err := resolvePartyID(reg, row.Party.PickedID, row.Party.PickedText)
+	if err != nil || partyID == "" {
+		return recordSomethingResult{}, "Say which supplier this is for."
+	}
+	purposeID, err := resolveValue(f, register.FinancePurpose, row.Purpose.PickedID, row.Purpose.PickedText, actorID, now)
+	if err != nil {
+		return recordSomethingResult{}, "Say what this entry is for."
+	}
+	modeID := ""
+	if paid != 0 || received != 0 {
+		modeID, err = resolveValue(f, register.FinanceMode, row.Mode.PickedID, row.Mode.PickedText, actorID, now)
+		if err != nil {
+			return recordSomethingResult{}, "Say how the money was paid or received."
+		}
+	}
+	challanID, err := resolveSupplierChallanID(reg, partyID, row.Challan.PickedID, row.Challan.PickedText)
+	if err != nil {
+		return recordSomethingResult{}, "Pick this supplier's challan from the list, or type a new number."
+	}
+	for _, line := range row.Products {
+		used := line.ProductID != "" || line.ProductName != "" || line.Quantity != "" || line.Basis != "" || line.KindID != "" || line.NewKind != ""
+		if used && line.Quantity == "" {
+			return recordSomethingResult{}, "Type the agreed quantity as a whole number of 1 or more, or leave it empty."
+		}
+	}
+	products, lines, text := resolveMoneyLines(reg, f, row, actorID, now)
+	if text != "" {
+		return recordSomethingResult{}, text
+	}
+	if len(products) != len(lines) {
+		return recordSomethingResult{}, "Type the agreed quantity as a whole number of 1 or more, or leave it empty."
+	}
+
+	orderID := ""
+	var lineIDs []string
+	if len(lines) != 0 {
+		order := register.FinanceOrder{
+			ID: f.NextID("ORD"), PartyID: partyID, Lines: numberOrderLines(f, lines),
+			OrderedAt: occurredAt, Status: "open", CreatedAt: now, CreatedByID: actorID,
+		}
+		f.Orders = append(f.Orders, order)
+		orderID = order.ID
+		for _, line := range order.Lines {
+			lineIDs = append(lineIDs, line.ID)
+		}
+		f.Audit = append(f.Audit, financeAuditFor(f, actorID, now, "order_created", "order", order.ID,
+			"Order recorded", "", orderSummary(reg, f, order)))
+	}
+
+	result := recordSomethingResult{}
+	remember := func(id string) {
+		if result.firstID == "" {
+			result.firstID = id
+		}
+		result.events++
+	}
+	if billed != 0 {
+		bill := register.FinanceBill{
+			ID: f.NextID("BIL"), AmountPaise: billed, OccurredAt: occurredAt,
+			PartyID: partyID, OrderID: orderID, Products: append([]register.FinanceProductRef{}, products...),
+			PurposeID: purposeID, SupplierChallanID: challanID,
+			Reference: row.Reference, Remarks: row.Remarks, RecordedAt: now, RecordedByID: actorID,
+		}
+		f.Bills = append(f.Bills, bill)
+		f.Audit = append(f.Audit, financeAuditFor(f, actorID, now, "bill_created", "bill", bill.ID,
+			billSummary(reg, f, bill), "", ""))
+		remember(bill.ID)
+	}
+	appendMovement := func(direction register.MoneyDirection, amount int64) {
+		m := register.MoneyMovement{
+			ID: f.NextID("MOV"), Direction: direction, AmountPaise: amount, OccurredAt: occurredAt,
+			PartyID: partyID, OrderID: orderID, OrderLineIDs: append([]string{}, lineIDs...),
+			Products: append([]register.FinanceProductRef{}, products...), SupplierChallanID: challanID,
+			PurposeID: purposeID, ModeID: modeID, Reference: row.Reference, Remarks: row.Remarks,
+			RecordedAt: now, RecordedByID: actorID,
+		}
+		f.Movements = append(f.Movements, m)
+		f.Audit = append(f.Audit, financeAuditFor(f, actorID, now, "movement_created", "movement", m.ID,
+			movementSummary(reg, f, m), "", ""))
+		remember(m.ID)
+	}
+	if paid != 0 {
+		appendMovement(register.MoneyOut, paid)
+	}
+	if received != 0 {
+		appendMovement(register.MoneyIn, received)
+	}
+	if _, err := register.TotalBills(f, nil); err != nil {
+		return recordSomethingResult{}, register.ErrMoneyOverflow.Error()
+	}
+	return result, ""
+}
+
+func resolveSupplierChallanID(reg *register.Register, partyID, id, typed string) (string, error) {
+	typed = register.CleanName(typed)
+	if id != "" {
+		_, owner, ok := register.ResolveSupplierChallan(reg, id)
+		party, partyOK := register.ResolveParty(reg, partyID)
+		if ok && partyOK && owner.ID == party.ID {
+			if typed == "" {
+				return id, nil
+			}
+			if row, _, _ := register.ResolveSupplierChallan(reg, id); register.FoldKey(row.Number) == register.FoldKey(typed) {
+				return id, nil
+			}
+		}
+		if typed == "" {
+			return "", errors.New("wrong supplier")
+		}
+	}
+	if typed == "" {
+		return "", nil
+	}
+	return register.AddSupplierChallan(reg, partyID, typed)
+}
+
+func billSummary(reg *register.Register, f *register.FinanceData, b register.FinanceBill) string {
+	return strings.Join([]string{"Bill recorded", register.FormatRupees(b.AmountPaise), register.PartyText(reg, b.PartyID)}, " · ")
+}
+
 // buildMovement resolves one typed row against the vault inside the write. It
 // creates any genuinely new party, purpose or mode as part of the same save.
 func buildMovement(reg *register.Register, f *register.FinanceData, row moneyRow, actorID string, now time.Time) (register.MoneyMovement, string) {
@@ -487,6 +682,11 @@ func buildMovement(reg *register.Register, f *register.FinanceData, row moneyRow
 		Reference: row.Reference, Remarks: row.Remarks,
 		RecordedAt: now, RecordedByID: actorID,
 	}
+	challanID, err := resolveSupplierChallanID(reg, partyID, row.Challan.PickedID, row.Challan.PickedText)
+	if err != nil {
+		return register.MoneyMovement{}, "Pick this supplier's challan from the list, or type a new number."
+	}
+	m.SupplierChallanID = challanID
 	if row.Settlement != "" {
 		kind, id, ok := strings.Cut(row.Settlement, ":")
 		if !ok || !financeSettlementExists(f, kind, id) {
@@ -716,6 +916,7 @@ func (s *Server) draftFromMovement(r *http.Request, id string) (moneyDraft, bool
 		row.Party.PickedID = m.PartyID
 		row.Purpose.PickedID = m.PurposeID
 		row.Mode.PickedID = m.ModeID
+		row.Challan.PickedID = m.SupplierChallanID
 		// A movement that already points at an order is corrected through the
 		// order's own tick boxes. Only a movement with no order gets the
 		// product lines back, so a correction cannot mint a second order for
@@ -793,6 +994,7 @@ func (s *Server) financeMoneyEdit(w http.ResponseWriter, r *http.Request) {
 		after := before
 		after.Direction, after.AmountPaise, after.OccurredAt = built.Direction, built.AmountPaise, built.OccurredAt
 		after.PartyID, after.PurposeID, after.ModeID = built.PartyID, built.PurposeID, built.ModeID
+		after.SupplierChallanID = built.SupplierChallanID
 		after.OrderID, after.OrderLineIDs, after.Products = built.OrderID, built.OrderLineIDs, built.Products
 		after.Settlements = built.Settlements
 		after.Reference, after.Remarks = built.Reference, built.Remarks
@@ -858,6 +1060,8 @@ func movementChanges(reg *register.Register, f *register.FinanceData, before, af
 		register.FinanceValueText(f, before.PurposeID), register.FinanceValueText(f, after.PurposeID))
 	add("mode", "Payment mode",
 		register.FinanceValueText(f, before.ModeID), register.FinanceValueText(f, after.ModeID))
+	add("supplierChallan", "Challan no.",
+		supplierChallanText(reg, before.SupplierChallanID), supplierChallanText(reg, after.SupplierChallanID))
 	add("reference", "Reference", blankOr(before.Reference), blankOr(after.Reference))
 	add("remarks", "Remarks", blankOr(before.Remarks), blankOr(after.Remarks))
 	return out

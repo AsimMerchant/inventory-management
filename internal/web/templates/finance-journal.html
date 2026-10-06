@@ -13,18 +13,19 @@
 </form>
 <p class="note">Showing {{.FilterLabel}}</p>
 <div class="tiles">
-  <div class="tile"><span class="lab">Money paid</span><strong>{{.Totals.Paid}}</strong></div>
-  <div class="tile"><span class="lab">Money received</span><strong>{{.Totals.Received}}</strong></div>
-  <div class="tile"><span class="lab">Net paid</span><strong>{{.Totals.Net}}</strong></div>
+  <div class="tile"><span class="lab">Billed</span><strong>{{.Totals.Billed}}</strong></div>
+  <div class="tile"><span class="lab">Paid</span><strong>{{.Totals.Paid}}</strong></div>
+  <div class="tile"><span class="lab">Received</span><strong>{{.Totals.Received}}</strong></div>
 </div>
 <p><a href="{{.PrintLink}}">Print this journal</a></p>
 {{if not .Rows}}<p>No transactions for these dates.</p>{{end}}
 <ul class="rows">
   {{range .Rows}}
   <li>
-    <strong>{{.Direction}} {{.Amount}}</strong>
+    <strong>{{.Kind}} {{.Amount}}</strong>
     <div>{{longstamp .OccurredAt}}</div>
-    <div>{{.Party}} · {{.Purpose}} · {{.Mode}}</div>
+    <div>{{.Party}} · {{.Purpose}}{{if .Mode}} · {{.Mode}}{{end}}</div>
+    {{if ne .Challan "Blank"}}<div>Challan no.: {{.Challan}}</div>{{end}}
     {{if .Order}}<div>Order: {{.Order}}</div>{{end}}
     {{if .Products}}<div>Products: {{.Products}}</div>{{end}}
     {{if .Settlement}}<div>Related stock return or sale: {{.Settlement}}</div>{{end}}
@@ -34,12 +35,12 @@
     {{range .Changes}}<div class="note">{{.Label}}: {{.From}} → {{.To}} · {{.ByName}} · {{if .ByMobile}}{{.ByMobile}}{{else}}mobile not recorded{{end}} · {{longstamp .At}}</div>{{end}}
     {{if .VoidLine}}<div class="note">{{.VoidLine}} · {{.Voided.ByName}} · {{if .Voided.ByMobile}}{{.Voided.ByMobile}}{{else}}mobile not recorded{{end}} · {{longstamp .Voided.At}}</div>{{end}}
     {{if not .Voided}}
-    <p class="actions"><a href="/finance/movements/{{.ID}}/edit">Fix this transaction</a></p>
+    {{if .Bill}}<p class="actions"><a href="/finance/bills/{{.ID}}/edit">Fix this bill</a></p>{{else}}<p class="actions"><a href="/finance/movements/{{.ID}}/edit">Fix this transaction</a></p>{{end}}
     <details class="danger">
-      <summary>Review voiding this transaction</summary>
-      <form method="post" action="/finance/movements/{{.ID}}/void">
+      <summary>{{if .Bill}}Review voiding this bill{{else}}Review voiding this transaction{{end}}</summary>
+      <form method="post" action="/finance/{{if .Bill}}bills{{else}}movements{{end}}/{{.ID}}/void">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
-        <button class="btn" type="submit">Review voiding this transaction</button>
+        <button class="btn" type="submit">{{if .Bill}}Review voiding this bill{{else}}Review voiding this transaction{{end}}</button>
       </form>
     </details>
     {{end}}

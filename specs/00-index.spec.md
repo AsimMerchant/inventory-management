@@ -35,6 +35,7 @@ Each spec depends only on the ones above it.
 | 19 | `19-money-movements-audit-and-journal.spec.md` | Exact incoming/outgoing money, audited corrections/voids, filtered printable journal | more than one focused day |
 | 20 | `20-supplier-returns-and-stock-sales.spec.md` | Physical supplier returns/sales, pooled-stock limits and public neutral stock projection | more than one focused day |
 | 21 | `21-financial-ui-browser-acceptance.spec.md` | Protected UI integration, no-script path and real-browser/restart release acceptance | one focused day |
+| 22 | `22-ledger-entry-simplification.spec.md` | v1.3 Record something form with parallel Billed/Paid/Received amounts and supplier challan | more than one focused day, split into the domain and UI slices in the spec |
 
 Spec 01 must be built first: it contains the fixture that every other spec's test cases
 are written against. A test that says "at T1, 890 chairs are on hand" is meaningless
@@ -60,7 +61,8 @@ storeregister/
                                18-financial-orders-and-reusable-values,
                                19-money-movements-audit-and-journal,
                                20-supplier-returns-and-stock-sales,
-                               21-financial-ui-browser-acceptance
+                               21-financial-ui-browser-acceptance,
+                               22-ledger-entry-simplification
 ```
 
 **The chrome bar has five tabs**, in this order: `Stock`, `Out with people`,
@@ -135,11 +137,12 @@ Every spec assumes these and none of them may be traded away:
 - A short return cannot be saved without a disposition and a remark.
 - Short items stay outstanding against the person. Nothing is ever written off.
 - Ordinary inventory routes contain no settlement, payment, amount or financial
-  party-link data. Schema 5 intentionally exposes the shared supplier/other-party IDs,
-  current names and aliases needed by the inward picker, but never why a name exists or
-  which financial record uses it. Specs 17–21 permit the protected facts only in the
-  encrypted, authenticated financial area; a neutral public disposal projection changes
-  stock without exposing why or to whom.
+  party-link data. Schema 6 intentionally exposes the shared supplier/other-party IDs,
+  current names and aliases plus party-scoped supplier challan suggestions needed by
+  the inward picker, but never which financial record uses a name/challan or any amount,
+  purpose, mode or actor. Specs 17–22 permit protected facts only in the encrypted,
+  authenticated financial area; a neutral public disposal projection changes stock
+  without exposing why or to whom.
 - A wrong entry can be corrected or deleted, never silently: every correction keeps what
   it used to say, who changed it and when, and a deleted record stays in the file as a
   tombstone that counts towards nothing.
@@ -157,10 +160,11 @@ Every spec assumes these and none of them may be traded away:
 - An issue challan is optional free text, may be reused across products and recipient
   groups, and is never an internal ID or an allocation key.
 - `v1.1.1` writes schema 2. The first financial vault wrote schema 3, acquisition kinds
-  moved the file to schema 4, and the shared supplier/other-party list writes schema 5.
-  The current build reads schemas 1–5, migrates the public portion in memory without an
-  open-time write, and writes schema 5 on the next successful atomic save. A schema-4
-  encrypted party list joins the public list on the first authenticated financial write;
+  moved the file to schema 4, the shared supplier/other-party list writes schema 5, and
+  spec 22's public party-scoped supplier-challan vocabulary writes schema 6. The v1.3
+  build reads schemas 1–6, migrates older public portions in memory without an open-time
+  write, and writes schema 6 on the next successful atomic save. A schema-4 encrypted
+  party list joins the public list on the first authenticated financial write;
   authenticated suggestions combine both lists before that write. Before deployment,
   back up the JSON and remove every older executable: an older binary can otherwise fall
   back to an older-schema backup and later overwrite newer fields.
@@ -176,16 +180,27 @@ acceptance scenario pass, followed by an independent `release_gate` result of `R
 ## Financial ledger release group
 
 Specs 17–21 were originally developed together on `feature/financial-ledger` and later
-released in `v1.2.1`. The schema-5 shared-party follow-up is being completed on
-`fix/product-pickers-at-scale` and is not ready until its migration/privacy tests, normal
-and no-script browser scenario, restart/raw-file inspection, plain-language review and
-independent `release_gate` all pass. This group explicitly supersedes the old whole-tree
+released in `v1.2.1`. The schema-5 shared-party follow-up was completed on
+`fix/product-pickers-at-scale` with its migration/privacy tests, normal and no-script
+browser scenario, restart/raw-file inspection, plain-language review and independent
+`release_gate`. This group explicitly supersedes the old whole-tree
 authentication/money/supplier-return prohibitions; it does not weaken their no-leak
 equivalents for ordinary routes.
 
-The later billed/paid/received columns, supplier running-balance pages, supplier-challan
-fields and broad product/supplier/person/challan search remain planned work recorded in
-`HANDOFF.md`. They are not silently added to specs 17–21 by the schema-5 party migration.
+The billed/paid/received routine-entry work is now specified separately in spec 22.
+Supplier running-balance pages and broad product/supplier/person/challan search remain
+later planned work recorded in `HANDOFF.md`; they are not silently added to specs 17–22.
+
+## `v1.3.0` release group
+
+Spec 22 is the ledger-entry simplification selected by the user for version **1.3**;
+the Git tag/release label is `v1.3.0`. It replaces only the routine protected
+`Record money` creation screen with the approved `Record something` form and adds
+encrypted bill rows. Existing order, movement, settlement, correction, journal,
+account and reusable-list records remain supported. Supplier running-balance pages and
+broad search are later releases. The outer register becomes schema 6 only for the new
+public party-scoped supplier-challan suggestion vocabulary. Bills, purpose, payment
+mode, financial links, amounts and actors remain inside the vault-1 encrypted envelope.
 
 ## Whole-build verification
 
@@ -216,7 +231,7 @@ default/limitation.
 | 19 | INR only; no currency conversion was requested. |
 | 20 | Pooled stock cannot prove physical supplier/basis identity; authorized users choose the action and both attribution/global caps are enforced. |
 | 20 | A blank/unmatched ordinary inward supplier cannot fund a supplier return until that inward is corrected. Protected suggestions do not leak to solve it. |
-| 21 | The release version number is not chosen. |
+| 21 | Specs 17–21 were released as `v1.2.1`; spec 22 is the separate `v1.3.0` group. |
 | 21 | Real Windows launch/path/Edge-print behavior remains a final Windows 11 check after Linux browser acceptance and Windows cross-build. |
 
 ### Settled by the user

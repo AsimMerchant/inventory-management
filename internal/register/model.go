@@ -9,7 +9,7 @@ import (
 )
 
 // SchemaVersion is the only file version this program reads or writes.
-const SchemaVersion = 5
+const SchemaVersion = 6
 
 // Register is everything the store desk remembers.
 type Register struct {
@@ -39,8 +39,9 @@ type Register struct {
 	// read it, so the two halves of the program kept two spellings of one
 	// supplier. A name carries no amount, no purpose and no payment mode:
 	// every figure stays in the vault.
-	Parties []Party          `json:"parties,omitempty"`
-	Finance *FinanceEnvelope `json:"finance,omitempty"`
+	Parties          []Party           `json:"parties,omitempty"`
+	SupplierChallans []SupplierChallan `json:"supplierChallans,omitempty"`
+	Finance          *FinanceEnvelope  `json:"finance,omitempty"`
 }
 
 // InventoryDisposal is one lot of stock that left the store for good.

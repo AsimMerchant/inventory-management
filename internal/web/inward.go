@@ -48,6 +48,7 @@ type inwardData struct {
 	Kinds       []register.AcquisitionKind // the shared list of typed kinds
 	Party       valuePicker                // the shared supplier and other-party list
 	ChallanNo   string
+	Challans    []valueOption
 	ReceivedBy  string
 	ButtonLabel string
 }
@@ -84,6 +85,11 @@ func (s *Server) inwardForm(productID, quantity, partyID, partyText string) inwa
 		data.Picker = s.picker(reg, "all", true, productID)
 		data.Party = partyPicker(reg, "Came from", "partyId", "partyName", partyID, partyText)
 		data.Kinds = register.LiveAcquisitionKinds(reg)
+		if party, ok := register.ResolveParty(reg, partyID); ok {
+			for _, row := range register.MatchSupplierChallans(reg, party.ID, "") {
+				data.Challans = append(data.Challans, valueOption{ID: row.ID, Value: party.Name + " · " + row.Number})
+			}
+		}
 		if who, ok := s.onDuty(reg); ok {
 			data.ReceivedBy = who.Name
 		}
@@ -128,6 +134,7 @@ func (s *Server) inwardSave(w http.ResponseWriter, r *http.Request) {
 		partyText = register.CleanName(r.FormValue("supplier"))
 	}
 	challanNo := strings.TrimSpace(r.FormValue("challanNo"))
+	challanChoice := strings.TrimSpace(r.FormValue("supplierChallanIdChoice"))
 
 	data := s.inwardForm(productID, quantity, partyID, partyText)
 	data.ReceivedOn = receivedOn
@@ -137,6 +144,20 @@ func (s *Server) inwardSave(w http.ResponseWriter, r *http.Request) {
 
 	refuse := func(text string) {
 		s.renderInward(w, data, &banner{"bad", text})
+	}
+	if challanNo == "" && challanChoice != "" {
+		valid := false
+		s.st.Read(func(reg *register.Register) {
+			row, owner, ok := register.ResolveSupplierChallan(reg, challanChoice)
+			party, partyOK := register.ResolveParty(reg, partyID)
+			if ok && partyOK && owner.ID == party.ID {
+				challanNo, data.ChallanNo, valid = row.Number, row.Number, true
+			}
+		})
+		if !valid {
+			refuse("Pick a challan for this supplier, or type the number.")
+			return
+		}
 	}
 
 	// A name typed into the box but never picked off the list arrives here as an

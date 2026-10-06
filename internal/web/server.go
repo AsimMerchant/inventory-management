@@ -70,6 +70,7 @@ func (s *Server) routes() {
 	// The shared supplier and other-party list. Open, because the delivery
 	// desk picks from it and is never logged in.
 	m.HandleFunc("GET /api/parties", s.apiParties)
+	m.HandleFunc("GET /api/supplier-challans", s.apiSupplierChallans)
 
 	// 11
 	m.HandleFunc("/entry/{id}/edit", s.entryEdit)
@@ -94,7 +95,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// endpoints, so allow those read-only requests for a confirmed finance
 	// session only. Without this the picker silently returns nothing and no
 	// product and no supplier can be chosen at all.
-	if r.URL.Path == "/api/products" || r.URL.Path == "/api/parties" {
+	if r.URL.Path == "/api/products" || r.URL.Path == "/api/parties" || r.URL.Path == "/api/supplier-challans" {
 		if sess, _ := s.authenticatedFinanceSession(r); sess != nil && !sess.recoveryPending {
 			// The party endpoint uses the unlocked vault only to include
 			// schema-4 party names which have not reached their first

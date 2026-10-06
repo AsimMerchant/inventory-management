@@ -243,6 +243,7 @@ type listTarget struct {
 type listRow struct {
 	ID, Kind, Value, KindLabel string
 	Used                       bool
+	Challan                    bool
 	Targets                    []listTarget
 }
 
@@ -323,6 +324,15 @@ func (s *Server) renderLists(w http.ResponseWriter, r *http.Request, problem, no
 			{"Payment modes", fill(register.FinanceMode)},
 			{"Ways goods came in, besides rent and purchase", kinds},
 		}
+		for _, party := range liveParties {
+			var rows []listRow
+			for _, challan := range register.MatchSupplierChallans(reg, party.ID, "") {
+				rows = append(rows, listRow{ID: challan.ID, Kind: "supplierChallan", Value: challan.Number, KindLabel: "Challan no.", Used: register.SupplierChallanIsUsed(f, challan.ID), Challan: true})
+			}
+			if len(rows) != 0 {
+				data.Sections = append(data.Sections, listSection{"Supplier challans — " + party.Name, rows})
+			}
+		}
 	})
 	s.financePage(w, r, "Shared lists", "finance-lists.html", data)
 }
@@ -355,6 +365,10 @@ func (s *Server) financeListAction(w http.ResponseWriter, r *http.Request) {
 	}
 	if register.IsPartyID(id) {
 		s.partyListAction(w, r, id, action, now)
+		return
+	}
+	if strings.HasPrefix(id, "SCH-") {
+		s.supplierChallanListAction(w, r, id, action, now)
 		return
 	}
 	if (action == "merge" || action == "delete") && r.FormValue("confirm") != "yes" {
@@ -418,6 +432,53 @@ func (s *Server) financeListAction(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		s.renderLists(w, r, err.Error(), "")
 	default:
+		http.Redirect(w, r, "/finance/lists?"+url.Values{"done": {notice}}.Encode(), http.StatusSeeOther)
+	}
+}
+
+func (s *Server) supplierChallanListAction(w http.ResponseWriter, r *http.Request, id, action string, now time.Time) {
+	sess := financeSessionOf(r)
+	if action == "delete" && r.FormValue("confirm") != "yes" {
+		var row register.SupplierChallan
+		var ok, used bool
+		s.st.Read(func(reg *register.Register) {
+			row, ok = register.SupplierChallanByID(reg, id)
+		})
+		_ = s.st.ReadFinance(sess.vaultKey, func(f *register.FinanceData) { used = register.SupplierChallanIsUsed(f, id) })
+		if !ok {
+			s.financeNotFound(w, r)
+			return
+		}
+		if used {
+			s.renderLists(w, r, "This challan has been used. Rename it instead.", "")
+			return
+		}
+		s.renderFinanceConfirm(w, r, financeConfirmData{
+			Heading: "Delete unused challan “" + row.Number + "”?",
+			Warning: "It will be removed from future suggestions. This is allowed only because no financial record uses it.",
+			Action:  "/finance/lists/" + id + "/delete", Button: "Yes, delete this unused value",
+		})
+		return
+	}
+	var err error
+	notice := "Wording corrected."
+	switch action {
+	case "rename":
+		err = s.st.RenameSupplierChallan(sess.vaultKey, sess.accountID, id, r.FormValue("value"), now)
+	case "delete":
+		err = s.st.DeleteSupplierChallan(sess.vaultKey, sess.accountID, id, now)
+		notice = "Removed."
+	default:
+		s.financeNotFound(w, r)
+		return
+	}
+	if errors.Is(err, register.ErrSupplierChallanUsed) {
+		s.renderLists(w, r, "This challan has been used. Rename it instead.", "")
+	} else if errors.Is(err, store.ErrNotAdmin) {
+		w.WriteHeader(http.StatusForbidden)
+	} else if err != nil {
+		s.renderLists(w, r, err.Error(), "")
+	} else {
 		http.Redirect(w, r, "/finance/lists?"+url.Values{"done": {notice}}.Encode(), http.StatusSeeOther)
 	}
 }

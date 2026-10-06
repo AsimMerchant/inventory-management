@@ -1,6 +1,36 @@
 # Handoff
 
-## Current checkpoint — shared supplier/party list, 3 September 2026
+## Current checkpoint — v1.3 ledger simplification, 6 September 2026
+
+Work is proceeding on `feature/v1.3-ledger-simplification`. The approved v1.3 scope is
+the protected **Record something** form with parallel Billed, Paid and Received amounts,
+the mandatory reusable Purpose picker, and an optional supplier Challan no. Supplier
+challan suggestions are deliberately public so the ordinary inward desk can reuse the
+text, but all links from a challan to a financial entry and every amount remain inside
+the encrypted vault. The finance and inward challans remain independent: neither
+prefills, overwrites or validates the other. Spec 22 is the governing work in progress.
+
+### What comes after v1.3 — keep this list current
+
+The following work is explicitly **not** part of the current v1.3 slice. When the user
+asks "what next", start from this list and re-check the open items later in this file:
+
+1. Broad protected search across product, supplier/person and supplier challan, including
+   the supplier-challan reporting/search experience. v1.3 only provides the field and
+   reusable suggestion vocabulary.
+2. Supplier running balances: billed versus paid/received and the standing position per
+   supplier. v1.3 records the underlying facts but does not add that summary screen.
+3. Expected-versus-physically-received tracking for partial deliveries. Inventory inward
+   continues to record only what actually arrived.
+4. Decide whether **Return rented goods** should be renamed now that reusable custom
+   acquisition kinds such as Borrowed or Donated may also leave through that screen.
+5. The separately documented reliability/wording backlog: save-time concurrency test
+   strength, quantity upper bounds, activity-log taker discoverability, double-launch
+   handling, the deferred clerk-facing wording set, and real-Windows-only checks.
+
+The reusable custom acquisition choice (**Other**, for Borrowed, Donated, Sponsored and
+similar words) is already built in both finance and inward workflows; it is not remaining
+work. Final disposition is still independent and is handled by supplier return or sale.
 
 The completed work is on `master` at `48e6632` and remains on the tested feature branch
 `fix/product-pickers-at-scale`. Its earlier commits already contain

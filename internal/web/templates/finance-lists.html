@@ -25,7 +25,7 @@
     </form>
     {{end}}
     {{if .Used}}
-    <p class="note">In use. Rename it or combine it with another entry.</p>
+    <p class="note">{{if .Challan}}In use. Rename it instead.{{else}}In use. Rename it or combine it with another entry.{{end}}</p>
     {{else}}
     <form method="post" action="/finance/lists/{{.ID}}/delete">
       <input type="hidden" name="csrf" value="{{$.CSRF}}">

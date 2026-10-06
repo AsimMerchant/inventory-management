@@ -1,22 +1,22 @@
 <h1>Financial ledger</h1>
 <p class="note">{{.Who}} · {{.Mobile}} · {{.Role}}</p>
-<p>Money paid or received, and stock returned or sold, are recorded separately. What was agreed is recorded with the money.</p>
+<p>Bills, money paid or received, and stock returned or sold are recorded separately.</p>
 <div class="tiles">
-  <div class="tile"><span class="lab">Money paid</span><strong>{{.Totals.Paid}}</strong></div>
-  <div class="tile"><span class="lab">Money received</span><strong>{{.Totals.Received}}</strong></div>
-  <div class="tile"><span class="lab">Net paid</span><strong>{{.Totals.Net}}</strong></div>
+  <div class="tile"><span class="lab">Billed</span><strong>{{.Totals.Billed}}</strong></div>
+  <div class="tile"><span class="lab">Paid</span><strong>{{.Totals.Paid}}</strong></div>
+  <div class="tile"><span class="lab">Received</span><strong>{{.Totals.Received}}</strong></div>
 </div>
 <p>
-  <a href="/finance/movements/new">Record money</a> ·
+  <a href="/finance/movements/new">Record something</a> ·
   <a href="/finance/supplier-returns/new">Return rented goods</a> ·
   <a href="/finance/sales/new">Record a sale</a>
 </p>
-<h2>Latest transactions</h2>
-{{if not .Recent}}<p>No money recorded yet.</p>{{end}}
+<h2>Latest entries</h2>
+{{if not .Recent}}<p>No entries recorded yet.</p>{{end}}
 <ul class="rows">
   {{range .Recent}}
   <li>
-    <strong>{{.Direction}} {{.Amount}}</strong> · {{.Party}} · {{.Purpose}} · {{.Mode}}
+    <strong>{{.Kind}} {{.Amount}}</strong> · {{.Party}} · {{.Purpose}}{{if .Mode}} · {{.Mode}}{{end}}
     <div class="note">{{longstamp .OccurredAt}}</div>
     {{if .VoidLine}}<div class="note">{{.VoidLine}}</div>{{end}}
   </li>

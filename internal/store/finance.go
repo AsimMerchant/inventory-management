@@ -146,6 +146,9 @@ func normalizeFinance(f *register.FinanceData) {
 	if f.ReusableValues == nil {
 		f.ReusableValues = []register.FinanceReusableValue{}
 	}
+	if f.Bills == nil {
+		f.Bills = []register.FinanceBill{}
+	}
 	if f.Movements == nil {
 		f.Movements = []register.MoneyMovement{}
 	}
@@ -374,6 +377,15 @@ func deepCopyFinance(f *register.FinanceData) *register.FinanceData {
 	c.ReusableValues = append([]register.FinanceReusableValue{}, f.ReusableValues...)
 	for i := range c.ReusableValues {
 		c.ReusableValues[i].Changes = append([]register.FinanceChange{}, f.ReusableValues[i].Changes...)
+	}
+	c.Bills = append([]register.FinanceBill{}, f.Bills...)
+	for i := range c.Bills {
+		c.Bills[i].Products = append([]register.FinanceProductRef{}, f.Bills[i].Products...)
+		c.Bills[i].Changes = append([]register.FinanceChange{}, f.Bills[i].Changes...)
+		if f.Bills[i].Voided != nil {
+			v := *f.Bills[i].Voided
+			c.Bills[i].Voided = &v
+		}
 	}
 	// A movement carries four nested things. Sharing any of them would let a
 	// refused transaction leave half-applied edits in the live decrypted data.

@@ -1,0 +1,16 @@
+<h1>Fix this bill</h1>
+{{if .Error}}<div class="banner bad">{{.Error}}</div>{{end}}
+<form method="post" action="{{.Action}}">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <div class="field"><span class="lab">Billed</span><input class="inp" type="text" name="amount" value="{{.Amount}}" inputmode="decimal"></div>
+  <div class="field"><span class="lab">Date and time</span><input class="inp" type="datetime-local" name="occurredAt" value="{{.OccurredAt}}"></div>
+  {{template "value-picker.html" .Party}}
+  {{template "value-picker.html" .Purpose}}
+  <div class="field" data-supplier-challan><span class="lab">Challan no.</span><input type="hidden" name="supplierChallanId" value="{{.Challan.PickedID}}" data-challan-id><input class="inp" type="text" name="supplierChallanNo" value="{{.Challan.PickedText}}" data-challan-text><div class="sug" hidden data-challan-results></div><noscript>{{$picked := .Challan.PickedID}}<select class="inp" name="supplierChallanIdChoice"><option value="">Pick a challan for this supplier, or type the number.</option>{{range .Challan.Options}}<option value="{{.ID}}"{{if eq .ID $picked}} selected{{end}}>{{.Value}}</option>{{end}}</select><span class="lab">Or type a new number</span><input class="inp" type="text" name="supplierChallanNoNew"></noscript></div>
+  {{if .Products}}<p class="note">Products: {{.Products}}</p>{{end}}
+  <div class="field"><span class="lab">Reference</span><input class="inp" type="text" name="reference" value="{{.Reference}}"></div>
+  <div class="field"><span class="lab">Remarks</span><input class="inp" type="text" name="remarks" value="{{.Remarks}}"></div>
+  <button class="btn" type="submit">Save the correction</button>
+</form>
+<script src="/static/value-picker.js"></script>
+<script src="/static/supplier-challan.js"></script>

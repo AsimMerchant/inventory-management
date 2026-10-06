@@ -158,7 +158,8 @@ func AddParty(r *Register, text string) (string, error) {
 }
 
 // PartyIsUsed reports whether anything still points at this party: a delivery,
-// an order, a money movement, a supplier return, a sale, or another party
+// a challan suggestion, an order, a bill, a money movement, a supplier return,
+// a sale, or another party
 // merged into it. A voided movement and a deleted delivery both count, because
 // their history has to keep saying what it said. f may be nil, which is the
 // desk with nobody logged in.
@@ -176,11 +177,21 @@ func PartyIsUsed(r *Register, f *FinanceData, id string) bool {
 			return true
 		}
 	}
+	for _, row := range r.SupplierChallans {
+		if row.PartyID == id {
+			return true
+		}
+	}
 	if f == nil {
 		return false
 	}
 	for _, o := range f.Orders {
 		if o.PartyID == id {
+			return true
+		}
+	}
+	for _, b := range f.Bills {
+		if b.PartyID == id {
 			return true
 		}
 	}
@@ -249,6 +260,9 @@ func ValidatePartyReferences(r *Register, f *FinanceData) error {
 			}
 		}
 	}
+	if err := ValidateSupplierChallans(r); err != nil {
+		return err
+	}
 	if f == nil {
 		return nil
 	}
@@ -263,8 +277,19 @@ func ValidatePartyReferences(r *Register, f *FinanceData) error {
 			return err
 		}
 	}
+	for _, b := range f.Bills {
+		if err := check(b.PartyID, "financial bill"); err != nil {
+			return err
+		}
+		if err := validateSupplierChallanReference(r, b.PartyID, b.SupplierChallanID, "financial bill"); err != nil {
+			return err
+		}
+	}
 	for _, m := range f.Movements {
 		if err := check(m.PartyID, "money movement"); err != nil {
+			return err
+		}
+		if err := validateSupplierChallanReference(r, m.PartyID, m.SupplierChallanID, "money movement"); err != nil {
 			return err
 		}
 	}
@@ -346,4 +371,16 @@ func LinkInwardParties(reg *Register) {
 		}
 		in.PartyID = id
 	}
+}
+
+func validateSupplierChallanReference(r *Register, partyID, challanID, kind string) error {
+	if challanID == "" {
+		return nil
+	}
+	_, challanParty, ok := ResolveSupplierChallan(r, challanID)
+	recordParty, partyOK := ResolveParty(r, partyID)
+	if !ok || !partyOK || challanParty.ID != recordParty.ID {
+		return errors.New(kind + " supplier challan is unknown or belongs to another party")
+	}
+	return nil
 }

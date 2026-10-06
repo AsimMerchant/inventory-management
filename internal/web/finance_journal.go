@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -31,6 +32,9 @@ type movementView struct {
 	Changes     []register.FinanceChange
 	Voided      *register.FinanceVoid
 	VoidLine    string
+	Kind        string
+	Challan     string
+	Bill        bool
 }
 
 func viewMovement(reg *register.Register, f *register.FinanceData, m register.MoneyMovement) movementView {
@@ -42,6 +46,8 @@ func viewMovement(reg *register.Register, f *register.FinanceData, m register.Mo
 		Mode:    register.FinanceValueText(f, m.ModeID),
 		OrderID: m.OrderID, Reference: m.Reference, Remarks: m.Remarks,
 		RecordedAt: m.RecordedAt, Changes: m.Changes, Voided: m.Voided,
+		Kind:    map[bool]string{true: "Received", false: "Paid"}[m.Direction == register.MoneyIn],
+		Challan: supplierChallanText(reg, m.SupplierChallanID),
 	}
 	if m.OrderID != "" {
 		v.Order = orderRefText(reg, f, m)
@@ -81,6 +87,36 @@ func viewMovement(reg *register.Register, f *register.FinanceData, m register.Mo
 	return v
 }
 
+func viewBill(reg *register.Register, f *register.FinanceData, b register.FinanceBill) movementView {
+	v := movementView{
+		ID: b.ID, Direction: "Billed", Kind: "Billed", Bill: true,
+		Amount: register.FormatRupees(b.AmountPaise), OccurredAt: b.OccurredAt,
+		Party: register.PartyText(reg, b.PartyID), Purpose: register.FinanceValueText(f, b.PurposeID),
+		OrderID: b.OrderID, Products: productRefText(b.Products), Challan: supplierChallanText(reg, b.SupplierChallanID),
+		Reference: b.Reference, Remarks: b.Remarks, RecordedAt: b.RecordedAt, Changes: b.Changes, Voided: b.Voided,
+	}
+	for _, a := range f.Audit {
+		if a.Kind == "bill_created" && a.EntityID == b.ID {
+			v.RecordedBy, v.RecordedMob = a.ByName, a.ByMobile
+			break
+		}
+	}
+	if v.RecordedBy == "" {
+		for _, a := range f.Accounts {
+			if a.ID == b.RecordedByID {
+				v.RecordedBy, v.RecordedMob = a.DisplayName, a.Mobile
+			}
+		}
+	}
+	if b.Voided != nil {
+		v.VoidLine = "Voided — " + b.Voided.Reason
+	}
+	if v.RecordedMob == "" {
+		v.RecordedMob = "mobile not recorded"
+	}
+	return v
+}
+
 type journalData struct {
 	CSRF, Error, Notice string
 	Heading             string
@@ -95,7 +131,7 @@ type journalData struct {
 }
 
 type totalsView struct {
-	Paid, Received, Net string
+	Billed, Paid, Received string
 }
 
 func money(paise int64) string { return register.FormatRupees(paise) }
@@ -127,9 +163,9 @@ func (s *Server) journalPage(w http.ResponseWriter, r *http.Request, problem str
 		ToTime:   q.Get("toTime"),
 	}
 	if saved := q.Get("saved"); saved != "" {
-		data.Notice = "Transaction saved."
+		data.Notice = "Entry saved."
 		if n := q.Get("n"); n != "" && n != "1" {
-			data.Notice = n + " transactions saved."
+			data.Notice = n + " entries saved."
 		}
 	}
 	if q.Get("corrected") != "" {
@@ -164,7 +200,7 @@ func (s *Server) journalPage(w http.ResponseWriter, r *http.Request, problem str
 	}
 	data.PrintedAt = s.now().Format("Monday, 2 January 2006 · 3:04 pm")
 
-	data.Totals = totalsView{money(0), money(0), money(0)}
+	data.Totals = totalsView{Billed: money(0), Paid: money(0), Received: money(0)}
 	_ = s.st.ReadBoth(sess.vaultKey, func(reg *register.Register, f *register.FinanceData) {
 		if !validFilter {
 			return
@@ -175,15 +211,22 @@ func (s *Server) journalPage(w http.ResponseWriter, r *http.Request, problem str
 				kept = append(kept, m)
 			}
 		}
-		ordered := register.SortedMovements(kept)
-		if printing {
-			ordered = register.AscendingMovements(kept)
-		}
-		for _, m := range ordered {
+		for _, m := range kept {
 			data.Rows = append(data.Rows, viewMovement(reg, f, m))
 		}
+		for _, b := range f.Bills {
+			if filter.Every || (!b.OccurredAt.Before(filter.Start) && !b.OccurredAt.After(filter.End)) {
+				data.Rows = append(data.Rows, viewBill(reg, f, b))
+			}
+		}
+		sort.SliceStable(data.Rows, func(i, j int) bool { return journalLess(data.Rows[i], data.Rows[j], printing) })
 		if t, err := register.TotalMoney(f, filter.Keep); err == nil {
-			data.Totals = totalsView{money(t.PaidPaise), money(t.ReceivedPaise), money(t.NetPaise)}
+			data.Totals.Paid, data.Totals.Received = money(t.PaidPaise), money(t.ReceivedPaise)
+		}
+		if total, err := register.TotalBills(f, func(b register.FinanceBill) bool {
+			return filter.Every || (!b.OccurredAt.Before(filter.Start) && !b.OccurredAt.After(filter.End))
+		}); err == nil {
+			data.Totals.Billed = money(total)
 		}
 	})
 
@@ -223,17 +266,39 @@ func (s *Server) financeDashboard(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if t, err := register.TotalMoney(f, nil); err == nil {
-			data.Totals = totalsView{money(t.PaidPaise), money(t.ReceivedPaise), money(t.NetPaise)}
+			data.Totals.Paid, data.Totals.Received = money(t.PaidPaise), money(t.ReceivedPaise)
 		}
-		rows := register.SortedMovements(f.Movements)
-		if len(rows) > 10 {
-			rows = rows[:10]
+		if total, err := register.TotalBills(f, nil); err == nil {
+			data.Totals.Billed = money(total)
 		}
-		for _, m := range rows {
+		for _, m := range f.Movements {
 			data.Recent = append(data.Recent, viewMovement(reg, f, m))
+		}
+		for _, b := range f.Bills {
+			data.Recent = append(data.Recent, viewBill(reg, f, b))
+		}
+		sort.SliceStable(data.Recent, func(i, j int) bool { return journalLess(data.Recent[i], data.Recent[j], false) })
+		if len(data.Recent) > 10 {
+			data.Recent = data.Recent[:10]
 		}
 	})
 	s.financePage(w, r, "Financial ledger", "finance-home.html", data)
+}
+
+func journalLess(a, b movementView, printing bool) bool {
+	if !a.OccurredAt.Equal(b.OccurredAt) {
+		if printing {
+			return a.OccurredAt.Before(b.OccurredAt)
+		}
+		return a.OccurredAt.After(b.OccurredAt)
+	}
+	rank := func(v movementView) int {
+		if v.Bill { return 0 }
+		if v.Kind == "Paid" { return 1 }
+		return 2
+	}
+	if rank(a) != rank(b) { return rank(a) < rank(b) }
+	return a.ID < b.ID
 }
 
 type auditRow struct {
@@ -310,6 +375,16 @@ func auditWording(kind string) string {
 		return "Money corrected"
 	case "movement_voided":
 		return "Money voided"
+	case "bill_created":
+		return "Bill recorded"
+	case "bill_edited":
+		return "Bill corrected"
+	case "bill_voided":
+		return "Bill voided"
+	case "supplier_challan_renamed":
+		return "Supplier challan corrected"
+	case "supplier_challan_deleted":
+		return "Unused supplier challan removed"
 	case "supplier_return_created":
 		return "Supplier return recorded"
 	case "supplier_return_edited":

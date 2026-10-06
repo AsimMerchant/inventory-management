@@ -7,6 +7,22 @@ import (
 	"storeregister/internal/register"
 )
 
+func (s *Server) apiSupplierChallans(w http.ResponseWriter, r *http.Request) {
+	partyID := r.URL.Query().Get("partyId")
+	out := []valueSuggestion{}
+	s.st.Read(func(reg *register.Register) {
+		rows := register.MatchSupplierChallans(reg, partyID, r.URL.Query().Get("q"))
+		if len(rows) > maxSuggestions {
+			rows = rows[:maxSuggestions]
+		}
+		for _, row := range rows {
+			out = append(out, valueSuggestion{ID: row.ID, Value: row.Number, Label: row.Number})
+		}
+	})
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(out)
+}
+
 // The supplier and other-party list is one list for the whole program: the
 // delivery desk picks a supplier off it, and the money screens offer the same
 // names. It lives in the open register because the desk is never logged in.

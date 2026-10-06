@@ -187,6 +187,14 @@ func (s *Server) renderOrderForm(w http.ResponseWriter, r *http.Request, d order
 // financeOrderNew is the order form and its save. A refused save redraws the
 // same page from the same draft, so nothing is ever typed twice.
 func (s *Server) financeOrderNew(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		http.Redirect(w, r, "/finance/movements/new", http.StatusSeeOther)
+		return
+	}
+	if r.Method == http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
 	if r.Method != http.MethodPost {
 		d := s.readOrderDraft(r)
 		if added := r.URL.Query().Get("added"); added != "" {

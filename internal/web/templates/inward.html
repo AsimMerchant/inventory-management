@@ -52,9 +52,12 @@
       {{template "value-picker.html" .Party}}
       <div class="hint">Pick the name if it is on the list. Leave blank if you don't know.</div>
     </div>
-    <div class="field">
+    <div class="field" data-supplier-challan>
       <span class="lab">Challan no.</span>
-      <input class="inp" type="text" name="challanNo" autocomplete="off" value="{{.ChallanNo}}">
+      <input type="hidden" data-challan-id>
+      <input class="inp" type="text" name="challanNo" autocomplete="off" value="{{.ChallanNo}}" data-challan-text>
+      <div class="sug" hidden data-challan-results></div>
+      <noscript><select class="inp" name="supplierChallanIdChoice"><option value="">Pick a challan for this supplier, or type the number.</option>{{range .Challans}}<option value="{{.ID}}">{{.Value}}</option>{{end}}</select></noscript>
     </div>
   </div>
 
@@ -73,4 +76,5 @@
 
 <script src="/static/picker.js"></script>
 <script src="/static/value-picker.js"></script>
+<script src="/static/supplier-challan.js"></script>
 <script src="/static/inward.js"></script>

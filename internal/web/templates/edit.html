@@ -78,9 +78,12 @@
   </div>
   <div class="row2">
     {{template "value-picker.html" .Party}}
-    <div class="field">
+    <div class="field" data-supplier-challan>
       <span class="lab">Challan no.</span>
-      <input class="inp" type="text" name="challanNo" autocomplete="off" value="{{.ChallanNo}}">
+      <input type="hidden" data-challan-id>
+      <input class="inp" type="text" name="challanNo" autocomplete="off" value="{{.ChallanNo}}" data-challan-text>
+      <div class="sug" hidden data-challan-results></div>
+      <noscript><select class="inp" name="supplierChallanIdChoice"><option value="">Pick a challan for this supplier, or type the number.</option>{{range .Challans}}<option value="{{.ID}}">{{.Value}}</option>{{end}}</select></noscript>
     </div>
   </div>
   <div class="field">
@@ -185,6 +188,7 @@
     <a class="btn ghost" href="{{.From}}">Cancel</a>
   </div>
 </form>
+{{if eq .Kind "inward"}}<script src="/static/supplier-challan.js"></script>{{end}}
 
 {{range .Changes}}<div class="sm">{{.}}</div>{{end}}
 

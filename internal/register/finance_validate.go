@@ -71,6 +71,9 @@ func ValidateFinance(f *FinanceData) error {
 	if err := validateOrders(f, seenIDs); err != nil {
 		return err
 	}
+	if err := validateBills(f, seenIDs); err != nil {
+		return err
+	}
 	if f.SupplierReturns == nil {
 		return fmt.Errorf("supplier returns must be a list")
 	}
@@ -81,6 +84,65 @@ func ValidateFinance(f *FinanceData) error {
 		return err
 	}
 	return validateMovements(f, seenIDs)
+}
+
+func validateBills(f *FinanceData, accountIDs map[string]bool) error {
+	ids := make(map[string]bool)
+	for _, bill := range f.Bills {
+		if !strings.HasPrefix(bill.ID, "BIL-") || ids[bill.ID] {
+			return fmt.Errorf("financial bill id is blank, invalid or duplicated")
+		}
+		ids[bill.ID] = true
+		if bill.AmountPaise <= 0 {
+			return fmt.Errorf("financial bill amount must be positive")
+		}
+		if bill.OccurredAt.IsZero() || bill.RecordedAt.IsZero() {
+			return fmt.Errorf("financial bill time is missing")
+		}
+		if bill.PartyID == "" {
+			return fmt.Errorf("financial bill party is unknown")
+		}
+		purpose, ok := ResolveFinanceValue(f, bill.PurposeID)
+		if !ok || purpose.Kind != FinancePurpose {
+			return fmt.Errorf("financial bill purpose is unknown")
+		}
+		if bill.SupplierChallanID != "" && !strings.HasPrefix(bill.SupplierChallanID, "SCH-") {
+			return fmt.Errorf("financial bill supplier challan is invalid")
+		}
+		if bill.Reference != CleanName(bill.Reference) || bill.Remarks != CleanName(bill.Remarks) {
+			return fmt.Errorf("financial bill text is not cleaned")
+		}
+		if !accountIDs[bill.RecordedByID] {
+			return fmt.Errorf("financial bill recorder is unknown")
+		}
+		if bill.OrderID == "" {
+			if len(bill.Products) != 0 {
+				return fmt.Errorf("financial bill has products with no order")
+			}
+		} else {
+			order, ok := FinanceOrderByID(f, bill.OrderID)
+			if !ok {
+				return fmt.Errorf("financial bill order is unknown")
+			}
+			if len(bill.Products) != len(order.Lines) {
+				return fmt.Errorf("financial bill products do not match its order")
+			}
+			for i, product := range bill.Products {
+				line := order.Lines[i]
+				if product.ProductID == "" || CleanName(product.ProductName) == "" || product.ProductName != CleanName(product.ProductName) ||
+					product.ProductID != line.ProductID || product.ProductName != line.ProductNameSnapshot {
+					return fmt.Errorf("financial bill products do not match its order")
+				}
+			}
+		}
+		if bill.Voided != nil && (!accountIDs[bill.Voided.ByAccountID] || CleanName(bill.Voided.Reason) == "") {
+			return fmt.Errorf("financial bill void is incomplete")
+		}
+		if err := validateFinanceChanges(bill.Changes, accountIDs); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // validateSettlements holds what the vault can check on its own. Whether each
@@ -177,6 +239,9 @@ func validateMovements(f *FinanceData, accountIDs map[string]bool) error {
 		// payment mode are values in here.
 		if m.PartyID == "" {
 			return fmt.Errorf("money movement party is unknown")
+		}
+		if m.SupplierChallanID != "" && !strings.HasPrefix(m.SupplierChallanID, "SCH-") {
+			return fmt.Errorf("money movement supplier challan is invalid")
 		}
 		for _, pair := range []struct {
 			id   string
@@ -380,6 +445,10 @@ func (f *FinanceData) NextID(prefix string) string {
 	case "MOV":
 		for _, m := range f.Movements {
 			ids = append(ids, m.ID)
+		}
+	case "BIL":
+		for _, b := range f.Bills {
+			ids = append(ids, b.ID)
 		}
 	case "PTY", "PUR", "PMD":
 		for _, v := range f.ReusableValues {

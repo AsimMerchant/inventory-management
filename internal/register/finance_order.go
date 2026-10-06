@@ -238,6 +238,11 @@ func FinanceValueIsUsed(f *FinanceData, id string) bool {
 			return true
 		}
 	}
+	for _, b := range f.Bills {
+		if b.PurposeID == id {
+			return true
+		}
+	}
 	return false
 }
 
@@ -245,6 +250,18 @@ func FinanceValueIsUsed(f *FinanceData, id string) bool {
 // line. A voided movement does not count: it is a row kept for the record and
 // no longer claims anything, so the line it once named is free again.
 func FinanceLineIsReferenced(f *FinanceData, lineID string) bool {
+	for _, b := range f.Bills {
+		if !b.Live() || b.OrderID == "" {
+			continue
+		}
+		if order, ok := FinanceOrderByID(f, b.OrderID); ok {
+			for _, line := range order.Lines {
+				if line.ID == lineID {
+					return true
+				}
+			}
+		}
+	}
 	for _, m := range f.Movements {
 		if !m.Live() {
 			continue
